@@ -363,7 +363,6 @@ public:
 	{
 		painter.setFont(font());
 		const int start = std::max(0, static_cast<int>(ordered.size()) - maximum);
-		const int visible = static_cast<int>(ordered.size()) - start;
 		const int gap = 2;
 		const int key_width = row_layout ? std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum)
 						 : std::max(1, width - padding * 2);
