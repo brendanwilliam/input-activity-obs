@@ -719,6 +719,9 @@ UniCharCount event_to_unicode(CGEventRef event_ref, UniChar *buffer, UniCharCoun
 #ifdef USE_APPLICATION_SERVICES
 /* This is the callback for our cf_runloop_info.observer. */
 void main_runloop_status_proc(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info) {
+    (void)observer;
+    (void)info;
+
     switch (activity) {
         case kCFRunLoopExit:
             // Acquire a lock on the msg_port and signal that anyone waiting should continue.

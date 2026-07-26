@@ -31,48 +31,48 @@ class QJsonObject;
 
 /* Holds all input data for a computer, local or remote */
 struct input_data {
-    template<class T> using button_map = std::unordered_map<T, bool>;
+	template<class T> using button_map = std::unordered_map<T, bool>;
 
-    std::mutex m_mutex;
+	std::mutex m_mutex;
 
-    std::atomic<uint64_t> last_event = 0;
-    std::atomic<uint64_t> last_event_type = 0;
+	std::atomic<uint64_t> last_event = 0;
+	std::atomic<uint64_t> last_event_type = 0;
 
-    /* A bounded, sequenced event stream for sources that cannot rely on a
+	/* A bounded, sequenced event stream for sources that cannot rely on a
      * frame-rate-limited state snapshot (statistics and motion visualizers). */
-    struct trace_event {
-        uint64_t sequence = 0;
-        uint64_t time_ns = 0;
-        uint16_t type = 0;
-        uint16_t code = 0;
-        int16_t x = 0;
-        int16_t y = 0;
-        wchar_t keychar = 0;
-    };
-    static constexpr size_t trace_capacity = 4096;
-    uint64_t trace_sequence = 0;
-    std::deque<trace_event> trace{};
+	struct trace_event {
+		uint64_t sequence = 0;
+		uint64_t time_ns = 0;
+		uint16_t type = 0;
+		uint16_t code = 0;
+		int16_t x = 0;
+		int16_t y = 0;
+		wchar_t keychar = 0;
+	};
+	static constexpr size_t trace_capacity = 4096;
+	uint64_t trace_sequence = 0;
+	std::deque<trace_event> trace{};
 
-    /* State of all keyboard keys*/
-    button_map<uint16_t> keyboard{};
+	/* State of all keyboard keys*/
+	button_map<uint16_t> keyboard{};
 
-    /* State of all mouse buttons */
-    button_map<uint16_t> mouse{};
+	/* State of all mouse buttons */
+	button_map<uint16_t> mouse{};
 
-    mouse_wheel_event_data last_wheel_event{};
-    /* we use this to reset the scroll wheel after a time out */
-    uint64_t last_wheel_event_time{};
+	mouse_wheel_event_data last_wheel_event{};
+	/* we use this to reset the scroll wheel after a time out */
+	uint64_t last_wheel_event_time{};
 
-    /* used for the mouse motion event */
-    mouse_event_data last_mouse_movement{};
+	/* used for the mouse motion event */
+	mouse_event_data last_mouse_movement{};
 
-    /* Mutex needs to be locked */
-    void copy(const input_data *other);
+	/* Mutex needs to be locked */
+	void copy(const input_data *other);
 
-    void dispatch_uiohook_event(const uiohook_event *event);
+	void dispatch_uiohook_event(const uiohook_event *event);
 
-    /* Mutex needs to be locked by callers when this is local_data::data. */
-    void events_after(uint64_t &cursor, std::vector<trace_event> &out) const;
+	/* Mutex needs to be locked by callers when this is local_data::data. */
+	void events_after(uint64_t &cursor, std::vector<trace_event> &out) const;
 };
 
 namespace local_data {
