@@ -1,0 +1,53 @@
+name: Release macOS plugin
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: macos-26
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify tag is a stable release on main
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          version=${GITHUB_REF_NAME#v}
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(jq -r .version buildspec.json)" = "$version"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-release
+        with:
+          version: ${{ steps.version.outputs.value }}
+          output-directory: release-assets
+      - name: Write release notes
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk '/^## \['"$version"'\]/{found=1; next} found && /^## /{exit} found{print}' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+      - name: Publish stable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: false
+          generate_release_notes: false
+          body_path: release-notes.md
+          files: release-assets/*

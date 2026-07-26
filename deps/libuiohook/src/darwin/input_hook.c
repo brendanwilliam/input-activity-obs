@@ -74,6 +74,9 @@ static uint64_t get_unix_timestamp() {
 
 
 static CGEventRef hook_event_proc(CGEventTapProxy tap_proxy, CGEventType type, CGEventRef event_ref, void *refcon) {
+    (void)tap_proxy;
+    (void)refcon;
+
     bool consumed = false;
     #ifdef USE_EPOCH_TIME
     uint64_t timestamp = get_unix_timestamp();
@@ -225,6 +228,9 @@ static CGEventRef hook_event_proc(CGEventTapProxy tap_proxy, CGEventType type, C
 }
 
 static void hook_status_proc(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info) {
+    (void)observer;
+    (void)info;
+
     #ifdef USE_EPOCH_TIME
 	uint64_t timestamp = get_unix_timestamp();
     #else
