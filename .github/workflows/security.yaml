@@ -1,0 +1,25 @@
+name: Static security
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          queries: security-extended
+      - run: cmake --preset macos-ci
+      - run: cmake --build --preset macos-ci
+      - uses: github/codeql-action/analyze@v3

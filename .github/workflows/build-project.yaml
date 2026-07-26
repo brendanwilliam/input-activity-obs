@@ -2,14 +2,16 @@ name: Build macOS plugin
 
 on:
   push:
+    branches: [develop]
   pull_request:
+    branches: [develop, main]
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Configure
