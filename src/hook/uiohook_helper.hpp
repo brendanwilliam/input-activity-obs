@@ -7,4 +7,4 @@
 namespace uiohook {
 void start();
 void stop();
-}
+} // namespace uiohook

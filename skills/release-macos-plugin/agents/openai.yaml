@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release macOS Plugin"
+  short_description: "Publish a signed notarized macOS release"
+  default_prompt: "Use $release-macos-plugin to prepare a safe macOS plugin release."
