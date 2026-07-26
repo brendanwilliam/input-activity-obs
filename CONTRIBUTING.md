@@ -14,4 +14,4 @@ Run formatting and the macOS CI-equivalent build. Manually exercise affected OBS
 
 Stable versions are SemVer values in `buildspec.json`, changed by the release PR. Use the repository skills for branch/PR/release procedures; do not put signing credentials in the repository.
 
-Repository administrators can reconcile branch rules with `./scripts/configure-github-rulesets.sh`. It configures active rulesets for `develop` and `main` with pull requests, resolved conversations, linear history, formatting/build/CodeQL checks, and blocked force-pushes/deletions; it intentionally requires zero approvals for the sole maintainer.
+Repository administrators can reconcile branch rules with `./scripts/configure-github-rulesets.sh`. It configures active rulesets for `develop` and `main` with pull requests, resolved conversations, linear history, clang-format, gersemi, build, and CodeQL checks, and blocked force-pushes/deletions; it intentionally requires zero approvals for the sole maintainer.
