@@ -24,7 +24,7 @@ runs:
       uses: ./.github/actions/check-changes
       id: checks
       with:
-        checkGlob: "'*.cmake' '*CMakeLists.txt'"
+        checkGlob: "'CMakeLists.txt' 'cmake/*.cmake' 'cmake/**/*.cmake'"
         diffFilter: 'ACM'
 
     - name: Install Dependencies 🛍️

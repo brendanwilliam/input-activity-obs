@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare Pull Request"
+  short_description: "Prepare and hand off a complete pull request"
+  default_prompt: "Use $prepare-pr to validate and prepare this change for review."
