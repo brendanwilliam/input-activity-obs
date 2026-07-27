@@ -394,7 +394,7 @@ UIOHOOK_API long int hook_get_multi_click_time() {
 __attribute__ ((constructor))
 void on_library_load() {
     #ifdef USE_IOKIT
-    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching(kIOHIDSystemClass));
+    io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(kIOHIDSystemClass));
     if (service) {
         kern_return_t kren_ret = IOServiceOpen(service, mach_task_self(), kIOHIDParamConnectType, &connection);
         if (kren_ret != kIOReturnSuccess) {

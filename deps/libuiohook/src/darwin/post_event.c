@@ -36,6 +36,7 @@ UIOHOOK_API uint64_t hook_get_post_text_delay_x11() {
 
 UIOHOOK_API void hook_set_post_text_delay_x11(uint64_t delay) {
     // Not applicable on maOS, so does nothing
+    (void)delay;
 }
 
 static int post_key_event(uiohook_event * const event, CGEventSourceRef src) {
@@ -360,4 +361,6 @@ UIOHOOK_API int hook_post_text(const uint16_t * const text) {
 
     CFRelease(downEvent);
     CFRelease(upEvent);
+
+    return UIOHOOK_SUCCESS;
 }

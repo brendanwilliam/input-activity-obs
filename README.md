@@ -1,5 +1,9 @@
 # Input Activity for OBS
 
+[![Build macOS plugin](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/build-project.yaml/badge.svg)](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/build-project.yaml)
+[![Static security](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/security.yaml/badge.svg)](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/security.yaml)
+[![Release macOS plugin](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/release.yaml/badge.svg)](https://github.com/brendanwilliam/input-activity-obs/actions/workflows/release.yaml)
+
 Input Activity is a macOS-only OBS plugin that visualizes keyboard and mouse activity captured from this computer.
 It provides four independent source types:
 
@@ -10,11 +14,30 @@ It provides four independent source types:
 
 ## Install
 
-Download an unsigned test artifact from CI, unpack it, and place `input-activity.plugin` in:
+### Stable releases
+
+Download the signed `.pkg` from the [GitHub Releases](https://github.com/brendanwilliam/input-activity-obs/releases) page and open it. The installer places the plugin in your user OBS plugins directory. Releases target macOS 26.5 or later and contain a universal Apple Silicon/Intel bundle.
+
+Before opening an asset, compare its SHA-256 value with the accompanying `SHA256SUMS.txt`. The package is signed with the project's Developer ID and notarized by Apple; verify it with:
+
+```sh
+pkgutil --check-signature input-activity.pkg
+spctl --assess --type install --verbose input-activity.pkg
+```
+
+### Release candidates and development builds
+
+Release candidates are marked **Pre-release** on GitHub Releases and are intended for testing. Development CI artifacts are unsigned and short-lived; unpack one and place `input-activity.plugin` in:
 
 `~/Library/Application Support/obs-studio/plugins/`
 
 Restart OBS after installing or replacing the bundle.
+
+| Channel | macOS | Signing | Intended use |
+| --- | --- | --- | --- |
+| Stable | 26.5+ | Developer ID signed and notarized | General use |
+| Release candidate | 26.5+ | Developer ID signed and notarized | Release validation |
+| CI artifact | 26.5+ | Unsigned | Development only |
 
 ## Accessibility permission
 
@@ -35,6 +58,10 @@ cmake --install build_macos --config RelWithDebInfo
 ```
 
 The install step uses the template's default OBS plugin directory. To run formatting checks locally, use the repository formatter workflow tools or `clang-format` and `gersemi` compatible with the CI versions.
+
+## Contributing
+
+Changes flow from `feature/<title>`, `fix/<title>`, or `chore/<title>` branches into `develop`, then from `develop` into `main` for a release. Both integration branches accept pull requests only. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and [AGENTS.md](AGENTS.md) for repository automation guidance.
 
 ## License and attribution
 

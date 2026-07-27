@@ -15,6 +15,11 @@ find_package(libobs REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices REQUIRED)
 
+# Qt's 2025-07 prebuilt package still advertises the obsolete AGL framework. macOS 26.5 no longer ships it.
+if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
+  set_property(TARGET WrapOpenGL::WrapOpenGL PROPERTY INTERFACE_LINK_LIBRARIES OpenGL::GL)
+endif()
+
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
   PRIVATE OBS::libobs Qt6::Core Qt6::Gui Qt6::Widgets uiohook ${APPLICATION_SERVICES_FRAMEWORK}
@@ -25,7 +30,10 @@ target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
 )
-set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON)
+set_target_properties(
+  ${CMAKE_PROJECT_NAME}
+  PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
+)
 
 target_sources(
   ${CMAKE_PROJECT_NAME}

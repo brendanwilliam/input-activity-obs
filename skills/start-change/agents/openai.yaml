@@ -1,0 +1,4 @@
+interface:
+  display_name: "Start Change"
+  short_description: "Start a governed repository change"
+  default_prompt: "Use $start-change to begin a governed change in this repository."

@@ -1,0 +1,68 @@
+name: Build signed macOS release
+description: Build, package, sign, notarize, staple, and checksum a universal plugin release.
+inputs:
+  version:
+    description: SemVer release version without a v prefix
+    required: true
+  output-directory:
+    description: Directory for release assets
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify release version
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$(jq -r .version buildspec.json)" = "${{ inputs.version }}"
+    - name: Import Developer ID certificate
+      shell: bash
+      env:
+        CERTIFICATE_P12: ${{ env.MACOS_CERTIFICATE_P12 }}
+        CERTIFICATE_PASSWORD: ${{ env.MACOS_CERTIFICATE_PASSWORD }}
+        KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
+      run: |
+        set -euo pipefail
+        keychain_path="$RUNNER_TEMP/build.keychain-db"
+        certificate_path="$RUNNER_TEMP/certificate.p12"
+        printf '%s' "$CERTIFICATE_P12" | base64 -D > "$certificate_path"
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+        security set-keychain-settings -lut 21600 "$keychain_path"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+        security import "$certificate_path" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+        security list-keychain -d user -s "$keychain_path"
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain_path"
+    - name: Configure and build
+      shell: bash
+      env:
+        CODESIGN_IDENT: ${{ env.MACOS_SIGNING_IDENTITY }}
+        CODESIGN_TEAM: ${{ env.APPLE_TEAM_ID }}
+      run: |
+        set -euo pipefail
+        cmake --preset macos-ci
+        cmake --build --preset macos-ci
+    - name: Package, sign, notarize, and staple
+      shell: bash
+      env:
+        APPLE_ID: ${{ env.APPLE_ID }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ env.APPLE_APP_SPECIFIC_PASSWORD }}
+        APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+        MACOS_SIGNING_IDENTITY: ${{ env.MACOS_SIGNING_IDENTITY }}
+        OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$OUTPUT_DIRECTORY" stage
+        cmake --install build_macos --config RelWithDebInfo --prefix "$PWD/stage"
+        pkg_path="$PWD/stage/input-activity.pkg"
+        plugin_path="$PWD/build_macos/rundir/RelWithDebInfo/input-activity.plugin"
+        test -f "$pkg_path"
+        test -d "$plugin_path"
+        codesign --verify --deep --strict --verbose=2 "$plugin_path"
+        productsign --sign "$MACOS_SIGNING_IDENTITY" "$pkg_path" "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg"
+        xcrun notarytool submit "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+        xcrun stapler staple "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg"
+        xcrun stapler validate "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg"
+        pkgutil --check-signature "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg"
+        spctl --assess --type install --verbose "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg"
+        ditto -c -k --sequesterRsrc --keepParent "$plugin_path" "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.plugin.zip"
+        shasum -a 256 "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.pkg" "$OUTPUT_DIRECTORY/input-activity-${{ inputs.version }}.plugin.zip" > "$OUTPUT_DIRECTORY/SHA256SUMS.txt"
