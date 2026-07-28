@@ -61,7 +61,7 @@ The install step uses the template's default OBS plugin directory. To run format
 
 ## Contributing
 
-Changes flow from `feature/<title>`, `fix/<title>`, or `chore/<title>` branches into `develop`, then from `develop` into `main` for a release. Both integration branches accept pull requests only. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and [AGENTS.md](AGENTS.md) for repository automation guidance.
+Changes flow from `feature/<title>`, `fix/<title>`, or `chore/<title>` branches into the protected `main` branch through pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and [AGENTS.md](AGENTS.md) for repository automation guidance.
 
 ## License and attribution
 

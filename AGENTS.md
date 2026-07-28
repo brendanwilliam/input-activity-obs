@@ -2,7 +2,7 @@
 
 ## Policy
 
-Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches. Target `develop` for ordinary work; only a release pull request may merge `develop` into `main`. Never push directly to either branch or bypass required checks.
+Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from `main`. Target `main` through a pull request for all changes. Never push directly to `main` or bypass required checks.
 
 Use Conventional Commit subjects such as `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `build:`, and `ci:`. Give non-trivial changes an explanatory body. Treat the pull request as the durable, human-facing change record.
 
@@ -30,7 +30,7 @@ Manually test affected OBS source types and Accessibility behavior when capture 
 
 ## Repository-owned skills
 
-- [`skills/start-change`](skills/start-change/SKILL.md): start a governed branch and synchronize with `develop`.
+- [`skills/start-change`](skills/start-change/SKILL.md): start a governed branch and synchronize with `main`.
 - [`skills/prepare-pr`](skills/prepare-pr/SKILL.md): validate, document, and hand off a pull request.
 - [`skills/release-macos-plugin`](skills/release-macos-plugin/SKILL.md): prepare and validate a signed/notarized release.
 
