@@ -1,11 +1,11 @@
 ---
 name: prepare-pr
-description: Prepare a governed pull request for this repository. Use when validating a feature, fix, chore, or release change; choosing develop or main as its target; writing commit and PR records; or performing the handoff checklist.
+description: Prepare a governed pull request for this repository. Use when validating a feature, fix, chore, or release change; choosing main as its target; writing commit and PR records; or performing the handoff checklist.
 ---
 
 # Prepare Pull Request
 
-1. Target `develop` for ordinary changes. Target `main` only for the release PR from `develop`.
+1. Target `main` for ordinary changes and release-preparation changes.
 2. Confirm a Conventional Commit subject and explanatory body for non-trivial work.
 3. Run the applicable formatter and `cmake --preset macos-ci` plus `cmake --build --preset macos-ci`. Report any intentionally unrun validation and why.
 4. Manually verify affected source types in OBS; for capture changes, verify both granted and missing Accessibility permission behavior.
