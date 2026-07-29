@@ -36,6 +36,7 @@ extern "C" {
 namespace sources {
 namespace {
 constexpr uint64_t minute_ns = 60ULL * 1000 * 1000 * 1000;
+constexpr uint64_t statistics_highlight_duration_ns = 300ULL * 1000 * 1000;
 constexpr uint64_t max_heatmap_gap_ns = 250ULL * 1000 * 1000;
 constexpr qreal default_heatmap_hex_radius = 10.0;
 
@@ -1246,19 +1247,29 @@ public:
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
-		show_key_rate = obs_data_get_bool(settings, "statistics.show_key_rate");
-		show_total_keys = obs_data_get_bool(settings, "statistics.show_total_keys");
-		show_click_rate = obs_data_get_bool(settings, "statistics.show_click_rate");
-		show_total_clicks = obs_data_get_bool(settings, "statistics.show_total_clicks");
-		show_action_rate = obs_data_get_bool(settings, "statistics.show_action_rate");
-		show_total_actions = obs_data_get_bool(settings, "statistics.show_total_actions");
-		title_font_size =
+		show_keys = obs_data_get_bool(settings, "statistics.show_keys");
+		show_clicks = obs_data_get_bool(settings, "statistics.show_clicks");
+		show_actions = obs_data_get_bool(settings, "statistics.show_actions");
+		const int legacy_title_font_size =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.title_font_size")), 8, 200);
+		const auto title_size = [&](const char *name) {
+			return obs_data_has_user_value(settings, name)
+				       ? std::clamp(static_cast<int>(obs_data_get_int(settings, name)), 8, 200)
+				       : legacy_title_font_size;
+		};
+		keys_title_font_size = title_size("statistics.keys_title_font_size");
+		clicks_title_font_size = title_size("statistics.clicks_title_font_size");
+		actions_title_font_size = title_size("statistics.actions_title_font_size");
+		metric_font_size =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.metric_font_size")), 8, 200);
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.element_spacing")), 0, 200);
 		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
 		show_lap_clicks = obs_data_get_bool(settings, "statistics.show_lap_clicks");
 		show_lap_actions = obs_data_get_bool(settings, "statistics.show_lap_actions");
+		theme_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "statistics.theme_color")));
+		pressed_color =
+			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "statistics.pressed_color")));
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
@@ -1268,6 +1279,7 @@ public:
 				keys.push_back(event.time_ns);
 				++total_keys;
 				++lap_keys;
+				keys_highlight_until = os_gettime_ns() + statistics_highlight_duration_ns;
 			}
 		} else if (event.type == EVENT_KEY_RELEASED) {
 			held_keys[event.code] = false;
@@ -1278,6 +1290,7 @@ public:
 				clicks.push_back(event.time_ns);
 				++total_clicks;
 				++lap_clicks;
+				clicks_highlight_until = os_gettime_ns() + statistics_highlight_duration_ns;
 			}
 		} else if (event.type == EVENT_MOUSE_RELEASED) {
 			held_buttons[event.code] = false;
@@ -1303,48 +1316,54 @@ public:
 	}
 	void render(QPainter &painter) override
 	{
+		struct statistic_metric {
+			QString label;
+			QString value;
+			bool increasing;
+		};
 		struct statistic_block {
 			QString title;
-			QString metrics;
+			int title_font_size;
+			std::vector<statistic_metric> metrics;
 		};
 		std::vector<statistic_block> blocks;
+		const uint64_t now = os_gettime_ns();
+		const bool keys_increasing = now < keys_highlight_until;
+		const bool clicks_increasing = now < clicks_highlight_until;
+		const bool actions_increasing = keys_increasing || clicks_increasing;
 
-		QStringList key_metrics;
-		if (show_key_rate)
-			key_metrics.append(QString("KPM: %1").arg(keys.size()));
-		if (show_total_keys)
-			key_metrics.append(QString("Total: %1").arg(total_keys));
-		if (!key_metrics.isEmpty())
-			blocks.push_back({obs_module_text("Statistics.Keys"), key_metrics.join("  ")});
+		if (show_keys)
+			blocks.push_back({obs_module_text("Statistics.Keys"),
+					  keys_title_font_size,
+					  {{"KPM: ", QString::number(keys.size()), keys_increasing},
+					   {"Total: ", QString::number(total_keys), keys_increasing}}});
 
-		QStringList click_metrics;
-		if (show_click_rate)
-			click_metrics.append(QString("CPM: %1").arg(clicks.size()));
-		if (show_total_clicks)
-			click_metrics.append(QString("Total: %1").arg(total_clicks));
-		if (!click_metrics.isEmpty())
-			blocks.push_back({obs_module_text("Statistics.Clicks"), click_metrics.join("  ")});
+		if (show_clicks)
+			blocks.push_back({obs_module_text("Statistics.Clicks"),
+					  clicks_title_font_size,
+					  {{"CPM: ", QString::number(clicks.size()), clicks_increasing},
+					   {"Total: ", QString::number(total_clicks), clicks_increasing}}});
 
-		QStringList action_metrics;
-		if (show_action_rate)
-			action_metrics.append(QString("APM: %1").arg(keys.size() + clicks.size()));
-		if (show_total_actions)
-			action_metrics.append(QString("Total: %1").arg(total_keys + total_clicks));
-		if (!action_metrics.isEmpty())
-			blocks.push_back({obs_module_text("Statistics.Actions"), action_metrics.join("  ")});
+		if (show_actions)
+			blocks.push_back(
+				{obs_module_text("Statistics.Actions"),
+				 actions_title_font_size,
+				 {{"APM: ", QString::number(keys.size() + clicks.size()), actions_increasing},
+				  {"Total: ", QString::number(total_keys + total_clicks), actions_increasing}}});
 
-		QStringList lap_metrics;
+		std::vector<statistic_metric> lap_metrics;
 		if (show_lap_keys)
-			lap_metrics.append(QString("%1: %2").arg(obs_module_text("Statistics.LapKeys")).arg(lap_keys));
+			lap_metrics.push_back({QString("%1: ").arg(obs_module_text("Statistics.LapKeys")),
+					       QString::number(lap_keys), keys_increasing});
 		if (show_lap_clicks)
-			lap_metrics.append(
-				QString("%1: %2").arg(obs_module_text("Statistics.LapClicks")).arg(lap_clicks));
+			lap_metrics.push_back({QString("%1: ").arg(obs_module_text("Statistics.LapClicks")),
+					       QString::number(lap_clicks), clicks_increasing});
 		if (show_lap_actions)
-			lap_metrics.append(QString("%1: %2")
-						   .arg(obs_module_text("Statistics.LapActions"))
-						   .arg(lap_keys + lap_clicks));
-		if (!lap_metrics.isEmpty())
-			blocks.push_back({obs_module_text("Statistics.Lap"), lap_metrics.join("  ")});
+			lap_metrics.push_back({QString("%1: ").arg(obs_module_text("Statistics.LapActions")),
+					       QString::number(lap_keys + lap_clicks), actions_increasing});
+		if (!lap_metrics.empty())
+			blocks.push_back(
+				{obs_module_text("Statistics.Lap"), keys_title_font_size, std::move(lap_metrics)});
 
 		const QRect bounds(padding, padding, width - padding * 2, height - padding * 2);
 		if (blocks.empty()) {
@@ -1354,25 +1373,37 @@ public:
 			return;
 		}
 
-		const QFont title_font = font(title_font_size);
-		const int title_height = QFontMetrics(title_font).lineSpacing();
-		const QFont metric_font = font();
+		const QFont metric_font = font(metric_font_size);
 		const int metric_height = QFontMetrics(metric_font).lineSpacing();
+		int content_height{};
+		for (const statistic_block &block : blocks)
+			content_height += QFontMetrics(font(block.title_font_size)).lineSpacing() + metric_height;
 		const int gap = std::min(element_spacing,
-					 std::max(0, (bounds.height() - static_cast<int>(blocks.size()) *
-										(title_height + metric_height)) /
+					 std::max(0, (bounds.height() - content_height) /
 							     std::max(1, static_cast<int>(blocks.size()) - 1)));
-		const int total_height = static_cast<int>(blocks.size()) * (title_height + metric_height) +
-					 std::max(0, static_cast<int>(blocks.size()) - 1) * gap;
+		const int total_height = content_height + std::max(0, static_cast<int>(blocks.size()) - 1) * gap;
 		int top = bounds.center().y() - total_height / 2;
 		for (const statistic_block &block : blocks) {
+			const QFont title_font = font(block.title_font_size);
+			const int title_height = QFontMetrics(title_font).lineSpacing();
 			painter.setFont(title_font);
 			draw_text(painter, QRect(bounds.left(), top, bounds.width(), title_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, block.title, text_color);
 			top += title_height;
 			painter.setFont(metric_font);
-			draw_text(painter, QRect(bounds.left(), top, bounds.width(), metric_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, block.metrics, text_color);
+			int left = bounds.left();
+			const int separator_width = QFontMetrics(metric_font).horizontalAdvance("  ");
+			for (const statistic_metric &metric : block.metrics) {
+				const int label_width = QFontMetrics(metric_font).horizontalAdvance(metric.label);
+				const int value_width = QFontMetrics(metric_font).horizontalAdvance(metric.value);
+				draw_text(painter, QRect(left, top, label_width, metric_height),
+					  Qt::AlignLeft | Qt::AlignVCenter, metric.label, text_color);
+				left += label_width;
+				draw_text(painter, QRect(left, top, value_width, metric_height),
+					  Qt::AlignLeft | Qt::AlignVCenter, metric.value,
+					  metric.increasing ? pressed_color : theme_color);
+				left += value_width + separator_width;
+			}
 			top += metric_height + gap;
 		}
 	}
@@ -1395,10 +1426,13 @@ private:
 	std::deque<uint64_t> keys, clicks;
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
 	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
-	int title_font_size{28}, element_spacing{};
-	bool show_key_rate{true}, show_total_keys{true}, show_click_rate{true}, show_total_clicks{true};
-	bool show_action_rate{true}, show_total_actions{true};
+	int keys_title_font_size{28}, clicks_title_font_size{28}, actions_title_font_size{28}, metric_font_size{36},
+		element_spacing{};
+	bool show_keys{true}, show_clicks{true}, show_actions{true};
 	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{};
+	QColor theme_color{37, 99, 235};
+	QColor pressed_color{239, 68, 68};
+	uint64_t keys_highlight_until{}, clicks_highlight_until{};
 };
 
 enum class intensity_metric { keyboard, mouse, actions, key, button, velocity };
@@ -2091,6 +2125,15 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
 			obs_data_set_default_int(settings, "statistics.title_font_size", 28);
+			obs_data_set_default_bool(settings, "statistics.show_keys", true);
+			obs_data_set_default_bool(settings, "statistics.show_clicks", true);
+			obs_data_set_default_bool(settings, "statistics.show_actions", true);
+			obs_data_set_default_int(settings, "statistics.keys_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.clicks_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.actions_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.metric_font_size", 36);
+			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
+			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
@@ -2171,6 +2214,15 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
 			obs_data_set_default_int(settings, "statistics.title_font_size", 28);
+			obs_data_set_default_bool(settings, "statistics.show_keys", true);
+			obs_data_set_default_bool(settings, "statistics.show_clicks", true);
+			obs_data_set_default_bool(settings, "statistics.show_actions", true);
+			obs_data_set_default_int(settings, "statistics.keys_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.clicks_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.actions_title_font_size", 28);
+			obs_data_set_default_int(settings, "statistics.metric_font_size", 36);
+			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
+			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
@@ -2345,14 +2397,19 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common)
 	if (include_common)
 		add_common_properties(p);
 	add_mode_title_properties(p);
-	obs_properties_add_bool(p, "statistics.show_key_rate", obs_module_text("Statistics.ShowKeyRate"));
-	obs_properties_add_bool(p, "statistics.show_total_keys", obs_module_text("Statistics.ShowTotalKeys"));
-	obs_properties_add_bool(p, "statistics.show_click_rate", obs_module_text("Statistics.ShowClickRate"));
-	obs_properties_add_bool(p, "statistics.show_total_clicks", obs_module_text("Statistics.ShowTotalClicks"));
-	obs_properties_add_bool(p, "statistics.show_action_rate", obs_module_text("Statistics.ShowActionRate"));
-	obs_properties_add_bool(p, "statistics.show_total_actions", obs_module_text("Statistics.ShowTotalActions"));
-	obs_properties_add_int_slider(p, "statistics.title_font_size", obs_module_text("Statistics.TitleFontSize"), 8,
+	obs_properties_add_bool(p, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
+	obs_properties_add_bool(p, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
+	obs_properties_add_bool(p, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
+	obs_properties_add_int_slider(p, "statistics.keys_title_font_size",
+				      obs_module_text("Statistics.KeysTitleFontSize"), 8, 200, 1);
+	obs_properties_add_int_slider(p, "statistics.clicks_title_font_size",
+				      obs_module_text("Statistics.ClicksTitleFontSize"), 8, 200, 1);
+	obs_properties_add_int_slider(p, "statistics.actions_title_font_size",
+				      obs_module_text("Statistics.ActionsTitleFontSize"), 8, 200, 1);
+	obs_properties_add_int_slider(p, "statistics.metric_font_size", obs_module_text("Statistics.MetricFontSize"), 8,
 				      200, 1);
+	obs_properties_add_color_alpha(p, "statistics.theme_color", obs_module_text("Statistics.ThemeColor"));
+	obs_properties_add_color_alpha(p, "statistics.pressed_color", obs_module_text("Statistics.PressedColor"));
 	obs_properties_add_int_slider(p, "statistics.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
