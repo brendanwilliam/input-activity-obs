@@ -1284,6 +1284,7 @@ public:
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.metric_font_size")), 8, 200);
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.element_spacing")), 0, 200);
+		right_aligned = std::string(obs_data_get_string(settings, "statistics.alignment")) == "right";
 		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
 		show_lap_clicks = obs_data_get_bool(settings, "statistics.show_lap_clicks");
 		show_lap_actions = obs_data_get_bool(settings, "statistics.show_lap_actions");
@@ -1408,11 +1409,20 @@ public:
 			const int title_height = QFontMetrics(title_font).lineSpacing();
 			painter.setFont(title_font);
 			draw_text(painter, QRect(bounds.left(), top, bounds.width(), title_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, block.title, text_color);
+				  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, block.title,
+				  text_color);
 			top += title_height;
 			painter.setFont(metric_font);
-			int left = bounds.left();
 			const int separator_width = QFontMetrics(metric_font).horizontalAdvance("  ");
+			int metrics_width{};
+			for (size_t index = 0; index < block.metrics.size(); ++index) {
+				const statistic_metric &metric = block.metrics[index];
+				metrics_width += QFontMetrics(metric_font).horizontalAdvance(metric.label) +
+						 QFontMetrics(metric_font).horizontalAdvance(metric.value);
+				if (index + 1 < block.metrics.size())
+					metrics_width += separator_width;
+			}
+			int left = right_aligned ? bounds.right() - metrics_width + 1 : bounds.left();
 			for (const statistic_metric &metric : block.metrics) {
 				const int label_width = QFontMetrics(metric_font).horizontalAdvance(metric.label);
 				const int value_width = QFontMetrics(metric_font).horizontalAdvance(metric.value);
@@ -1448,7 +1458,7 @@ private:
 	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
 	int keys_title_font_size{28}, clicks_title_font_size{28}, actions_title_font_size{28}, metric_font_size{36},
 		element_spacing{};
-	bool show_keys{true}, show_clicks{true}, show_actions{true};
+	bool show_keys{true}, show_clicks{true}, show_actions{true}, right_aligned{};
 	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{};
 	QColor theme_color{37, 99, 235};
 	QColor pressed_color{239, 68, 68};
@@ -2195,6 +2205,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
+			obs_data_set_default_string(settings, "statistics.alignment", "left");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_click_rate", true);
@@ -2306,6 +2317,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
+			obs_data_set_default_string(settings, "statistics.alignment", "left");
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_actions", false);
@@ -2491,6 +2503,10 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 	obs_properties_add_bool(p, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
 	obs_properties_add_bool(p, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
 	obs_properties_add_bool(p, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
+	auto *alignment = obs_properties_add_list(p, "statistics.alignment", obs_module_text("Statistics.Alignment"),
+						  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Left"), "left");
+	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Right"), "right");
 	obs_properties_add_int_slider(p, "statistics.keys_title_font_size",
 				      obs_module_text("Statistics.KeysTitleFontSize"), 8, 200, 1);
 	obs_properties_add_int_slider(p, "statistics.clicks_title_font_size",
