@@ -1914,6 +1914,7 @@ public:
 		}
 		mode = selected_mode;
 		configured = true;
+		apply_mode_title_settings(settings);
 		active()->update(settings);
 	}
 	void tick(float seconds) { active()->tick(seconds); }
@@ -1950,6 +1951,20 @@ private:
 			obs_data_set_obj(destination, "activity.font", font);
 			obs_data_release(font);
 		}
+	}
+	void apply_mode_title_settings(obs_data_t *settings) const
+	{
+		const char *prefix = mode == source_mode::mouse_activity     ? "mouse_activity"
+				     : mode == source_mode::input_intensity  ? "input_intensity"
+				     : mode == source_mode::input_statistics ? "statistics"
+									     : nullptr;
+		if (!prefix)
+			return;
+		const std::string setting_prefix = std::string(prefix) + ".";
+		obs_data_set_bool(settings, "activity.show_title",
+				  obs_data_get_bool(settings, (setting_prefix + "show_title").c_str()));
+		obs_data_set_string(settings, "activity.title",
+				    obs_data_get_string(settings, (setting_prefix + "title").c_str()));
 	}
 	activity_source *active() const
 	{
@@ -2047,10 +2062,12 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 				      obs_module_text("Activity.TextShadowOffset"), 0, 20, 1);
 }
 
-void add_mode_title_properties(obs_properties_t *props)
+void add_mode_title_properties(obs_properties_t *props, const char *prefix = nullptr)
 {
-	obs_properties_add_bool(props, "activity.show_title", obs_module_text("Activity.ShowTitle"));
-	obs_properties_add_text(props, "activity.title", obs_module_text("Activity.Title"), OBS_TEXT_DEFAULT);
+	const std::string setting_prefix = prefix ? std::string(prefix) + "." : "activity.";
+	obs_properties_add_bool(props, (setting_prefix + "show_title").c_str(), obs_module_text("Activity.ShowTitle"));
+	obs_properties_add_text(props, (setting_prefix + "title").c_str(), obs_module_text("Activity.Title"),
+				OBS_TEXT_DEFAULT);
 }
 template<typename T> void register_source(const char *id, obs_properties_t *(*properties)(void *))
 {
@@ -2122,6 +2139,12 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "input_activity.mode", "live_keys");
 			obs_data_set_default_string(settings, "activity.title", "Live Keys");
 			obs_data_set_default_bool(settings, "activity.show_title", false);
+			obs_data_set_default_bool(settings, "mouse_activity.show_title", true);
+			obs_data_set_default_string(settings, "mouse_activity.title", "Mouse Activity");
+			obs_data_set_default_bool(settings, "input_intensity.show_title", true);
+			obs_data_set_default_string(settings, "input_intensity.title", "Input Intensity");
+			obs_data_set_default_bool(settings, "statistics.show_title", true);
+			obs_data_set_default_string(settings, "statistics.title", "Input Statistics");
 			obs_data_set_default_int(settings, "live_keys.maximum", 8);
 			obs_data_set_default_int(settings, "live_keys.top_n", 8);
 			obs_data_set_default_int(settings, "live_keys.row_height", 96);
@@ -2365,12 +2388,12 @@ obs_properties_t *keys_properties(void *data)
 	return keys_properties_impl(data, true);
 }
 
-obs_properties_t *mouse_properties_impl(void *data, bool include_common)
+obs_properties_t *mouse_properties_impl(void *data, bool include_common, const char *title_prefix = nullptr)
 {
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p, false);
-	add_mode_title_properties(p);
+	add_mode_title_properties(p, title_prefix);
 	obs_properties_add_text(p, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(p, "mouse_activity.right_label", obs_module_text("MouseActivity.RightLabel"),
@@ -2459,12 +2482,12 @@ obs_properties_t *mouse_properties(void *data)
 	return mouse_properties_impl(data, true);
 }
 
-obs_properties_t *statistics_properties_impl(void *, bool include_common)
+obs_properties_t *statistics_properties_impl(void *, bool include_common, const char *title_prefix = nullptr)
 {
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	add_mode_title_properties(p);
+	add_mode_title_properties(p, title_prefix);
 	obs_properties_add_bool(p, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
 	obs_properties_add_bool(p, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
 	obs_properties_add_bool(p, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
@@ -2545,12 +2568,12 @@ void add_intensity_key_list(obs_property_t *list)
 	}
 }
 
-obs_properties_t *intensity_properties_impl(void *, bool include_common)
+obs_properties_t *intensity_properties_impl(void *, bool include_common, const char *title_prefix = nullptr)
 {
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	add_mode_title_properties(p);
+	add_mode_title_properties(p, title_prefix);
 	obs_properties_add_int_slider(p, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1, 60, 1);
 	obs_properties_add_int_slider(p, "input_intensity.element_spacing", obs_module_text("Activity.ElementSpacing"),
 				      0, 200, 1);
@@ -2630,13 +2653,13 @@ obs_properties_t *unified_properties(void *data)
 						    OBS_GROUP_NORMAL, keys_properties_impl(data, false));
 	auto *mouse_group = obs_properties_add_group(
 		p, "input_activity.mouse_activity", obs_module_text("MouseActivity"), OBS_GROUP_NORMAL,
-		mouse_properties_impl(unified ? unified->mouse() : nullptr, false));
+		mouse_properties_impl(unified ? unified->mouse() : nullptr, false, "mouse_activity"));
 	auto *intensity_group = obs_properties_add_group(p, "input_activity.input_intensity",
 							 obs_module_text("InputIntensity"), OBS_GROUP_NORMAL,
-							 intensity_properties_impl(data, false));
+							 intensity_properties_impl(data, false, "input_intensity"));
 	auto *statistics_group = obs_properties_add_group(p, "input_activity.input_statistics",
 							  obs_module_text("InputStatistics"), OBS_GROUP_NORMAL,
-							  statistics_properties_impl(data, false));
+							  statistics_properties_impl(data, false, "statistics"));
 	if (unified)
 		unified->set_properties_visibility(p);
 	else {
