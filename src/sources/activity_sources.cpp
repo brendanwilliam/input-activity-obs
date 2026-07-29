@@ -3,12 +3,16 @@
 #include "../hook/uiohook_helper.hpp"
 #include "../input/input_data.hpp"
 #include <QColor>
+#include <QDateTime>
+#include <QDir>
 #include <QFont>
 #include <QFontMetrics>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
+#include <QStandardPaths>
 #include <QStringList>
+#include <QSvgGenerator>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -32,7 +36,7 @@ namespace sources {
 namespace {
 constexpr uint64_t minute_ns = 60ULL * 1000 * 1000 * 1000;
 constexpr uint64_t max_heatmap_gap_ns = 250ULL * 1000 * 1000;
-constexpr qreal heatmap_hex_radius = 10.0;
+constexpr qreal default_heatmap_hex_radius = 10.0;
 
 QColor obs_color(uint32_t color)
 {
@@ -543,10 +547,21 @@ private:
 
 class mouse_activity_source final : public activity_source {
 public:
-	using activity_source::activity_source;
+	mouse_activity_source(obs_source_t *source, obs_data_t *settings) : activity_source(source, settings)
+	{
+		export_hotkey = obs_hotkey_register_source(
+			source, "export_mouse_heatmap", obs_module_text("MouseActivity.ExportHotkey"),
+			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					static_cast<mouse_activity_source *>(data)->export_heatmap();
+			},
+			this);
+	}
+	~mouse_activity_source() override { obs_hotkey_unregister(export_hotkey); }
 	void update(obs_data_t *settings) override
 	{
 		const QRect previous_heatmap = heatmap_rect();
+		const qreal previous_hex_radius = hex_radius;
 		activity_source::update(settings);
 		migrate_legacy_colors(settings, "mouse_activity.colors_with_alpha",
 				      {"mouse_activity.color", "mouse_activity.left_color",
@@ -563,6 +578,12 @@ public:
 				       : coordinates_alignment == "right" ? Qt::AlignRight
 									  : Qt::AlignHCenter;
 		heatmap_gradient = obs_data_get_string(settings, "mouse_activity.heatmap_gradient");
+		hex_radius = std::clamp(static_cast<qreal>(obs_data_get_int(settings, "mouse_activity.hex_size")), 1.0,
+					100.0);
+		heatmap_opacity =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, "mouse_activity.opacity")), 0, 100);
+		export_directory = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.export_directory"));
+		export_svg = std::string(obs_data_get_string(settings, "mouse_activity.export_format")) == "svg";
 		trail_duration_ns = static_cast<uint64_t>(
 			std::max<int64_t>(100, obs_data_get_int(settings, "mouse_activity.trail_ms")) * 1000 * 1000);
 		active_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "mouse_activity.color")));
@@ -586,8 +607,10 @@ public:
 		update_dimensions();
 		show_border = obs_data_get_bool(settings, "mouse_activity.show_border");
 		show_center_mark = obs_data_get_bool(settings, "mouse_activity.show_center_mark");
+		if (hex_radius != previous_hex_radius)
+			heatmap_bounds = {};
 		resize_heatmap();
-		if (display_changed || heatmap_rect() != previous_heatmap)
+		if (display_changed || heatmap_rect() != previous_heatmap || hex_radius != previous_hex_radius)
 			trail.clear();
 	}
 	void clear()
@@ -704,8 +727,8 @@ private:
 	{
 		hex_bins.clear();
 		const QRect rect = heatmap_rect();
-		const qreal hex_width = std::sqrt(3.0) * heatmap_hex_radius;
-		const qreal row_step = 1.5 * heatmap_hex_radius;
+		const qreal hex_width = std::sqrt(3.0) * hex_radius;
+		const qreal row_step = 1.5 * hex_radius;
 		hex_columns = std::max(1, static_cast<int>(std::ceil(rect.width() / hex_width)) + 1);
 		hex_rows = std::max(1, static_cast<int>(std::ceil(rect.height() / row_step)) + 1);
 		hex_bins.reserve(static_cast<size_t>(hex_columns * hex_rows));
@@ -713,16 +736,16 @@ private:
 			const qreal x_offset = row % 2 ? hex_width / 2.0 : 0.0;
 			for (int column = 0; column < hex_columns; ++column)
 				hex_bins.push_back({{rect.left() + hex_width / 2.0 + x_offset + column * hex_width,
-						     rect.top() + heatmap_hex_radius + row * row_step}});
+						     rect.top() + hex_radius + row * row_step}});
 		}
 	}
 	size_t nearest_hex(const QPointF &point) const
 	{
 		const QRect rect = heatmap_rect();
-		const qreal hex_width = std::sqrt(3.0) * heatmap_hex_radius;
-		const qreal row_step = 1.5 * heatmap_hex_radius;
+		const qreal hex_width = std::sqrt(3.0) * hex_radius;
+		const qreal row_step = 1.5 * hex_radius;
 		const int estimated_row =
-			static_cast<int>(std::floor((point.y() - rect.top() - heatmap_hex_radius) / row_step));
+			static_cast<int>(std::floor((point.y() - rect.top() - hex_radius) / row_step));
 		size_t nearest{};
 		qreal nearest_distance = std::numeric_limits<qreal>::max();
 		for (int row = std::max(0, estimated_row - 1); row <= std::min(hex_rows - 1, estimated_row + 1);
@@ -817,18 +840,18 @@ private:
 					 : bin.value <= third_quartile  ? 2
 									: 3;
 			QColor color = heatmap_color(band);
-			color.setAlpha(150);
+			color.setAlpha(150 * heatmap_opacity / 100);
 			painter.setBrush(color);
 			QColor outline = heatmap_color(band);
-			outline.setAlpha(210);
+			outline.setAlpha(210 * heatmap_opacity / 100);
 			QPen pen(outline, 0.75);
 			pen.setJoinStyle(Qt::RoundJoin);
 			painter.setPen(pen);
 			QPolygonF hexagon;
 			for (int corner = 0; corner < 6; ++corner) {
 				const qreal angle = (30.0 + corner * 60.0) * M_PI / 180.0;
-				hexagon << QPointF(bin.center.x() + heatmap_hex_radius * std::cos(angle),
-						   bin.center.y() + heatmap_hex_radius * std::sin(angle));
+				hexagon << QPointF(bin.center.x() + hex_radius * std::cos(angle),
+						   bin.center.y() + hex_radius * std::sin(angle));
 			}
 			painter.drawPolygon(hexagon);
 		}
@@ -846,6 +869,34 @@ private:
 		}
 		const QColor colors[] = {{59, 130, 246}, {6, 182, 212}, {250, 204, 21}, {239, 68, 68}};
 		return colors[band];
+	}
+	void export_heatmap() const
+	{
+		const QRect rect = heatmap_rect();
+		QDir directory(export_directory);
+		if (!directory.exists() && !directory.mkpath("."))
+			return;
+		const QString base_name = QString("input-activity-heatmap-%1")
+						  .arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss-zzz"));
+		const QString path = directory.filePath(base_name + (export_svg ? ".svg" : ".png"));
+		if (export_svg) {
+			QSvgGenerator generator;
+			generator.setFileName(path);
+			generator.setSize(rect.size());
+			generator.setViewBox(QRect(QPoint(), rect.size()));
+			QPainter painter(&generator);
+			painter.setRenderHint(QPainter::Antialiasing);
+			painter.translate(-rect.topLeft());
+			draw_heatmap(painter, rect);
+		} else {
+			QImage image(rect.size(), QImage::Format_RGBA8888);
+			image.fill(Qt::transparent);
+			QPainter painter(&image);
+			painter.setRenderHint(QPainter::Antialiasing);
+			painter.translate(-rect.topLeft());
+			draw_heatmap(painter, rect);
+			image.save(path, "PNG");
+		}
 	}
 	void load_display()
 	{
@@ -934,6 +985,11 @@ private:
 	Qt::Alignment coordinate_alignment{Qt::AlignHCenter};
 	std::string heatmap_gradient{"spectrum"};
 	uint64_t trail_duration_ns{1500ULL * 1000 * 1000};
+	qreal hex_radius{default_heatmap_hex_radius};
+	int heatmap_opacity{100};
+	QString export_directory;
+	bool export_svg{};
+	obs_hotkey_id export_hotkey = OBS_INVALID_HOTKEY_ID;
 	int display{};
 	screen_data monitor{};
 	std::unordered_map<uint16_t, bool> buttons;
@@ -1567,6 +1623,13 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "mouse_activity.show_center_mark", false);
 			obs_data_set_default_int(settings, "mouse_activity.trail_ms", 1500);
 			obs_data_set_default_string(settings, "mouse_activity.heatmap_gradient", "spectrum");
+			obs_data_set_default_int(settings, "mouse_activity.hex_size",
+						 static_cast<int64_t>(default_heatmap_hex_radius));
+			obs_data_set_default_int(settings, "mouse_activity.opacity", 100);
+			obs_data_set_default_string(
+				settings, "mouse_activity.export_directory",
+				QStandardPaths::writableLocation(QStandardPaths::PicturesLocation).toUtf8().constData());
+			obs_data_set_default_string(settings, "mouse_activity.export_format", "png");
 			obs_data_set_default_int(settings, "mouse_activity.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "mouse_activity.left_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
@@ -1663,11 +1726,22 @@ obs_properties_t *mouse_properties(void *data)
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Spectrum"), "spectrum");
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Lime"), "lime");
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Ocean"), "ocean");
+	obs_properties_add_int_slider(p, "mouse_activity.hex_size", obs_module_text("MouseActivity.HexSize"), 2, 100,
+				      1);
+	obs_properties_add_int_slider(p, "mouse_activity.opacity", obs_module_text("MouseActivity.HeatmapOpacity"), 0,
+				      100, 1);
 	auto *map = obs_properties_add_list(p, "mouse_activity.map", obs_module_text("MouseActivity.Map"),
 					    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Movement"), "movement");
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Clicks"), "clicks");
 	obs_properties_add_color_alpha(p, "mouse_activity.color", obs_module_text("Activity.ActiveColor"));
+	obs_properties_add_path(p, "mouse_activity.export_directory", obs_module_text("MouseActivity.ExportDirectory"),
+				OBS_PATH_DIRECTORY, nullptr, nullptr);
+	auto *export_format = obs_properties_add_list(p, "mouse_activity.export_format",
+						      obs_module_text("MouseActivity.ExportFormat"),
+						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.PNG"), "png");
+	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.SVG"), "svg");
 	auto *displays = obs_properties_add_list(p, "mouse_activity.display", obs_module_text("MouseActivity.Display"),
 						 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	unsigned char count{};
