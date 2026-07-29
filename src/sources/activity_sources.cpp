@@ -704,12 +704,12 @@ public:
 		left_label = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.left_label"));
 		right_label = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.right_label"));
 		middle_label = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.middle_label"));
-		show_coordinates = obs_data_get_bool(settings, "mouse_activity.show_coordinates");
 		show_heatmap = obs_data_get_bool(settings, "mouse_activity.show_heatmap");
 		show_live_mouse = obs_data_get_bool(settings, "mouse_activity.show_live_mouse");
 		show_distance = obs_data_get_bool(settings, "mouse_activity.show_distance");
-		const std::string info_alignment = obs_data_get_string(settings, "mouse_activity.info_alignment");
-		information_alignment = info_alignment == "right" ? Qt::AlignRight : Qt::AlignLeft;
+		show_clicks = obs_data_get_bool(settings, "mouse_activity.show_clicks");
+		summary_above_heatmap = std::string(obs_data_get_string(settings, "mouse_activity.summary_position")) !=
+					"bottom";
 		distance_unit = obs_data_get_string(settings, "mouse_activity.distance_unit");
 		if (distance_unit != "metric" && distance_unit != "imperial")
 			distance_unit = "pixels";
@@ -762,15 +762,21 @@ public:
 		clear();
 		trail.clear();
 		distance = 0;
+		total_clicks = 0;
 		last_distance.reset();
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
-		if (event.type == EVENT_MOUSE_PRESSED || event.type == EVENT_MOUSE_RELEASED)
+		bool clicked{};
+		if (event.type == EVENT_MOUSE_PRESSED || event.type == EVENT_MOUSE_RELEASED) {
+			const bool was_pressed = buttons[event.code];
 			buttons[event.code] = event.type == EVENT_MOUSE_PRESSED;
+			clicked = event.type == EVENT_MOUSE_PRESSED && !was_pressed && event.code >= MOUSE_BUTTON1 &&
+				  event.code <= MOUSE_BUTTON3;
+		}
 		const bool moved = event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED;
-		const bool clicked = event.type == EVENT_MOUSE_PRESSED && event.code >= MOUSE_BUTTON1 &&
-				     event.code <= MOUSE_BUTTON3;
+		if (clicked)
+			++total_clicks;
 		if ((!moved && !clicked) || monitor.width == 0)
 			return;
 		if (event.x < monitor.x || event.y < monitor.y || event.x >= monitor.x + monitor.width ||
@@ -825,18 +831,16 @@ public:
 	void render(QPainter &painter) override
 	{
 		const QRect heatmap = heatmap_rect();
-		if (show_distance)
-			draw_distance(painter);
+		painter.setFont(font());
+		if (show_distance || show_clicks)
+			draw_summary(painter, heatmap);
 		if (show_heatmap)
 			draw_heatmap(painter, heatmap);
 		if (show_live_mouse)
 			draw_trail(painter, os_gettime_ns());
 		draw_screen_guides(painter, heatmap);
-		painter.setFont(font());
 		if (show_live_mouse)
 			draw_pointer(painter);
-		if (show_coordinates && coordinates)
-			draw_coordinates(painter, heatmap);
 	}
 
 private:
@@ -861,20 +865,22 @@ private:
 	{
 		if (monitor.width <= 0 || monitor.height <= 0)
 			return;
-		const int content_width = std::max(1, width - padding * 2);
-		const int heatmap_height = static_cast<int>(
-			std::lround(content_width * static_cast<double>(monitor.height) / monitor.width));
-		height = std::max(1, heatmap_height + padding * 2 + information_height() + title_content_offset());
+		height = std::max(1, heatmap_height() + padding * 2 + summary_height() + title_content_offset());
 	}
 	QRect heatmap_rect() const
 	{
-		return {padding, padding + distance_height(), std::max(1, width - padding * 2),
-			std::max(1, height - padding * 2 - information_height())};
+		return {padding, padding + (summary_above_heatmap ? summary_height() : 0),
+			std::max(1, width - padding * 2), heatmap_height()};
+	}
+	int heatmap_height() const
+	{
+		if (monitor.width <= 0 || monitor.height <= 0)
+			return 1;
+		return std::max(1, static_cast<int>(std::lround(std::max(1, width - padding * 2) *
+								static_cast<double>(monitor.height) / monitor.width)));
 	}
 	int information_line_height() const { return QFontMetrics(font()).lineSpacing(); }
-	int distance_height() const { return show_distance ? information_line_height() : 0; }
-	int coordinates_height() const { return show_coordinates ? information_line_height() : 0; }
-	int information_height() const { return distance_height() + coordinates_height(); }
+	int summary_height() const { return show_distance || show_clicks ? information_line_height() * 2 : 0; }
 	void build_hex_lattice()
 	{
 		hex_bins.clear();
@@ -1078,18 +1084,28 @@ private:
 		}
 		painter.restore();
 	}
-	void draw_coordinates(QPainter &painter, const QRect &heatmap) const
+	void draw_summary(QPainter &painter, const QRect &heatmap) const
 	{
-		const QString label = QString("X: %1  Y: %2").arg(coordinates->x()).arg(coordinates->y());
-		const int coordinates_y = heatmap.bottom() + 1;
-		const QRect label_rect(padding, coordinates_y, std::max(1, width - padding * 2), coordinates_height());
-		draw_text(painter, label_rect, information_alignment | Qt::AlignVCenter, label, text_color);
-	}
-	void draw_distance(QPainter &painter) const
-	{
-		const QRect label_rect(padding, padding, std::max(1, width - padding * 2), distance_height());
-		draw_text(painter, label_rect, information_alignment | Qt::AlignVCenter,
-			  QString("Distance: %1").arg(distance_label()), text_color);
+		const int top = summary_above_heatmap ? padding : heatmap.bottom() + 1;
+		const int column_width = std::max(1, (width - padding * 2) / 2);
+		const int line_height = information_line_height();
+		if (show_distance) {
+			const QRect column(padding, top, column_width, summary_height());
+			draw_text(painter, QRect(column.left(), top, column.width(), line_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, obs_module_text("MouseActivity.Distance"),
+				  text_color);
+			draw_text(painter, QRect(column.left(), top + line_height, column.width(), line_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, distance_label(), text_color);
+		}
+		if (show_clicks) {
+			const QRect column(padding + column_width, top, width - padding * 2 - column_width,
+					   summary_height());
+			draw_text(painter, QRect(column.left(), top, column.width(), line_height),
+				  Qt::AlignRight | Qt::AlignVCenter, obs_module_text("MouseActivity.Clicks"),
+				  text_color);
+			draw_text(painter, QRect(column.left(), top + line_height, column.width(), line_height),
+				  Qt::AlignRight | Qt::AlignVCenter, QString::number(total_clicks), text_color);
+		}
 	}
 	QString distance_label() const
 	{
@@ -1168,9 +1184,8 @@ private:
 	std::unordered_map<uint16_t, QColor> button_colors{{MOUSE_BUTTON1, {37, 99, 235}},
 							   {MOUSE_BUTTON2, {239, 68, 68}},
 							   {MOUSE_BUTTON3, {250, 204, 21}}};
-	bool show_coordinates{}, show_heatmap{true}, show_live_mouse{true}, show_distance{}, show_border{},
-		show_center_mark{}, map_clicks{};
-	Qt::Alignment information_alignment{Qt::AlignLeft};
+	bool show_heatmap{true}, show_live_mouse{true}, show_distance{}, show_clicks{}, summary_above_heatmap{true},
+		show_border{}, show_center_mark{}, map_clicks{};
 	std::string heatmap_gradient{"spectrum"};
 	uint64_t trail_duration_ns{1500ULL * 1000 * 1000};
 	qreal hex_radius{default_heatmap_hex_radius};
@@ -1182,6 +1197,7 @@ private:
 	int64_t mouse_dpi{800};
 	QString distance_unit{"pixels"};
 	double distance{};
+	uint64_t total_clicks{};
 	screen_data monitor{};
 	std::unordered_map<uint16_t, bool> buttons;
 	std::deque<std::pair<uint64_t, QPoint>> trail;
@@ -2028,9 +2044,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
 			obs_data_set_default_bool(settings, "mouse_activity.show_heatmap", true);
 			obs_data_set_default_bool(settings, "mouse_activity.show_live_mouse", true);
-			obs_data_set_default_bool(settings, "mouse_activity.show_coordinates", false);
 			obs_data_set_default_bool(settings, "mouse_activity.show_distance", false);
-			obs_data_set_default_string(settings, "mouse_activity.info_alignment", "left");
+			obs_data_set_default_bool(settings, "mouse_activity.show_clicks", false);
+			obs_data_set_default_string(settings, "mouse_activity.summary_position", "top");
 			obs_data_set_default_string(settings, "mouse_activity.distance_unit", "pixels");
 			obs_data_set_default_int(settings, "mouse_activity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "mouse_activity.color", 0xffeb6325);
@@ -2090,11 +2106,11 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "mouse_activity.left_label", "L");
 			obs_data_set_default_string(settings, "mouse_activity.right_label", "R");
 			obs_data_set_default_string(settings, "mouse_activity.middle_label", "M");
-			obs_data_set_default_bool(settings, "mouse_activity.show_coordinates", false);
 			obs_data_set_default_bool(settings, "mouse_activity.show_heatmap", true);
 			obs_data_set_default_bool(settings, "mouse_activity.show_live_mouse", true);
 			obs_data_set_default_bool(settings, "mouse_activity.show_distance", false);
-			obs_data_set_default_string(settings, "mouse_activity.info_alignment", "left");
+			obs_data_set_default_bool(settings, "mouse_activity.show_clicks", false);
+			obs_data_set_default_string(settings, "mouse_activity.summary_position", "top");
 			obs_data_set_default_string(settings, "mouse_activity.distance_unit", "pixels");
 			obs_data_set_default_int(settings, "mouse_activity.mouse_dpi", 800);
 			obs_data_set_default_bool(settings, "mouse_activity.show_border", false);
@@ -2213,15 +2229,14 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common)
 	obs_properties_add_color_alpha(p, "mouse_activity.middle_color", obs_module_text("MouseActivity.MiddleColor"));
 	obs_properties_add_bool(p, "mouse_activity.show_heatmap", obs_module_text("MouseActivity.ShowHeatmap"));
 	obs_properties_add_bool(p, "mouse_activity.show_live_mouse", obs_module_text("MouseActivity.ShowLiveMouse"));
-	obs_properties_add_bool(p, "mouse_activity.show_coordinates", obs_module_text("MouseActivity.ShowCoordinates"));
 	obs_properties_add_bool(p, "mouse_activity.show_distance", obs_module_text("MouseActivity.ShowDistance"));
-	auto *information_alignment = obs_properties_add_list(p, "mouse_activity.info_alignment",
-							      obs_module_text("MouseActivity.InformationAlignment"),
-							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(information_alignment, obs_module_text("MouseActivity.InformationAlignment.Left"),
-				     "left");
-	obs_property_list_add_string(information_alignment, obs_module_text("MouseActivity.InformationAlignment.Right"),
-				     "right");
+	obs_properties_add_bool(p, "mouse_activity.show_clicks", obs_module_text("MouseActivity.ShowClicks"));
+	auto *summary_position = obs_properties_add_list(p, "mouse_activity.summary_position",
+							 obs_module_text("MouseActivity.SummaryPosition"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(summary_position, obs_module_text("MouseActivity.SummaryPosition.Top"), "top");
+	obs_property_list_add_string(summary_position, obs_module_text("MouseActivity.SummaryPosition.Bottom"),
+				     "bottom");
 	auto *distance_unit = obs_properties_add_list(p, "mouse_activity.distance_unit",
 						      obs_module_text("MouseActivity.DistanceUnit"),
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
