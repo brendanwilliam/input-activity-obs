@@ -19,6 +19,8 @@
 #include "input_data.hpp"
 #include <util/platform.h>
 
+#include <utility>
+
 namespace local_data {
 input_data data;
 }
@@ -36,9 +38,9 @@ void input_data::copy(const input_data *other)
 	trace = other->trace;
 }
 
-void input_data::dispatch_uiohook_event(const uiohook_event *event)
+void input_data::dispatch_uiohook_event(const uiohook_event *event, trace_event context)
 {
-	trace_event trace_entry{};
+	trace_event trace_entry = std::move(context);
 	trace_entry.sequence = ++trace_sequence;
 	trace_entry.time_ns = os_gettime_ns();
 	trace_entry.type = event->type;

@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - Repository governance, release automation, and contributor guidance.
+- Input targeting by display, application, or window.
+- Shared Reset and Input Statistics Lap hotkeys, with optional lap metrics.
+- Live Keys most-used mode, count and key font sizing, and configurable element spacing.
+- Configurable metric rows and element spacing for Input Intensity.
+- Configurable element spacing for Input Statistics.
 
 ### Changed
 

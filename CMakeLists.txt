@@ -14,6 +14,7 @@ add_subdirectory(deps/libuiohook)
 find_package(libobs REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices REQUIRED)
+find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
 
 # Qt's 2025-07 prebuilt package still advertises the obsolete AGL framework. macOS 26.5 no longer ships it.
 if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
@@ -22,7 +23,7 @@ endif()
 
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE OBS::libobs Qt6::Core Qt6::Gui Qt6::Widgets uiohook ${APPLICATION_SERVICES_FRAMEWORK}
+  PRIVATE OBS::libobs Qt6::Core Qt6::Gui Qt6::Widgets uiohook ${APPLICATION_SERVICES_FRAMEWORK} ${APPKIT_FRAMEWORK}
 )
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/include)
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
