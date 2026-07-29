@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - Repository governance, release automation, and contributor guidance.
+- Live Keys can rank keys by usage totals and independently size key and total labels.
 
 ### Changed
 

@@ -3,6 +3,7 @@
 #include "../input/input_data.hpp"
 #include <QColor>
 #include <QFont>
+#include <QFontMetrics>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
@@ -140,11 +141,11 @@ public:
 		for (auto *activity : activity_sources)
 			activity->reset_activity();
 	}
-	QFont font() const
+	QFont font(int pixel_size = -1) const
 	{
 		QFont result(font_family);
 		result.setBold(true);
-		result.setPixelSize(font_size);
+		result.setPixelSize(pixel_size > 0 ? pixel_size : font_size);
 		return result;
 	}
 	void draw_text(QPainter &painter, const QRect &rect, int alignment, const QString &text,
@@ -296,6 +297,10 @@ public:
 		migrate_legacy_colors(settings, "live_keys.colors_with_alpha", {"live_keys.color"});
 		maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.maximum")));
 		row_layout = obs_data_get_bool(settings, "live_keys.row_layout");
+		show_most_used = obs_data_get_bool(settings, "live_keys.show_most_used");
+		key_font_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.key_font_size")));
+		total_font_size =
+			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
 		fade_duration_ns =
 			static_cast<uint64_t>(std::max<int64_t>(0, obs_data_get_int(settings, "live_keys.fade_ms"))) *
 			1000 * 1000;
@@ -314,10 +319,11 @@ public:
 	{
 		if (event.type == EVENT_KEY_PRESSED && !held[event.code]) {
 			held[event.code] = true;
+			key_labels[event.code] = key_name(event);
 			ordered.erase(std::remove_if(ordered.begin(), ordered.end(),
 						     [&event](const auto &key) { return key.code == event.code; }),
 				      ordered.end());
-			ordered.push_back({event.code, key_name(event), 0, ++press_counts[event.code]});
+			ordered.push_back({event.code, key_labels[event.code], 0, ++press_counts[event.code]});
 		} else if (event.type == EVENT_KEY_RELEASED) {
 			held[event.code] = false;
 			for (auto &key : ordered) {
@@ -349,34 +355,59 @@ public:
 				held[code] = true;
 				input_data::trace_event event{};
 				event.code = code;
-				ordered.push_back({code, key_name(event), 0, press_counts[code]});
+				key_labels.try_emplace(code, key_name(event));
+				ordered.push_back({code, key_labels[code], 0, press_counts[code]});
 			}
 		}
 	}
 	void reset_activity() override
 	{
 		press_counts.clear();
+		key_labels.clear();
 		for (auto &key : ordered)
 			key.press_count = 0;
 	}
 	void render(QPainter &painter) override
 	{
-		painter.setFont(font());
-		const int start = std::max(0, static_cast<int>(ordered.size()) - maximum);
+		std::vector<active_key> keys = ordered;
+		if (show_most_used) {
+			keys.clear();
+			keys.reserve(press_counts.size());
+			for (const auto &[code, count] : press_counts) {
+				if (count == 0)
+					continue;
+				input_data::trace_event event{};
+				event.code = code;
+				keys.push_back(
+					{code, key_labels.count(code) ? key_labels[code] : key_name(event), 0, count});
+			}
+			std::sort(keys.begin(), keys.end(), [](const active_key &left, const active_key &right) {
+				return left.press_count != right.press_count ? left.press_count > right.press_count
+									     : left.code < right.code;
+			});
+		}
+
+		const int start = show_most_used ? 0 : std::max(0, static_cast<int>(keys.size()) - maximum);
 		const int gap = 2;
 		const int key_width = row_layout ? std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum)
 						 : std::max(1, width - padding * 2);
-		const int key_height = row_layout ? std::max(1, height - padding * 2)
-						  : std::max(1, (height - padding * 2) / maximum - gap);
+		const int cell_height = row_layout
+						? std::max(1, height - padding * 2)
+						: std::max(1, (height - padding * 2 - gap * (maximum - 1)) / maximum);
+		painter.setFont(font(total_font_size));
+		const int total_height = std::min(QFontMetrics(painter.font()).height(), std::max(0, cell_height - 9));
+		const int key_height = std::max(1, cell_height - total_height - gap);
 		const uint64_t now = os_gettime_ns();
-		for (int index = start; index < static_cast<int>(ordered.size()); ++index) {
+		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
 			const int position = index - start;
-			const QRect row(row_layout ? padding + position * (key_width + gap) : padding,
-					row_layout ? padding : padding + position * (key_height + gap), key_width,
-					key_height);
-			const auto &key = ordered[index];
+			const int x = row_layout ? padding + position * (key_width + gap) : padding;
+			const int y = row_layout ? padding : padding + position * (cell_height + gap);
+			const QRect total(x, y, key_width, total_height);
+			const QRect row(x, y + total_height + gap, key_width, key_height);
+			const auto &key = keys[index];
 			const int alpha =
-				key.fade_until > now && fade_duration_ns > 0
+				show_most_used ? 255
+				: key.fade_until > now && fade_duration_ns > 0
 					? static_cast<int>(255 * fade_alpha(static_cast<double>(key.fade_until - now) /
 									    fade_duration_ns))
 					: (key.fade_until ? 0 : 255);
@@ -387,8 +418,10 @@ public:
 			painter.setBrush(fill);
 			painter.setPen(Qt::NoPen);
 			painter.drawRoundedRect(row, 6, 6);
-			draw_text(painter, row, Qt::AlignCenter, QString("%1\n%2").arg(key.label).arg(key.press_count),
-				  text);
+			painter.setFont(font(total_font_size));
+			draw_text(painter, total, Qt::AlignCenter, QString::number(key.press_count), text);
+			painter.setFont(font(key_font_size));
+			draw_text(painter, row, Qt::AlignCenter, key.label, text);
 		}
 	}
 
@@ -419,13 +452,17 @@ private:
 		uint64_t press_count;
 	};
 	int maximum = 8;
+	int key_font_size = 36;
+	int total_font_size = 24;
 	uint64_t fade_duration_ns = 300ULL * 1000 * 1000;
 	fade_curve fade{fade_curve::linear};
 	QColor active_color{37, 99, 235};
 	std::unordered_map<uint16_t, bool> held;
 	std::unordered_map<uint16_t, uint64_t> press_counts;
+	std::unordered_map<uint16_t, QString> key_labels;
 	std::vector<active_key> ordered;
 	bool row_layout{};
+	bool show_most_used{};
 };
 
 class mouse_activity_source final : public activity_source {
@@ -1351,6 +1388,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		if constexpr (std::is_same_v<T, live_keys_source>) {
 			obs_data_set_default_int(settings, "live_keys.maximum", 8);
 			obs_data_set_default_bool(settings, "live_keys.row_layout", false);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
+			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
+			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 300);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "linear");
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
@@ -1400,6 +1440,9 @@ obs_properties_t *keys_properties(void *)
 	add_common_properties(p);
 	obs_properties_add_int(p, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
 	obs_properties_add_bool(p, "live_keys.row_layout", obs_module_text("LiveKeys.RowLayout"));
+	obs_properties_add_bool(p, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
+	obs_properties_add_int(p, "live_keys.key_font_size", obs_module_text("LiveKeys.KeyFontSize"), 8, 256, 1);
+	obs_properties_add_int(p, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8, 256, 1);
 	obs_properties_add_int_slider(p, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000, 10);
 	auto *fade_curve = obs_properties_add_list(p, "live_keys.fade_curve", obs_module_text("LiveKeys.FadeCurve"),
 						   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
