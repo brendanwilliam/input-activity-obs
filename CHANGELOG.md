@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Shared Reset and Lap hotkeys, input target filtering, and lap statistics for Input Activity sources.
 - Repository governance, release automation, and contributor guidance.
 
 ### Changed

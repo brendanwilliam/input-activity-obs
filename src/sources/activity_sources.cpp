@@ -1,5 +1,6 @@
 #include "activity_sources.hpp"
 
+#include "../hook/uiohook_helper.hpp"
 #include "../input/input_data.hpp"
 #include <QColor>
 #include <QFont>
@@ -58,6 +59,20 @@ public:
 			std::lock_guard<std::mutex> lock(activity_sources_mutex);
 			activity_sources.insert(this);
 		}
+		reset_hotkey = obs_hotkey_register_source(
+			source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
+			[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					reset_all_activity();
+			},
+			this);
+		lap_hotkey = obs_hotkey_register_source(
+			source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
+			[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					lap_all_activity();
+			},
+			this);
 		obs_source_update(source, settings);
 	}
 	virtual ~activity_source()
@@ -66,6 +81,8 @@ public:
 			std::lock_guard<std::mutex> lock(activity_sources_mutex);
 			activity_sources.erase(this);
 		}
+		obs_hotkey_unregister(reset_hotkey);
+		obs_hotkey_unregister(lap_hotkey);
 		if (texture) {
 			obs_enter_graphics();
 			gs_texture_destroy(texture);
@@ -88,6 +105,26 @@ public:
 		if (auto *font = obs_data_get_obj(settings, "activity.font")) {
 			font_family = QString::fromUtf8(obs_data_get_string(font, "face"));
 			obs_data_release(font);
+		}
+		const std::string type = obs_data_get_string(settings, "activity.target.type");
+		target = type == "display"       ? target_type::display
+			 : type == "application" ? target_type::application
+			 : type == "window"      ? target_type::window
+						 : target_type::all;
+		target_display = static_cast<uint32_t>(obs_data_get_int(settings, "activity.target.display"));
+		target_application = obs_data_get_string(settings, "activity.target.application");
+		const std::string window = obs_data_get_string(settings, "activity.target.window");
+		const size_t delimiter = window.rfind('#');
+		if (delimiter == std::string::npos) {
+			target_window_application.clear();
+			target_window = 0;
+		} else {
+			target_window_application = window.substr(0, delimiter);
+			try {
+				target_window = std::stoull(window.substr(delimiter + 1));
+			} catch (...) {
+				target_window = 0;
+			}
 		}
 	}
 	virtual void tick(float) { consume_events(); }
@@ -127,18 +164,27 @@ public:
 		keyboard = local_data::data.keyboard;
 		mouse = local_data::data.mouse;
 		for (const auto &event : events)
-			on_event(event);
-		on_snapshot(keyboard, mouse);
+			if (matches(event))
+				on_event(event);
+		if (events.empty() || matches(events.back()))
+			on_snapshot(keyboard, mouse);
 	}
 	virtual void on_event(const input_data::trace_event &) {}
 	virtual void on_snapshot(const input_data::button_map<uint16_t> &, const input_data::button_map<uint16_t> &) {}
 	virtual void reset_activity() {}
+	virtual void lap_activity() {}
 	virtual void render(QPainter &) = 0;
 	static void reset_all_activity()
 	{
 		std::lock_guard<std::mutex> lock(activity_sources_mutex);
 		for (auto *activity : activity_sources)
 			activity->reset_activity();
+	}
+	static void lap_all_activity()
+	{
+		std::lock_guard<std::mutex> lock(activity_sources_mutex);
+		for (auto *activity : activity_sources)
+			activity->lap_activity();
 	}
 	QFont font() const
 	{
@@ -169,8 +215,31 @@ public:
 	uint64_t cursor{};
 
 private:
+	enum class target_type { all, display, application, window };
+	bool matches(const input_data::trace_event &event) const
+	{
+		switch (target) {
+		case target_type::all:
+			return true;
+		case target_type::display:
+			return (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED
+					? event.pointer_display_id
+					: event.focused_display_id) == target_display;
+		case target_type::application:
+			return !target_application.empty() && event.application_id == target_application;
+		case target_type::window:
+			return target_window != 0 && event.application_id == target_window_application &&
+			       event.window_id == target_window;
+		}
+		return false;
+	}
 	static std::mutex activity_sources_mutex;
 	static std::unordered_set<activity_source *> activity_sources;
+	obs_hotkey_id reset_hotkey = OBS_INVALID_HOTKEY_ID, lap_hotkey = OBS_INVALID_HOTKEY_ID;
+	target_type target{target_type::all};
+	uint32_t target_display{};
+	uint64_t target_window{};
+	std::string target_application, target_window_application;
 	QImage image;
 	gs_texture_t *texture{};
 	int texture_width{}, texture_height{};
@@ -834,17 +903,7 @@ private:
 
 class statistics_source final : public activity_source {
 public:
-	statistics_source(obs_source_t *source, obs_data_t *settings) : activity_source(source, settings)
-	{
-		hotkey = obs_hotkey_register_source(
-			source, "reset_input_statistics", obs_module_text("Statistics.ResetHotkey"),
-			[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-				if (pressed)
-					activity_source::reset_all_activity();
-			},
-			this);
-	}
-	~statistics_source() override { obs_hotkey_unregister(hotkey); }
+	using activity_source::activity_source;
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
@@ -859,6 +918,10 @@ public:
 		show_action_rate = obs_data_get_bool(settings, "statistics.show_action_rate");
 		show_total_actions = obs_data_get_bool(settings, "statistics.show_total_actions");
 		show_distance = obs_data_get_bool(settings, "statistics.show_distance");
+		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
+		show_lap_clicks = obs_data_get_bool(settings, "statistics.show_lap_clicks");
+		show_lap_actions = obs_data_get_bool(settings, "statistics.show_lap_actions");
+		show_lap_distance = obs_data_get_bool(settings, "statistics.show_lap_distance");
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
@@ -867,6 +930,7 @@ public:
 				held_keys[event.code] = true;
 				keys.push_back(event.time_ns);
 				++total_keys;
+				++lap_keys;
 			}
 		} else if (event.type == EVENT_KEY_RELEASED) {
 			held_keys[event.code] = false;
@@ -876,13 +940,16 @@ public:
 				held_buttons[event.code] = true;
 				clicks.push_back(event.time_ns);
 				++total_clicks;
+				++lap_clicks;
 			}
 		} else if (event.type == EVENT_MOUSE_RELEASED) {
 			held_buttons[event.code] = false;
 		} else if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
 			if (last_motion)
-				distance += std::hypot(static_cast<double>(event.x - last_motion->x),
-						       static_cast<double>(event.y - last_motion->y));
+				const double increment = std::hypot(static_cast<double>(event.x - last_motion->x),
+								    static_cast<double>(event.y - last_motion->y));
+			distance += increment;
+			lap_distance += increment;
 			last_motion = event;
 		}
 	}
@@ -940,6 +1007,27 @@ public:
 			else
 				lines.append(QString("Distance: %1 px").arg(distance, 0, 'f', 0));
 		}
+		QStringList lap_metrics;
+		if (show_lap_keys)
+			lap_metrics.append(QString("%1: %2").arg(obs_module_text("Statistics.LapKeys")).arg(lap_keys));
+		if (show_lap_clicks)
+			lap_metrics.append(
+				QString("%1: %2").arg(obs_module_text("Statistics.LapClicks")).arg(lap_clicks));
+		if (show_lap_actions)
+			lap_metrics.append(QString("%1: %2")
+						   .arg(obs_module_text("Statistics.LapActions"))
+						   .arg(lap_keys + lap_clicks));
+		if (show_lap_distance) {
+			const double converted = distance_unit == "in"   ? lap_distance / mouse_dpi
+						 : distance_unit == "cm" ? lap_distance / mouse_dpi * 2.54
+									 : lap_distance;
+			lap_metrics.append(QString("%1: %2 %3")
+						   .arg(obs_module_text("Statistics.LapDistance"))
+						   .arg(converted, 0, 'f', distance_unit == "px" ? 0 : 2)
+						   .arg(distance_unit.c_str()));
+		}
+		if (!lap_metrics.isEmpty())
+			lines.append(lap_metrics.join("  "));
 
 		const Qt::Alignment alignment = lines.isEmpty() ? Qt::AlignCenter : Qt::AlignLeft | Qt::AlignVCenter;
 		draw_text(painter, QRect(padding, padding, width - padding * 2, height - padding * 2), alignment,
@@ -952,19 +1040,27 @@ public:
 		distance = 0;
 		total_keys = 0;
 		total_clicks = 0;
+		lap_keys = lap_clicks = 0;
+		lap_distance = 0;
+		last_motion.reset();
+	}
+	void lap_activity() override
+	{
+		lap_keys = lap_clicks = 0;
+		lap_distance = 0;
 		last_motion.reset();
 	}
 
 private:
-	obs_hotkey_id hotkey = OBS_INVALID_HOTKEY_ID;
 	std::deque<uint64_t> keys, clicks;
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
-	double distance{};
-	uint64_t total_keys{}, total_clicks{};
+	double distance{}, lap_distance{};
+	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
 	int64_t mouse_dpi{800};
 	std::string distance_unit{"px"};
 	bool show_key_rate{true}, show_total_keys{true}, show_click_rate{true}, show_total_clicks{true};
 	bool show_action_rate{true}, show_total_actions{true}, show_distance{true};
+	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{}, show_lap_distance{};
 	std::optional<input_data::trace_event> last_motion;
 };
 
@@ -1282,6 +1378,29 @@ bool distance_unit_changed(obs_properties_t *props, obs_property_t *, obs_data_t
 }
 void add_common_properties(obs_properties_t *props, bool allow_height = true)
 {
+	auto *target_type = obs_properties_add_list(props, "activity.target.type", obs_module_text("Activity.Target"),
+						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.All"), "all");
+	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Display"), "display");
+	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Application"), "application");
+	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Window"), "window");
+	auto *target_display = obs_properties_add_list(props, "activity.target.display",
+						       obs_module_text("Activity.Target.Display"), OBS_COMBO_TYPE_LIST,
+						       OBS_COMBO_FORMAT_INT);
+	for (const auto &display : uiohook::target_displays())
+		obs_property_list_add_int(target_display, display.label.c_str(), display.id);
+	auto *target_application = obs_properties_add_list(props, "activity.target.application",
+							   obs_module_text("Activity.Target.Application"),
+							   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const auto &application : uiohook::target_applications())
+		obs_property_list_add_string(target_application, application.label.c_str(), application.id.c_str());
+	auto *target_window = obs_properties_add_list(props, "activity.target.window",
+						      obs_module_text("Activity.Target.Window"), OBS_COMBO_TYPE_LIST,
+						      OBS_COMBO_FORMAT_STRING);
+	for (const auto &window : uiohook::target_windows()) {
+		const std::string id = window.application_id + "#" + std::to_string(window.id);
+		obs_property_list_add_string(target_window, window.label.c_str(), id.c_str());
+	}
 	obs_properties_add_int(props, "activity.width", obs_module_text("Activity.Width"), 64, 3840, 1);
 	if (allow_height)
 		obs_properties_add_int(props, "activity.height", obs_module_text("Activity.Height"), 32, 2160, 1);
@@ -1348,6 +1467,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		obs_data_set_default_bool(settings, "activity.text_shadow", false);
 		obs_data_set_default_int(settings, "activity.text_shadow_color", 0xcc000000);
 		obs_data_set_default_int(settings, "activity.text_shadow_offset", 2);
+		obs_data_set_default_string(settings, "activity.target.type", "all");
 		if constexpr (std::is_same_v<T, live_keys_source>) {
 			obs_data_set_default_int(settings, "live_keys.maximum", 8);
 			obs_data_set_default_bool(settings, "live_keys.row_layout", false);
@@ -1380,6 +1500,10 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
 			obs_data_set_default_bool(settings, "statistics.show_distance", true);
+			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
+			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
+			obs_data_set_default_bool(settings, "statistics.show_lap_actions", false);
+			obs_data_set_default_bool(settings, "statistics.show_lap_distance", false);
 		} else if constexpr (std::is_same_v<T, input_intensity_source>) {
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
@@ -1500,6 +1624,10 @@ obs_properties_t *statistics_properties(void *)
 	obs_properties_add_bool(p, "statistics.show_action_rate", obs_module_text("Statistics.ShowActionRate"));
 	obs_properties_add_bool(p, "statistics.show_total_actions", obs_module_text("Statistics.ShowTotalActions"));
 	obs_properties_add_bool(p, "statistics.show_distance", obs_module_text("Statistics.ShowDistance"));
+	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
+	obs_properties_add_bool(p, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
+	obs_properties_add_bool(p, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
+	obs_properties_add_bool(p, "statistics.show_lap_distance", obs_module_text("Statistics.ShowLapDistance"));
 	return p;
 }
 

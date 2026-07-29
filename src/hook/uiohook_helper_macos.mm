@@ -13,6 +13,7 @@
 #include "../input/input_data.hpp"
 
 #include <ApplicationServices/ApplicationServices.h>
+#import <AppKit/AppKit.h>
 #include <cstdarg>
 #include <cstdlib>
 #include <obs-module.h>
@@ -25,6 +26,48 @@ namespace uiohook {
     uint64_t last_scroll_time = 0;
     bool state = false;
 
+    static input_data::trace_event event_context(const uiohook_event *event)
+    {
+        input_data::trace_event context {};
+        @autoreleasepool {
+            NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+            if (!application)
+                return context;
+            NSString *bundle_identifier = application.bundleIdentifier;
+            if (bundle_identifier)
+                context.application_id = bundle_identifier.UTF8String;
+            const pid_t pid = application.processIdentifier;
+            CFArrayRef windows = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+            if (windows) {
+                for (NSDictionary *window in (__bridge NSArray *) windows) {
+                    if ([window[(id) kCGWindowOwnerPID] intValue] != pid || [window[(id) kCGWindowLayer] intValue] != 0)
+                        continue;
+                    context.window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                    CGRect bounds {};
+                    if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
+                                                               &bounds)) {
+                        CGDirectDisplayID display {};
+                        uint32_t count {};
+                        if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count)
+                            context.focused_display_id = display;
+                    }
+                    break;
+                }
+                CFRelease(windows);
+            }
+            if (event->type == EVENT_MOUSE_MOVED || event->type == EVENT_MOUSE_DRAGGED) {
+                CGDirectDisplayID display {};
+                uint32_t count {};
+                if (CGGetDisplaysWithPoint(CGPointMake(event->data.mouse.x, event->data.mouse.y), 1, &display,
+                                           &count) == kCGErrorSuccess &&
+                    count)
+                    context.pointer_display_id = display;
+            }
+        }
+        return context;
+    }
+
     static void process_event(uiohook_event *event)
     {
         static input_data thread_data;
@@ -33,7 +76,7 @@ namespace uiohook {
         const uint64_t diff = event->time - last_time;
         const bool important = event->type < EVENT_MOUSE_MOVED;
 
-        thread_data.dispatch_uiohook_event(event);
+        thread_data.dispatch_uiohook_event(event, event_context(event));
         if (important || (diff >= refresh_ms && local_data::data.last_event < thread_data.last_event)) {
             last_time = event->time;
             std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
@@ -200,6 +243,60 @@ namespace uiohook {
         pthread_mutex_destroy(&hook_running_mutex);
         pthread_mutex_destroy(&hook_control_mutex);
         pthread_cond_destroy(&hook_control_cond);
+    }
+
+    std::vector<target_display> target_displays()
+    {
+        std::vector<target_display> result;
+        CGDirectDisplayID displays[16] {};
+        uint32_t count {};
+        if (CGGetActiveDisplayList(16, displays, &count) != kCGErrorSuccess)
+            return result;
+        for (uint32_t index = 0; index < count; ++index) {
+            const CGRect bounds = CGDisplayBounds(displays[index]);
+            result.push_back({displays[index], "Display " + std::to_string(index + 1) + " (" +
+                                                   std::to_string(static_cast<int>(bounds.size.width)) + "x" +
+                                                   std::to_string(static_cast<int>(bounds.size.height)) + ")"});
+        }
+        return result;
+    }
+    std::vector<target_application> target_applications()
+    {
+        std::vector<target_application> result;
+        @autoreleasepool {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+                NSString *identifier = application.bundleIdentifier;
+                if (identifier)
+                    result.push_back({identifier.UTF8String, (application.localizedName ?: identifier).UTF8String});
+            }
+        }
+        return result;
+    }
+    std::vector<target_window> target_windows()
+    {
+        std::vector<target_window> result;
+        @autoreleasepool {
+            CFArrayRef windows = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+            if (!windows)
+                return result;
+            for (NSDictionary *window in (__bridge NSArray *) windows) {
+                if ([window[(id) kCGWindowLayer] intValue] != 0)
+                    continue;
+                NSRunningApplication *application = [NSRunningApplication
+                    runningApplicationWithProcessIdentifier:[window[(id) kCGWindowOwnerPID] intValue]];
+                NSString *identifier = application.bundleIdentifier;
+                if (!identifier)
+                    continue;
+                NSString *name = application.localizedName ?: identifier;
+                NSString *window_name = window[(id) kCGWindowName];
+                NSString *label = window_name.length ? [NSString stringWithFormat:@"%@ — %@", name, window_name] : name;
+                result.push_back(
+                    {identifier.UTF8String, [window[(id) kCGWindowNumber] unsignedLongLongValue], label.UTF8String});
+            }
+            CFRelease(windows);
+        }
+        return result;
     }
 
 }  // namespace uiohook
