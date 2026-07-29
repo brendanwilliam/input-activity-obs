@@ -48,6 +48,10 @@ struct input_data {
 		int16_t x = 0;
 		int16_t y = 0;
 		wchar_t keychar = 0;
+		std::string application_id;
+		uint64_t window_id = 0;
+		uint32_t focused_display_id = 0;
+		uint32_t pointer_display_id = 0;
 	};
 	static constexpr size_t trace_capacity = 4096;
 	uint64_t trace_sequence = 0;
@@ -69,7 +73,7 @@ struct input_data {
 	/* Mutex needs to be locked */
 	void copy(const input_data *other);
 
-	void dispatch_uiohook_event(const uiohook_event *event);
+	void dispatch_uiohook_event(const uiohook_event *event, trace_event context);
 
 	/* Mutex needs to be locked by callers when this is local_data::data. */
 	void events_after(uint64_t &cursor, std::vector<trace_event> &out) const;
