@@ -18,11 +18,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Configurable metric rows and element spacing for Input Intensity.
 - Configurable element spacing for Input Statistics.
 - Mouse Activity heatmap controls for hexbin size and opacity, plus hotkey-driven PNG or SVG exports.
+- Titled Input Intensity indicators with per-indicator keyboard scopes for all keys, letters, numbers, or a custom key list.
+- Mouse Activity display toggles for the title, hexbin chart, live mouse trail, distance, and coordinates, with configurable pixel, metric, or imperial distance units.
 
 ### Changed
 
 - Rendering now falls back to Silom Regular when no explicit font is saved; target selectors adapt to the selected input target; Mouse Activity click labels use compact text-measured bounds; and Live Keys uses compact canonical key labels.
 - New sources default to 20px padding, 10px element spacing, and a row-oriented Live Keys layout.
+- Mouse Activity now places distance above the chart and coordinates below it, with shared left/right alignment and automatic metric or imperial distance scaling. Input Statistics no longer presents mouse distance totals.
 - Build, formatting, and security automation now validate pull requests and pushes to `main`.
 
 ## [1.0.0] - 2026-07-26

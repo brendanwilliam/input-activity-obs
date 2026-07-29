@@ -154,12 +154,11 @@ public:
 		painter.setRenderHint(QPainter::Antialiasing);
 		if (show_title && !title.isEmpty()) {
 			painter.setFont(font());
-			const int title_height = QFontMetrics(painter.font()).lineSpacing() + padding / 2;
+			const int title_height = title_content_offset() - padding / 2;
 			draw_text(painter, QRect(padding, padding, std::max(1, width - padding * 2), title_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, title, text_color);
-			painter.translate(0, title_height + padding / 2);
-			painter.setClipRect(0, title_height + padding / 2, width,
-					    std::max(1, height - title_height - padding / 2));
+			painter.translate(0, title_content_offset());
+			painter.setClipRect(0, 0, width, std::max(1, height - title_content_offset()));
 		}
 		render(painter);
 		if (texture && (texture_width != width || texture_height != height)) {
@@ -219,6 +218,10 @@ public:
 		result.setBold(true);
 		result.setPixelSize(pixel_size > 0 ? pixel_size : font_size);
 		return result;
+	}
+	int title_content_offset() const
+	{
+		return show_title && !title.isEmpty() ? QFontMetrics(font()).lineSpacing() + padding : 0;
 	}
 	void draw_text(QPainter &painter, const QRect &rect, int alignment, const QString &text,
 		       const QColor &color) const
@@ -689,13 +692,15 @@ public:
 		right_label = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.right_label"));
 		middle_label = QString::fromUtf8(obs_data_get_string(settings, "mouse_activity.middle_label"));
 		show_coordinates = obs_data_get_bool(settings, "mouse_activity.show_coordinates");
-		coordinates_below = std::string(obs_data_get_string(settings, "mouse_activity.coordinates_position")) ==
-				    "below";
-		const std::string coordinates_alignment =
-			obs_data_get_string(settings, "mouse_activity.coordinates_alignment");
-		coordinate_alignment = coordinates_alignment == "left"    ? Qt::AlignLeft
-				       : coordinates_alignment == "right" ? Qt::AlignRight
-									  : Qt::AlignHCenter;
+		show_heatmap = obs_data_get_bool(settings, "mouse_activity.show_heatmap");
+		show_live_mouse = obs_data_get_bool(settings, "mouse_activity.show_live_mouse");
+		show_distance = obs_data_get_bool(settings, "mouse_activity.show_distance");
+		const std::string info_alignment = obs_data_get_string(settings, "mouse_activity.info_alignment");
+		information_alignment = info_alignment == "right" ? Qt::AlignRight : Qt::AlignLeft;
+		distance_unit = obs_data_get_string(settings, "mouse_activity.distance_unit");
+		if (distance_unit != "metric" && distance_unit != "imperial")
+			distance_unit = "pixels";
+		mouse_dpi = std::max<int64_t>(1, obs_data_get_int(settings, "mouse_activity.mouse_dpi"));
 		heatmap_gradient = obs_data_get_string(settings, "mouse_activity.heatmap_gradient");
 		hex_radius = std::clamp(static_cast<qreal>(obs_data_get_int(settings, "mouse_activity.hex_size")), 1.0,
 					100.0);
@@ -743,6 +748,8 @@ public:
 	{
 		clear();
 		trail.clear();
+		distance = 0;
+		last_distance.reset();
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
@@ -757,6 +764,7 @@ public:
 		    event.y >= monitor.y + monitor.height) {
 			coordinates.reset();
 			last_motion.reset();
+			last_distance.reset();
 			return;
 		}
 		const int relative_x = event.x - monitor.x;
@@ -766,6 +774,10 @@ public:
 		const QPoint point(heatmap.x() + relative_x * heatmap.width() / monitor.width,
 				   heatmap.y() + relative_y * heatmap.height() / monitor.height);
 		if (moved) {
+			if (last_distance)
+				distance +=
+					std::hypot(relative_x - last_distance->x(), relative_y - last_distance->y());
+			last_distance = QPoint(relative_x, relative_y);
 			const qreal maximum_trail_jump = std::hypot(heatmap.width(), heatmap.height()) / 3.0;
 			if (!trail.empty() && std::hypot(point.x() - trail.back().second.x(),
 							 point.y() - trail.back().second.y()) > maximum_trail_jump)
@@ -800,11 +812,16 @@ public:
 	void render(QPainter &painter) override
 	{
 		const QRect heatmap = heatmap_rect();
-		draw_heatmap(painter, heatmap);
-		draw_trail(painter, os_gettime_ns());
+		if (show_distance)
+			draw_distance(painter);
+		if (show_heatmap)
+			draw_heatmap(painter, heatmap);
+		if (show_live_mouse)
+			draw_trail(painter, os_gettime_ns());
 		draw_screen_guides(painter, heatmap);
 		painter.setFont(font());
-		draw_pointer(painter);
+		if (show_live_mouse)
+			draw_pointer(painter);
 		if (show_coordinates && coordinates)
 			draw_coordinates(painter, heatmap);
 	}
@@ -834,15 +851,17 @@ private:
 		const int content_width = std::max(1, width - padding * 2);
 		const int heatmap_height = static_cast<int>(
 			std::lround(content_width * static_cast<double>(monitor.height) / monitor.width));
-		height = std::max(1, heatmap_height + padding * 2 + coordinates_height());
+		height = std::max(1, heatmap_height + padding * 2 + information_height() + title_content_offset());
 	}
 	QRect heatmap_rect() const
 	{
-		const int coordinates_offset = show_coordinates && !coordinates_below ? coordinates_height() : 0;
-		return {padding, padding + coordinates_offset, std::max(1, width - padding * 2),
-			std::max(1, height - padding * 2 - coordinates_height())};
+		return {padding, padding + distance_height(), std::max(1, width - padding * 2),
+			std::max(1, height - padding * 2 - information_height())};
 	}
-	int coordinates_height() const { return show_coordinates ? font_size : 0; }
+	int information_line_height() const { return QFontMetrics(font()).lineSpacing(); }
+	int distance_height() const { return show_distance ? information_line_height() : 0; }
+	int coordinates_height() const { return show_coordinates ? information_line_height() : 0; }
+	int information_height() const { return distance_height() + coordinates_height(); }
 	void build_hex_lattice()
 	{
 		hex_bins.clear();
@@ -1049,9 +1068,45 @@ private:
 	void draw_coordinates(QPainter &painter, const QRect &heatmap) const
 	{
 		const QString label = QString("X: %1  Y: %2").arg(coordinates->x()).arg(coordinates->y());
-		const int coordinates_y = coordinates_below ? heatmap.bottom() + 1 : padding;
+		const int coordinates_y = heatmap.bottom() + 1;
 		const QRect label_rect(padding, coordinates_y, std::max(1, width - padding * 2), coordinates_height());
-		draw_text(painter, label_rect, coordinate_alignment | Qt::AlignVCenter, label, text_color);
+		draw_text(painter, label_rect, information_alignment | Qt::AlignVCenter, label, text_color);
+	}
+	void draw_distance(QPainter &painter) const
+	{
+		const QRect label_rect(padding, padding, std::max(1, width - padding * 2), distance_height());
+		draw_text(painter, label_rect, information_alignment | Qt::AlignVCenter,
+			  QString("Distance: %1").arg(distance_label()), text_color);
+	}
+	QString distance_label() const
+	{
+		if (distance_unit == "metric") {
+			double value = distance / mouse_dpi * 2.54;
+			QString unit = "cm";
+			if (value > 10000.0) {
+				value /= 100.0;
+				unit = "m";
+				if (value > 10000.0) {
+					value /= 1000.0;
+					unit = "km";
+				}
+			}
+			return QString("%1 %2").arg(value, 0, 'f', value < 10.0 ? 2 : 1).arg(unit);
+		}
+		if (distance_unit == "imperial") {
+			double value = distance / mouse_dpi;
+			QString unit = "in";
+			if (value > 1200.0) {
+				value /= 12.0;
+				unit = "ft";
+				if (value > 5280.0) {
+					value /= 5280.0;
+					unit = "mi";
+				}
+			}
+			return QString("%1 %2").arg(value, 0, 'f', value < 10.0 ? 2 : 1).arg(unit);
+		}
+		return QString("%1 px").arg(distance, 0, 'f', 0);
 	}
 	void draw_pointer(QPainter &painter) const
 	{
@@ -1100,8 +1155,9 @@ private:
 	std::unordered_map<uint16_t, QColor> button_colors{{MOUSE_BUTTON1, {37, 99, 235}},
 							   {MOUSE_BUTTON2, {239, 68, 68}},
 							   {MOUSE_BUTTON3, {250, 204, 21}}};
-	bool show_coordinates{}, coordinates_below{}, show_border{}, show_center_mark{}, map_clicks{};
-	Qt::Alignment coordinate_alignment{Qt::AlignHCenter};
+	bool show_coordinates{}, show_heatmap{true}, show_live_mouse{true}, show_distance{}, show_border{},
+		show_center_mark{}, map_clicks{};
+	Qt::Alignment information_alignment{Qt::AlignLeft};
 	std::string heatmap_gradient{"spectrum"};
 	uint64_t trail_duration_ns{1500ULL * 1000 * 1000};
 	qreal hex_radius{default_heatmap_hex_radius};
@@ -1110,10 +1166,14 @@ private:
 	bool export_svg{};
 	obs_hotkey_id export_hotkey = OBS_INVALID_HOTKEY_ID;
 	int display{};
+	int64_t mouse_dpi{800};
+	QString distance_unit{"pixels"};
+	double distance{};
 	screen_data monitor{};
 	std::unordered_map<uint16_t, bool> buttons;
 	std::deque<std::pair<uint64_t, QPoint>> trail;
 	std::optional<QPoint> coordinates;
+	std::optional<QPoint> last_distance;
 	std::optional<motion_point> last_motion;
 	QRect heatmap_bounds;
 	int hex_columns{}, hex_rows{};
@@ -1130,23 +1190,17 @@ public:
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
-		mouse_dpi = std::max<int64_t>(1, obs_data_get_int(settings, "statistics.mouse_dpi"));
-		distance_unit = obs_data_get_string(settings, "statistics.distance_unit");
-		if (distance_unit != "in" && distance_unit != "cm")
-			distance_unit = "px";
 		show_key_rate = obs_data_get_bool(settings, "statistics.show_key_rate");
 		show_total_keys = obs_data_get_bool(settings, "statistics.show_total_keys");
 		show_click_rate = obs_data_get_bool(settings, "statistics.show_click_rate");
 		show_total_clicks = obs_data_get_bool(settings, "statistics.show_total_clicks");
 		show_action_rate = obs_data_get_bool(settings, "statistics.show_action_rate");
 		show_total_actions = obs_data_get_bool(settings, "statistics.show_total_actions");
-		show_distance = obs_data_get_bool(settings, "statistics.show_distance");
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.element_spacing")), 0, 200);
 		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
 		show_lap_clicks = obs_data_get_bool(settings, "statistics.show_lap_clicks");
 		show_lap_actions = obs_data_get_bool(settings, "statistics.show_lap_actions");
-		show_lap_distance = obs_data_get_bool(settings, "statistics.show_lap_distance");
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
@@ -1169,14 +1223,6 @@ public:
 			}
 		} else if (event.type == EVENT_MOUSE_RELEASED) {
 			held_buttons[event.code] = false;
-		} else if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
-			if (last_motion) {
-				const double increment = std::hypot(static_cast<double>(event.x - last_motion->x),
-								    static_cast<double>(event.y - last_motion->y));
-				distance += increment;
-				lap_distance += increment;
-			}
-			last_motion = event;
 		}
 	}
 	void on_snapshot(const input_data::button_map<uint16_t> &keyboard,
@@ -1225,15 +1271,6 @@ public:
 		if (!action_metrics.isEmpty())
 			lines.append(action_metrics.join("  "));
 
-		if (show_distance) {
-			if (distance_unit == "in")
-				lines.append(QString("Distance: %1 in").arg(distance / mouse_dpi, 0, 'f', 2));
-			else if (distance_unit == "cm")
-				lines.append(QString("Distance: %1 cm").arg(distance / mouse_dpi * 2.54, 0, 'f', 2));
-			else
-				lines.append(QString("Distance: %1 px").arg(distance, 0, 'f', 0));
-		}
-
 		QStringList lap_metrics;
 		if (show_lap_keys)
 			lap_metrics.append(QString("%1: %2").arg(obs_module_text("Statistics.LapKeys")).arg(lap_keys));
@@ -1244,16 +1281,6 @@ public:
 			lap_metrics.append(QString("%1: %2")
 						   .arg(obs_module_text("Statistics.LapActions"))
 						   .arg(lap_keys + lap_clicks));
-		if (show_lap_distance) {
-			const double converted = distance_unit == "in"   ? lap_distance / mouse_dpi
-						 : distance_unit == "cm" ? lap_distance / mouse_dpi * 2.54
-									 : lap_distance;
-			const char *unit = distance_unit == "in" ? "in" : distance_unit == "cm" ? "cm" : "px";
-			lap_metrics.append(QString("%1: %2 %3")
-						   .arg(obs_module_text("Statistics.LapDistance"))
-						   .arg(converted, 0, 'f', distance_unit == "px" ? 0 : 2)
-						   .arg(unit));
-		}
 		if (!lap_metrics.isEmpty())
 			lines.append(lap_metrics.join("  "));
 
@@ -1282,47 +1309,44 @@ public:
 	{
 		keys.clear();
 		clicks.clear();
-		distance = 0;
 		total_keys = 0;
 		total_clicks = 0;
 		lap_keys = 0;
 		lap_clicks = 0;
-		lap_distance = 0;
-		last_motion.reset();
 	}
 	void lap_activity() override
 	{
 		lap_keys = 0;
 		lap_clicks = 0;
-		lap_distance = 0;
-		last_motion.reset();
 	}
 
 private:
 	std::deque<uint64_t> keys, clicks;
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
-	double distance{}, lap_distance{};
 	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
-	int64_t mouse_dpi{800};
 	int element_spacing{};
-	std::string distance_unit{"px"};
 	bool show_key_rate{true}, show_total_keys{true}, show_click_rate{true}, show_total_clicks{true};
-	bool show_action_rate{true}, show_total_actions{true}, show_distance{true};
-	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{}, show_lap_distance{};
-	std::optional<input_data::trace_event> last_motion;
+	bool show_action_rate{true}, show_total_actions{true};
+	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{};
 };
 
 enum class intensity_metric { keyboard, mouse, actions, key, button, velocity };
+enum class intensity_key_scope { all, letters, numbers, list };
 
 struct intensity_row {
 	bool enabled{};
 	intensity_metric metric{intensity_metric::actions};
 	uint16_t key{};
 	uint16_t button{MOUSE_BUTTON1};
+	intensity_key_scope key_scope{intensity_key_scope::all};
+	QString title;
+	QString key_list;
 
 	bool operator==(const intensity_row &other) const
 	{
-		return enabled == other.enabled && metric == other.metric && key == other.key && button == other.button;
+		return enabled == other.enabled && metric == other.metric && key == other.key &&
+		       button == other.button && key_scope == other.key_scope && title == other.title &&
+		       key_list == other.key_list;
 	}
 	bool operator!=(const intensity_row &other) const { return !(*this == other); }
 };
@@ -1367,6 +1391,15 @@ public:
 				static_cast<uint16_t>(obs_data_get_int(settings, (prefix + "key").c_str()));
 			new_rows[index].button =
 				static_cast<uint16_t>(obs_data_get_int(settings, (prefix + "button").c_str()));
+			const std::string scope = obs_data_get_string(settings, (prefix + "key_scope").c_str());
+			new_rows[index].key_scope = scope == "letters"   ? intensity_key_scope::letters
+						    : scope == "numbers" ? intensity_key_scope::numbers
+						    : scope == "list"    ? intensity_key_scope::list
+									 : intensity_key_scope::all;
+			new_rows[index].title =
+				QString::fromUtf8(obs_data_get_string(settings, (prefix + "title").c_str()));
+			new_rows[index].key_list =
+				QString::fromUtf8(obs_data_get_string(settings, (prefix + "key_list").c_str()));
 		}
 		const QColor new_color =
 			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "input_intensity.color")));
@@ -1385,11 +1418,13 @@ public:
 		if (event.type == EVENT_KEY_PRESSED) {
 			if (!held_keys[event.code]) {
 				held_keys[event.code] = true;
-				for_each_matching([&](const intensity_row &row) {
-					return row.metric == intensity_metric::keyboard ||
-					       row.metric == intensity_metric::actions ||
-					       (row.metric == intensity_metric::key && row.key == event.code);
-				});
+				for_each_matching(
+					[&](const intensity_row &row) {
+						return row.metric == intensity_metric::keyboard ||
+						       row.metric == intensity_metric::actions ||
+						       (row.metric == intensity_metric::key && row.key == event.code);
+					},
+					1.0, event.code);
 			}
 		} else if (event.type == EVENT_KEY_RELEASED) {
 			held_keys[event.code] = false;
@@ -1479,11 +1514,43 @@ public:
 	}
 
 private:
-	template<typename Predicate> void for_each_matching(Predicate predicate, double amount = 1.0)
+	template<typename Predicate>
+	void for_each_matching(Predicate predicate, double amount = 1.0, uint16_t key_code = 0)
 	{
 		for (size_t index = 0; index < rows.size(); ++index)
-			if (rows[index].enabled && predicate(rows[index]))
+			if (rows[index].enabled && predicate(rows[index]) &&
+			    (key_code == 0 || rows[index].metric != intensity_metric::keyboard ||
+			     matches_key_scope(rows[index], key_code)))
 				current[index] += amount;
+	}
+	static bool matches_key_scope(const intensity_row &row, uint16_t key_code)
+	{
+		switch (row.key_scope) {
+		case intensity_key_scope::all:
+			return true;
+		case intensity_key_scope::letters:
+			return key_code >= VC_A && key_code <= VC_Z;
+		case intensity_key_scope::numbers:
+			return key_code >= VC_0 && key_code <= VC_9;
+		case intensity_key_scope::list:
+			return key_list_contains(row.key_list, key_code);
+		}
+		return false;
+	}
+	static bool key_list_contains(const QString &list, uint16_t key_code)
+	{
+		for (QString token : list.split(',', Qt::SkipEmptyParts)) {
+			token = token.trimmed().toLower();
+			if ((token.size() == 1 && token[0].isLetter() && key_code == VC_A + token[0].unicode() - 'a') ||
+			    (token.size() == 1 && token[0].isDigit() && key_code == VC_0 + token[0].unicode() - '0') ||
+			    (token == "space" && key_code == VC_SPACE) || (token == "return" && key_code == VC_ENTER) ||
+			    (token == "enter" && key_code == VC_ENTER) || (token == "tab" && key_code == VC_TAB) ||
+			    (token == "esc" && key_code == VC_ESCAPE) || (token == "escape" && key_code == VC_ESCAPE) ||
+			    (token == "delete" && key_code == VC_BACKSPACE) ||
+			    (token == "del" && key_code == VC_BACKSPACE))
+				return true;
+		}
+		return false;
 	}
 
 	void advance_to(uint64_t now)
@@ -1517,6 +1584,8 @@ private:
 
 	QString row_label(const intensity_row &row) const
 	{
+		if (!row.title.isEmpty())
+			return row.title;
 		switch (row.metric) {
 		case intensity_metric::keyboard:
 			return QString("%1 (/s)").arg(obs_module_text("InputIntensity.Metric.Keyboard"));
@@ -1768,13 +1837,6 @@ private:
 	bool configured{};
 };
 
-bool distance_unit_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
-{
-	const std::string unit = obs_data_get_string(settings, "statistics.distance_unit");
-	obs_property_set_visible(obs_properties_get(props, "statistics.mouse_dpi"), unit != "px");
-	return true;
-}
-
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const std::string target_type = obs_data_get_string(settings, "activity.target.type");
@@ -1932,20 +1994,24 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 						 static_cast<int64_t>(default_heatmap_hex_radius));
 			obs_data_set_default_int(settings, "mouse_activity.opacity", 100);
 			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
+			obs_data_set_default_bool(settings, "mouse_activity.show_heatmap", true);
+			obs_data_set_default_bool(settings, "mouse_activity.show_live_mouse", true);
+			obs_data_set_default_bool(settings, "mouse_activity.show_coordinates", false);
+			obs_data_set_default_bool(settings, "mouse_activity.show_distance", false);
+			obs_data_set_default_string(settings, "mouse_activity.info_alignment", "left");
+			obs_data_set_default_string(settings, "mouse_activity.distance_unit", "pixels");
+			obs_data_set_default_int(settings, "mouse_activity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "mouse_activity.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "mouse_activity.left_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
-			obs_data_set_default_int(settings, "statistics.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
-			obs_data_set_default_string(settings, "statistics.distance_unit", "px");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_click_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_clicks", true);
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
-			obs_data_set_default_bool(settings, "statistics.show_distance", true);
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
@@ -1955,6 +2021,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 				obs_data_set_default_string(settings, (prefix + "metric").c_str(), "actions");
 				obs_data_set_default_int(settings, (prefix + "key").c_str(), VC_SPACE);
 				obs_data_set_default_int(settings, (prefix + "button").c_str(), MOUSE_BUTTON1);
+				obs_data_set_default_string(settings, (prefix + "title").c_str(), "");
+				obs_data_set_default_string(settings, (prefix + "key_scope").c_str(), "all");
+				obs_data_set_default_string(settings, (prefix + "key_list").c_str(), "");
 			}
 		}
 		if constexpr (std::is_same_v<T, live_keys_source>) {
@@ -1986,8 +2055,12 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "mouse_activity.right_label", "R");
 			obs_data_set_default_string(settings, "mouse_activity.middle_label", "M");
 			obs_data_set_default_bool(settings, "mouse_activity.show_coordinates", false);
-			obs_data_set_default_string(settings, "mouse_activity.coordinates_position", "above");
-			obs_data_set_default_string(settings, "mouse_activity.coordinates_alignment", "center");
+			obs_data_set_default_bool(settings, "mouse_activity.show_heatmap", true);
+			obs_data_set_default_bool(settings, "mouse_activity.show_live_mouse", true);
+			obs_data_set_default_bool(settings, "mouse_activity.show_distance", false);
+			obs_data_set_default_string(settings, "mouse_activity.info_alignment", "left");
+			obs_data_set_default_string(settings, "mouse_activity.distance_unit", "pixels");
+			obs_data_set_default_int(settings, "mouse_activity.mouse_dpi", 800);
 			obs_data_set_default_bool(settings, "mouse_activity.show_border", false);
 			obs_data_set_default_bool(settings, "mouse_activity.show_center_mark", false);
 			obs_data_set_default_int(settings, "mouse_activity.trail_ms", 1500);
@@ -2006,20 +2079,16 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
 		} else if constexpr (std::is_same_v<T, statistics_source>) {
 			obs_data_set_default_string(settings, "activity.title", "Input Statistics");
-			obs_data_set_default_int(settings, "statistics.mouse_dpi", 800);
-			obs_data_set_default_string(settings, "statistics.distance_unit", "px");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_click_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_clicks", true);
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
-			obs_data_set_default_bool(settings, "statistics.show_distance", true);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_actions", false);
-			obs_data_set_default_bool(settings, "statistics.show_lap_distance", false);
 		} else if constexpr (std::is_same_v<T, input_intensity_source>) {
 			obs_data_set_default_string(settings, "activity.title", "Input Intensity");
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
@@ -2031,6 +2100,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 				obs_data_set_default_string(settings, (prefix + "metric").c_str(), "actions");
 				obs_data_set_default_int(settings, (prefix + "key").c_str(), VC_SPACE);
 				obs_data_set_default_int(settings, (prefix + "button").c_str(), MOUSE_BUTTON1);
+				obs_data_set_default_string(settings, (prefix + "title").c_str(), "");
+				obs_data_set_default_string(settings, (prefix + "key_scope").c_str(), "all");
+				obs_data_set_default_string(settings, (prefix + "key_list").c_str(), "");
 			}
 		}
 	};
@@ -2096,23 +2168,24 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common)
 	obs_properties_add_color_alpha(p, "mouse_activity.left_color", obs_module_text("MouseActivity.LeftColor"));
 	obs_properties_add_color_alpha(p, "mouse_activity.right_color", obs_module_text("MouseActivity.RightColor"));
 	obs_properties_add_color_alpha(p, "mouse_activity.middle_color", obs_module_text("MouseActivity.MiddleColor"));
+	obs_properties_add_bool(p, "mouse_activity.show_heatmap", obs_module_text("MouseActivity.ShowHeatmap"));
+	obs_properties_add_bool(p, "mouse_activity.show_live_mouse", obs_module_text("MouseActivity.ShowLiveMouse"));
 	obs_properties_add_bool(p, "mouse_activity.show_coordinates", obs_module_text("MouseActivity.ShowCoordinates"));
-	auto *coordinates_position = obs_properties_add_list(p, "mouse_activity.coordinates_position",
-							     obs_module_text("MouseActivity.CoordinatesPosition"),
-							     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(coordinates_position, obs_module_text("MouseActivity.CoordinatesPosition.Above"),
-				     "above");
-	obs_property_list_add_string(coordinates_position, obs_module_text("MouseActivity.CoordinatesPosition.Below"),
-				     "below");
-	auto *coordinates_alignment = obs_properties_add_list(p, "mouse_activity.coordinates_alignment",
-							      obs_module_text("MouseActivity.CoordinatesAlignment"),
+	obs_properties_add_bool(p, "mouse_activity.show_distance", obs_module_text("MouseActivity.ShowDistance"));
+	auto *information_alignment = obs_properties_add_list(p, "mouse_activity.info_alignment",
+							      obs_module_text("MouseActivity.InformationAlignment"),
 							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(coordinates_alignment, obs_module_text("MouseActivity.CoordinatesAlignment.Left"),
+	obs_property_list_add_string(information_alignment, obs_module_text("MouseActivity.InformationAlignment.Left"),
 				     "left");
-	obs_property_list_add_string(coordinates_alignment,
-				     obs_module_text("MouseActivity.CoordinatesAlignment.Center"), "center");
-	obs_property_list_add_string(coordinates_alignment, obs_module_text("MouseActivity.CoordinatesAlignment.Right"),
+	obs_property_list_add_string(information_alignment, obs_module_text("MouseActivity.InformationAlignment.Right"),
 				     "right");
+	auto *distance_unit = obs_properties_add_list(p, "mouse_activity.distance_unit",
+						      obs_module_text("MouseActivity.DistanceUnit"),
+						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Pixels"), "pixels");
+	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Metric"), "metric");
+	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Imperial"), "imperial");
+	obs_properties_add_int(p, "mouse_activity.mouse_dpi", obs_module_text("MouseActivity.MouseDPI"), 1, 100000, 1);
 	obs_properties_add_bool(p, "mouse_activity.show_border", obs_module_text("MouseActivity.ShowBorder"));
 	obs_properties_add_bool(p, "mouse_activity.show_center_mark", obs_module_text("MouseActivity.ShowCenterMark"));
 	obs_properties_add_int_slider(p, "mouse_activity.trail_ms", obs_module_text("MouseActivity.TrailDuration"), 100,
@@ -2174,29 +2247,17 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common)
 	if (include_common)
 		add_common_properties(p);
 	add_mode_title_properties(p);
-	auto *distance_unit = obs_properties_add_list(p, "statistics.distance_unit",
-						      obs_module_text("Statistics.DistanceUnit"), OBS_COMBO_TYPE_LIST,
-						      OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(distance_unit, obs_module_text("Statistics.DistanceUnit.Pixels"), "px");
-	obs_property_list_add_string(distance_unit, obs_module_text("Statistics.DistanceUnit.Inches"), "in");
-	obs_property_list_add_string(distance_unit, obs_module_text("Statistics.DistanceUnit.Centimeters"), "cm");
-	obs_property_set_modified_callback(distance_unit, distance_unit_changed);
-	auto *mouse_dpi =
-		obs_properties_add_int(p, "statistics.mouse_dpi", obs_module_text("Statistics.MouseDPI"), 1, 100000, 1);
-	obs_property_set_visible(mouse_dpi, false);
 	obs_properties_add_bool(p, "statistics.show_key_rate", obs_module_text("Statistics.ShowKeyRate"));
 	obs_properties_add_bool(p, "statistics.show_total_keys", obs_module_text("Statistics.ShowTotalKeys"));
 	obs_properties_add_bool(p, "statistics.show_click_rate", obs_module_text("Statistics.ShowClickRate"));
 	obs_properties_add_bool(p, "statistics.show_total_clicks", obs_module_text("Statistics.ShowTotalClicks"));
 	obs_properties_add_bool(p, "statistics.show_action_rate", obs_module_text("Statistics.ShowActionRate"));
 	obs_properties_add_bool(p, "statistics.show_total_actions", obs_module_text("Statistics.ShowTotalActions"));
-	obs_properties_add_bool(p, "statistics.show_distance", obs_module_text("Statistics.ShowDistance"));
 	obs_properties_add_int_slider(p, "statistics.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
 	obs_properties_add_bool(p, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
 	obs_properties_add_bool(p, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
-	obs_properties_add_bool(p, "statistics.show_lap_distance", obs_module_text("Statistics.ShowLapDistance"));
 	return p;
 }
 obs_properties_t *statistics_properties(void *data)
@@ -2274,6 +2335,8 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common)
 		const QByteArray row_label =
 			QString("%1 %2").arg(obs_module_text("InputIntensity.Row")).arg(index + 1).toUtf8();
 		obs_properties_add_bool(p, (prefix + "enabled").c_str(), row_label.constData());
+		obs_properties_add_text(p, (prefix + "title").c_str(), obs_module_text("InputIntensity.Title"),
+					OBS_TEXT_DEFAULT);
 		auto *metric = obs_properties_add_list(p, (prefix + "metric").c_str(),
 						       obs_module_text("InputIntensity.Metric"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_STRING);
@@ -2283,6 +2346,15 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common)
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Key"), "key");
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.MouseButton"), "button");
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Velocity"), "velocity");
+		auto *key_scope = obs_properties_add_list(p, (prefix + "key_scope").c_str(),
+							  obs_module_text("InputIntensity.KeyScope"),
+							  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.All"), "all");
+		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Letters"), "letters");
+		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Numbers"), "numbers");
+		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.List"), "list");
+		obs_properties_add_text(p, (prefix + "key_list").c_str(), obs_module_text("InputIntensity.KeyList"),
+					OBS_TEXT_DEFAULT);
 		auto *key = obs_properties_add_list(p, (prefix + "key").c_str(), obs_module_text("InputIntensity.Key"),
 						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 		add_intensity_key_list(key);
