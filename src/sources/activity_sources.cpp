@@ -1437,6 +1437,7 @@ private:
 
 enum class intensity_metric { keyboard, mouse, actions, key, button, velocity };
 enum class intensity_key_scope { all, letters, numbers, list };
+constexpr size_t intensity_max_fields = 4;
 
 struct intensity_row {
 	bool enabled{};
@@ -1458,7 +1459,7 @@ struct intensity_row {
 
 class input_intensity_source final : public activity_source {
 public:
-	using sample = std::array<double, 8>;
+	using sample = std::array<double, intensity_max_fields>;
 
 	input_intensity_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
 			       bool initial_update = true)
@@ -1469,13 +1470,19 @@ public:
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
-		migrate_legacy_colors(settings, "input_intensity.colors_with_alpha", {"input_intensity.color"});
+		migrate_legacy_colors(settings, "input_intensity.colors_with_alpha",
+				      {"input_intensity.color", "input_intensity.theme_color",
+				       "input_intensity.pressed_color"});
+		if (!obs_data_has_user_value(settings, "input_intensity.theme_color") &&
+		    obs_data_has_user_value(settings, "input_intensity.color"))
+			obs_data_set_int(settings, "input_intensity.theme_color",
+					 obs_data_get_int(settings, "input_intensity.color"));
 
 		const int new_window =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "input_intensity.window")), 1, 60);
 		element_spacing = std::clamp(
 			static_cast<int>(obs_data_get_int(settings, "input_intensity.element_spacing")), 0, 200);
-		std::array<intensity_row, 8> new_rows{};
+		std::array<intensity_row, intensity_max_fields> new_rows{};
 		for (size_t index = 0; index < new_rows.size(); ++index) {
 			const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 			new_rows[index].enabled = obs_data_get_bool(settings, (prefix + "enabled").c_str());
@@ -1506,12 +1513,15 @@ public:
 			new_rows[index].key_list =
 				QString::fromUtf8(obs_data_get_string(settings, (prefix + "key_list").c_str()));
 		}
-		const QColor new_color =
-			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "input_intensity.color")));
+		const QColor new_theme_color =
+			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "input_intensity.theme_color")));
+		const QColor new_pressed_color =
+			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "input_intensity.pressed_color")));
 		const bool data_changed = configured && (new_window != window_seconds || new_rows != rows);
 		window_seconds = new_window;
 		rows = new_rows;
-		accent_color = new_color;
+		theme_color = new_theme_color;
+		pressed_color = new_pressed_color;
 		if (data_changed)
 			clear_samples();
 		configured = true;
@@ -1693,18 +1703,18 @@ private:
 			return row.title;
 		switch (row.metric) {
 		case intensity_metric::keyboard:
-			return QString("%1 (/s)").arg(obs_module_text("InputIntensity.Metric.Keyboard"));
+			return obs_module_text("InputIntensity.Metric.Keyboard");
 		case intensity_metric::mouse:
-			return QString("%1 (/s)").arg(obs_module_text("InputIntensity.Metric.Mouse"));
+			return obs_module_text("InputIntensity.Metric.Mouse");
 		case intensity_metric::actions:
-			return QString("%1 (/s)").arg(obs_module_text("InputIntensity.Metric.Actions"));
+			return obs_module_text("InputIntensity.Metric.Actions");
 		case intensity_metric::key: {
 			input_data::trace_event event{};
 			event.code = row.key;
-			return QString("%1 (/s)").arg(key_name(event));
+			return QString("%1 (KPM)").arg(key_name(event));
 		}
 		case intensity_metric::button:
-			return QString("%1 %2 (/s)")
+			return QString("%1 %2 (CPM)")
 				.arg(obs_module_text("InputIntensity.Metric.MouseButton"))
 				.arg(row.button);
 		case intensity_metric::velocity:
@@ -1721,7 +1731,7 @@ private:
 					     : 0;
 		values.reserve(std::max<size_t>(1, samples.size() - first));
 		for (size_t index = first; index < samples.size(); ++index)
-			values.push_back(samples[index][row_index]);
+			values.push_back(display_value(row_index, samples[index][row_index]));
 		if (values.empty())
 			values.push_back(0.0);
 		std::sort(values.begin(), values.end());
@@ -1730,7 +1740,7 @@ private:
 		const double first_quartile = values[(values.size() - 1) / 4];
 		const double median = values[(values.size() - 1) / 2];
 		const double third_quartile = values[(values.size() - 1) * 3 / 4];
-		const double current_value = current_rate(row_index);
+		const double current_value = display_value(row_index, current_rate(row_index));
 		const double scale_minimum = std::min(minimum, current_value);
 		const double scale_maximum = std::max(maximum, current_value);
 		const double range = scale_maximum - scale_minimum;
@@ -1757,7 +1767,7 @@ private:
 		painter.drawLine(min_x, center_y, max_x, center_y);
 		painter.drawLine(min_x, center_y - 3, min_x, center_y + 3);
 		painter.drawLine(max_x, center_y - 3, max_x, center_y + 3);
-		QColor fill = accent_color;
+		QColor fill = theme_color;
 		fill.setAlpha(150);
 		painter.setBrush(fill);
 		painter.drawRect(box);
@@ -1765,10 +1775,10 @@ private:
 		painter.setPen(median_pen);
 		painter.drawLine(median_x, box.top(), median_x, box.bottom());
 
-		QPen current_pen(accent_color, 2.0);
+		QPen current_pen(pressed_color, 2.0);
 		painter.setPen(current_pen);
 		painter.drawLine(current_x, rect.top(), current_x, rect.bottom());
-		painter.setBrush(accent_color);
+		painter.setBrush(pressed_color);
 		painter.drawEllipse(QPoint(current_x, center_y), 3, 3);
 
 		const QString min_label = number_label(minimum);
@@ -1790,16 +1800,22 @@ private:
 		return current[row_index] * static_cast<double>(second_ns) / static_cast<double>(elapsed_ns);
 	}
 
+	double display_value(size_t row_index, double value) const
+	{
+		return rows[row_index].metric == intensity_metric::velocity ? value : value * 60.0;
+	}
+
 	static QString number_label(double value) { return QString::number(value, 'f', value < 10.0 ? 1 : 0); }
 
 	static constexpr uint64_t second_ns = 1000ULL * 1000 * 1000;
 	int window_seconds{30};
-	std::array<intensity_row, 8> rows{};
+	std::array<intensity_row, intensity_max_fields> rows{};
 	std::deque<sample> samples;
 	sample current{};
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
 	std::optional<input_data::trace_event> last_motion;
-	QColor accent_color{37, 99, 235};
+	QColor theme_color{37, 99, 235};
+	QColor pressed_color{239, 68, 68};
 	int element_spacing{};
 	uint64_t bucket_start_ns{};
 	bool configured{};
@@ -1886,6 +1902,7 @@ public:
 	uint32_t height() const { return static_cast<uint32_t>(active()->height); }
 	void clear_mouse_activity() { mouse_activity->clear(); }
 	mouse_activity_source *mouse() const { return mouse_activity.get(); }
+	void set_properties_visibility(obs_properties_t *properties) const;
 
 private:
 	enum class source_mode { live_keys, mouse_activity, input_intensity, input_statistics };
@@ -1941,6 +1958,18 @@ private:
 	obs_data_t *common_settings{};
 	bool configured{};
 };
+
+void unified_source::set_properties_visibility(obs_properties_t *properties) const
+{
+	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"),
+				 mode == source_mode::live_keys);
+	obs_property_set_visible(obs_properties_get(properties, "input_activity.mouse_activity"),
+				 mode == source_mode::mouse_activity);
+	obs_property_set_visible(obs_properties_get(properties, "input_activity.input_intensity"),
+				 mode == source_mode::input_intensity);
+	obs_property_set_visible(obs_properties_get(properties, "input_activity.input_statistics"),
+				 mode == source_mode::input_statistics);
+}
 
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
@@ -2137,7 +2166,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
-			for (size_t index = 0; index < 8; ++index) {
+			obs_data_set_default_int(settings, "input_intensity.theme_color", 0xffeb6325);
+			obs_data_set_default_int(settings, "input_intensity.pressed_color", 0xff4444ef);
+			for (size_t index = 0; index < intensity_max_fields; ++index) {
 				const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 				obs_data_set_default_bool(settings, (prefix + "enabled").c_str(), index == 0);
 				obs_data_set_default_string(settings, (prefix + "metric").c_str(), "actions");
@@ -2232,7 +2263,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
-			for (size_t index = 0; index < 8; ++index) {
+			obs_data_set_default_int(settings, "input_intensity.theme_color", 0xffeb6325);
+			obs_data_set_default_int(settings, "input_intensity.pressed_color", 0xff4444ef);
+			for (size_t index = 0; index < intensity_max_fields; ++index) {
 				const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 				obs_data_set_default_bool(settings, (prefix + "enabled").c_str(), index == 0);
 				obs_data_set_default_string(settings, (prefix + "metric").c_str(), "actions");
@@ -2486,8 +2519,10 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common)
 	obs_properties_add_int_slider(p, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1, 60, 1);
 	obs_properties_add_int_slider(p, "input_intensity.element_spacing", obs_module_text("Activity.ElementSpacing"),
 				      0, 200, 1);
-	obs_properties_add_color_alpha(p, "input_intensity.color", obs_module_text("InputIntensity.Color"));
-	for (size_t index = 0; index < 8; ++index) {
+	obs_properties_add_color_alpha(p, "input_intensity.theme_color", obs_module_text("InputIntensity.ThemeColor"));
+	obs_properties_add_color_alpha(p, "input_intensity.pressed_color",
+				       obs_module_text("InputIntensity.PressedColor"));
+	for (size_t index = 0; index < intensity_max_fields; ++index) {
 		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 		const QByteArray row_label =
 			QString("%1 %2").arg(obs_module_text("InputIntensity.Row")).arg(index + 1).toUtf8();
@@ -2568,10 +2603,14 @@ obs_properties_t *unified_properties(void *data)
 	auto *statistics_group = obs_properties_add_group(p, "input_activity.input_statistics",
 							  obs_module_text("InputStatistics"), OBS_GROUP_NORMAL,
 							  statistics_properties_impl(data, false));
-	obs_property_set_visible(live_group, true);
-	obs_property_set_visible(mouse_group, false);
-	obs_property_set_visible(intensity_group, false);
-	obs_property_set_visible(statistics_group, false);
+	if (unified)
+		unified->set_properties_visibility(p);
+	else {
+		obs_property_set_visible(live_group, true);
+		obs_property_set_visible(mouse_group, false);
+		obs_property_set_visible(intensity_group, false);
+		obs_property_set_visible(statistics_group, false);
+	}
 	return p;
 }
 } // namespace
