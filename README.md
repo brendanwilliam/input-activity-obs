@@ -7,10 +7,7 @@
 Input Activity is a macOS-only OBS plugin that visualizes keyboard and mouse activity captured from this computer.
 It provides four independent source types:
 
-- **Live Keys** (`input-activity-live-keys`) — recently pressed keys with configurable release fading.
-- **Input Intensity** (`input-activity-input-intensity`) — rolling keyboard, click, action, key, button, and mouse-velocity metrics.
-- **Mouse Activity** (`input-activity-mouse-activity`) — button state, cursor trail, display heatmap, and coordinates.
-- **Input Statistics** (`input-activity-statistics`) — KPM, CPM, APM, session and lap totals, distance, and shared Reset/Lap hotkeys.
+- **Input Activity** (`input-activity`) — a unified OBS source with switchable Live Keys, Input Intensity, Mouse Activity, and Input Statistics modes.
 
 Every source can be scoped to all input, a display, a running application, or a running window. Sources paused by an
 unavailable target retain their current state until that target returns or their target is changed.

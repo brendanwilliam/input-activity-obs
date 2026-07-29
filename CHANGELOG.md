@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
-- A new opt-in `Input Activity` OBS source with Live Keys, Mouse Activity, Input Intensity, and Input Statistics modes; existing source IDs remain available for saved scenes. Its shared appearance settings now include a transparent-by-default background color.
+- A unified `Input Activity` OBS source with Live Keys, Mouse Activity, Input Intensity, and Input Statistics modes. Its shared appearance settings include a transparent-by-default background color.
 - Separate Live Keys sizing for alphanumeric and special-key labels.
 - A configurable Live Keys most-used bar chart alongside the live key row.
 - Repository governance, release automation, and contributor guidance.
@@ -26,6 +26,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Rendering now falls back to Silom Regular when no explicit font is saved; target selectors adapt to the selected input target; Mouse Activity click labels use compact text-measured bounds; and Live Keys uses compact canonical key labels.
 - New sources default to 20px padding, 10px element spacing, and a row-oriented Live Keys layout.
 - Mouse Activity now places distance above the chart and coordinates below it, with shared left/right alignment and automatic metric or imperial distance scaling. Input Statistics no longer presents mouse distance totals.
+- Legacy individual OBS source registrations have been removed; create and configure `Input Activity` for every mode.
 - Build, formatting, and security automation now validate pull requests and pushes to `main`.
 
 ## [1.0.0] - 2026-07-26

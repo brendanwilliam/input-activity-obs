@@ -2421,10 +2421,6 @@ obs_properties_t *unified_properties(void *data)
 
 void register_activity_sources()
 {
-	register_source<live_keys_source>("input-activity-live-keys", keys_properties);
-	register_source<input_intensity_source>("input-activity-input-intensity", intensity_properties);
-	register_source<mouse_activity_source>("input-activity-mouse-activity", mouse_properties);
-	register_source<statistics_source>("input-activity-statistics", statistics_properties);
 	register_source<unified_source>("input-activity", unified_properties);
 }
 } // namespace sources
