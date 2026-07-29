@@ -235,6 +235,17 @@ public:
 		painter.setPen(color);
 		painter.drawText(rect, alignment, text);
 	}
+	void draw_text(QPainter &painter, const QPoint &baseline, const QString &text, const QColor &color) const
+	{
+		if (text_shadow) {
+			QColor shadow = text_shadow_color;
+			shadow.setAlpha(shadow.alpha() * color.alpha() / 255);
+			painter.setPen(shadow);
+			painter.drawText(baseline + QPoint(text_shadow_offset, text_shadow_offset), text);
+		}
+		painter.setPen(color);
+		painter.drawText(baseline, text);
+	}
 	obs_source_t *source{};
 	int width = 480, height = 180, padding = 12, font_size = 28;
 	QColor text_color{255, 255, 255};
@@ -537,15 +548,15 @@ public:
 					 std::max(0, (available_span - maximum) / std::max(1, maximum - 1)));
 		const int key_width = std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum);
 		const int cell_height = live_height;
-		painter.setFont(font(total_font_size));
-		const int total_height = std::min(QFontMetrics(painter.font()).height(), std::max(0, cell_height - 9));
+		const QFont total_font = font(total_font_size);
+		const QFontMetrics total_metrics(total_font);
+		const int total_height = std::min(total_metrics.height(), std::max(0, cell_height - 9));
 		const int key_height = std::max(1, cell_height - total_height - gap);
 		const uint64_t now = os_gettime_ns();
 		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
 			const int position = index - start;
 			const int x = padding + position * (key_width + gap);
 			const int y = padding + live_title_height;
-			const QRect total(x, y, key_width, total_height);
 			const QRect row(x, y + total_height + gap, key_width, key_height);
 			const auto &key = keys[index];
 			const int alpha =
@@ -560,8 +571,12 @@ public:
 			painter.setBrush(fill);
 			painter.setPen(Qt::NoPen);
 			painter.drawRoundedRect(row, 6, 6);
-			painter.setFont(font(total_font_size));
-			draw_text(painter, total, Qt::AlignCenter, QString::number(key.press_count), text);
+			const QString count = QString::number(key.press_count);
+			painter.setFont(total_font);
+			draw_text(painter,
+				  QPoint(x + (key_width - total_metrics.horizontalAdvance(count)) / 2,
+					 row.top() - gap - total_metrics.descent()),
+				  count, text);
 			painter.setFont(font(key.alphanumeric ? key_font_size : special_key_font_size));
 			draw_text(painter, row, Qt::AlignCenter, key.label, text);
 		}
