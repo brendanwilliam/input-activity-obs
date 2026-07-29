@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Live Keys most-used mode, count and key font sizing, and configurable element spacing.
 - Configurable metric rows and element spacing for Input Intensity.
 - Configurable element spacing for Input Statistics.
+- Mouse Activity heatmap controls for hexbin size and opacity, plus hotkey-driven PNG or SVG exports.
 
 ### Changed
 
