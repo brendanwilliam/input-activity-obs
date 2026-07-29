@@ -418,6 +418,8 @@ public:
 					  : Qt::AlignLeft;
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "live_keys.element_spacing")), 0, 200);
+		group_spacing =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, "live_keys.group_spacing")), 0, 200);
 		show_most_used = obs_data_get_bool(settings, "live_keys.show_most_used");
 		live_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.live_title"));
 		show_live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
@@ -432,6 +434,8 @@ public:
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.special_key_font_size")));
 		total_font_size =
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
+		most_used_font_size =
+			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_font_size")));
 		fade_duration_ns =
 			static_cast<uint64_t>(std::max<int64_t>(0, obs_data_get_int(settings, "live_keys.fade_ms"))) *
 			1000 * 1000;
@@ -512,7 +516,7 @@ public:
 		const int live_height =
 			show_most_used
 				? std::min(live_row_height, std::max(1, height - padding * 2 - live_title_height -
-										chart_title_height - element_spacing))
+										chart_title_height - group_spacing))
 				: std::max(1, height - padding * 2 - live_title_height);
 		if (live_title_height) {
 			painter.setFont(font(live_title_font_size));
@@ -554,7 +558,7 @@ public:
 			draw_text(painter, row, Qt::AlignCenter, key.label, text);
 		}
 		if (show_most_used) {
-			const int chart_top = padding + live_title_height + live_height + element_spacing;
+			const int chart_top = padding + live_title_height + live_height + group_spacing;
 			if (chart_title_height) {
 				painter.setFont(font(most_used_title_font_size));
 				draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
@@ -564,7 +568,7 @@ public:
 					     QRect(padding, chart_top + chart_title_height,
 						   std::max(1, width - padding * 2),
 						   std::max(1, height - padding * 2 - live_title_height - live_height -
-								       chart_title_height - element_spacing)));
+								       chart_title_height - group_spacing)));
 		}
 	}
 
@@ -592,7 +596,7 @@ private:
 			std::min(element_spacing, std::max(0, bounds.height() / static_cast<int>(keys.size() * 3)));
 		const int row_height = std::max(1, (bounds.height() - gap * (static_cast<int>(keys.size()) - 1)) /
 							   static_cast<int>(keys.size()));
-		const QFontMetrics metrics(font(key_font_size));
+		const QFontMetrics metrics(font(most_used_font_size));
 		const int value_height = std::min(metrics.height(), row_height / 2);
 		const int chart_width = bounds.width();
 		const bool right_aligned = chart_alignment == Qt::AlignRight;
@@ -607,10 +611,10 @@ private:
 			const auto pressed = held.find(keys[index].code);
 			painter.setBrush(pressed != held.end() && pressed->second ? pressed_color : theme_color);
 			painter.drawRoundedRect(bar, 3, 3);
-			painter.setFont(font(keys[index].alphanumeric ? key_font_size : special_key_font_size));
+			painter.setFont(font(most_used_font_size));
 			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, keys[index].label, text_color);
-			painter.setFont(font(total_font_size));
+			painter.setFont(font(most_used_font_size));
 			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
 				  Qt::AlignRight | Qt::AlignVCenter, QString::number(keys[index].press_count),
 				  text_color);
@@ -646,10 +650,11 @@ private:
 	int most_used_maximum = 8;
 	int live_row_height = 96;
 	int live_title_font_size = 28, most_used_title_font_size = 28;
-	int element_spacing = 2;
+	int element_spacing = 2, group_spacing = 10;
 	int key_font_size = 36;
 	int special_key_font_size = 28;
 	int total_font_size = 24;
+	int most_used_font_size = 24;
 	uint64_t fade_duration_ns = 300ULL * 1000 * 1000;
 	fade_curve fade{fade_curve::linear};
 	QColor theme_color{37, 99, 235};
@@ -1196,6 +1201,8 @@ public:
 		show_total_clicks = obs_data_get_bool(settings, "statistics.show_total_clicks");
 		show_action_rate = obs_data_get_bool(settings, "statistics.show_action_rate");
 		show_total_actions = obs_data_get_bool(settings, "statistics.show_total_actions");
+		title_font_size =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.title_font_size")), 8, 200);
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.element_spacing")), 0, 200);
 		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
@@ -1245,31 +1252,35 @@ public:
 	}
 	void render(QPainter &painter) override
 	{
-		painter.setFont(font());
-		QStringList lines;
+		struct statistic_block {
+			QString title;
+			QString metrics;
+		};
+		std::vector<statistic_block> blocks;
+
 		QStringList key_metrics;
 		if (show_key_rate)
 			key_metrics.append(QString("KPM: %1").arg(keys.size()));
 		if (show_total_keys)
-			key_metrics.append(QString("Total keys: %1").arg(total_keys));
+			key_metrics.append(QString("Total: %1").arg(total_keys));
 		if (!key_metrics.isEmpty())
-			lines.append(key_metrics.join("  "));
+			blocks.push_back({obs_module_text("Statistics.Keys"), key_metrics.join("  ")});
 
 		QStringList click_metrics;
 		if (show_click_rate)
 			click_metrics.append(QString("CPM: %1").arg(clicks.size()));
 		if (show_total_clicks)
-			click_metrics.append(QString("Total clicks: %1").arg(total_clicks));
+			click_metrics.append(QString("Total: %1").arg(total_clicks));
 		if (!click_metrics.isEmpty())
-			lines.append(click_metrics.join("  "));
+			blocks.push_back({obs_module_text("Statistics.Clicks"), click_metrics.join("  ")});
 
 		QStringList action_metrics;
 		if (show_action_rate)
 			action_metrics.append(QString("APM: %1").arg(keys.size() + clicks.size()));
 		if (show_total_actions)
-			action_metrics.append(QString("Total actions: %1").arg(total_keys + total_clicks));
+			action_metrics.append(QString("Total: %1").arg(total_keys + total_clicks));
 		if (!action_metrics.isEmpty())
-			lines.append(action_metrics.join("  "));
+			blocks.push_back({obs_module_text("Statistics.Actions"), action_metrics.join("  ")});
 
 		QStringList lap_metrics;
 		if (show_lap_keys)
@@ -1282,27 +1293,36 @@ public:
 						   .arg(obs_module_text("Statistics.LapActions"))
 						   .arg(lap_keys + lap_clicks));
 		if (!lap_metrics.isEmpty())
-			lines.append(lap_metrics.join("  "));
+			blocks.push_back({obs_module_text("Statistics.Lap"), lap_metrics.join("  ")});
 
 		const QRect bounds(padding, padding, width - padding * 2, height - padding * 2);
-		if (lines.isEmpty()) {
+		if (blocks.empty()) {
+			painter.setFont(font());
 			draw_text(painter, bounds, Qt::AlignCenter, obs_module_text("Statistics.NoMetrics"),
 				  text_color);
 			return;
 		}
 
-		const QFontMetrics metrics(font());
-		const int line_height = metrics.lineSpacing();
+		const QFont title_font = font(title_font_size);
+		const int title_height = QFontMetrics(title_font).lineSpacing();
+		const QFont metric_font = font();
+		const int metric_height = QFontMetrics(metric_font).lineSpacing();
 		const int gap = std::min(element_spacing,
-					 std::max(0, (bounds.height() - static_cast<int>(lines.size()) * line_height) /
-							     std::max(1, static_cast<int>(lines.size()) - 1)));
-		const int total_height = static_cast<int>(lines.size()) * line_height +
-					 std::max(0, static_cast<int>(lines.size()) - 1) * gap;
+					 std::max(0, (bounds.height() - static_cast<int>(blocks.size()) *
+										(title_height + metric_height)) /
+							     std::max(1, static_cast<int>(blocks.size()) - 1)));
+		const int total_height = static_cast<int>(blocks.size()) * (title_height + metric_height) +
+					 std::max(0, static_cast<int>(blocks.size()) - 1) * gap;
 		int top = bounds.center().y() - total_height / 2;
-		for (const QString &line : lines) {
-			draw_text(painter, QRect(bounds.left(), top, bounds.width(), line_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, line, text_color);
-			top += line_height + gap;
+		for (const statistic_block &block : blocks) {
+			painter.setFont(title_font);
+			draw_text(painter, QRect(bounds.left(), top, bounds.width(), title_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, block.title, text_color);
+			top += title_height;
+			painter.setFont(metric_font);
+			draw_text(painter, QRect(bounds.left(), top, bounds.width(), metric_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, block.metrics, text_color);
+			top += metric_height + gap;
 		}
 	}
 	void reset_activity() override
@@ -1324,7 +1344,7 @@ private:
 	std::deque<uint64_t> keys, clicks;
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
 	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
-	int element_spacing{};
+	int title_font_size{28}, element_spacing{};
 	bool show_key_rate{true}, show_total_keys{true}, show_click_rate{true}, show_total_clicks{true};
 	bool show_action_rate{true}, show_total_actions{true};
 	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{};
@@ -1972,6 +1992,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "live_keys.row_layout", true);
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
 			obs_data_set_default_int(settings, "live_keys.element_spacing", 10);
+			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
 			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
@@ -1981,6 +2002,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
 			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
 			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
+			obs_data_set_default_int(settings, "live_keys.most_used_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 300);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "linear");
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
@@ -2085,6 +2107,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_total_clicks", true);
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
+			obs_data_set_default_int(settings, "statistics.title_font_size", 28);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
@@ -2125,7 +2148,9 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 							OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Left"), "left");
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Right"), "right");
-	obs_properties_add_int_slider(p, "live_keys.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
+	obs_properties_add_int_slider(p, "live_keys.element_spacing", obs_module_text("LiveKeys.WithinGroupSpacing"), 0,
+				      200, 1);
+	obs_properties_add_int_slider(p, "live_keys.group_spacing", obs_module_text("LiveKeys.BetweenGroupSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
 	obs_properties_add_bool(p, "live_keys.show_most_used_title", obs_module_text("LiveKeys.ShowMostUsedTitle"));
@@ -2137,6 +2162,8 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	obs_properties_add_int(p, "live_keys.special_key_font_size", obs_module_text("LiveKeys.SpecialKeyFontSize"), 8,
 			       256, 1);
 	obs_properties_add_int(p, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8, 256, 1);
+	obs_properties_add_int(p, "live_keys.most_used_font_size", obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256,
+			       1);
 	obs_properties_add_int_slider(p, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000, 10);
 	auto *fade_curve = obs_properties_add_list(p, "live_keys.fade_curve", obs_module_text("LiveKeys.FadeCurve"),
 						   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -2253,6 +2280,8 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common)
 	obs_properties_add_bool(p, "statistics.show_total_clicks", obs_module_text("Statistics.ShowTotalClicks"));
 	obs_properties_add_bool(p, "statistics.show_action_rate", obs_module_text("Statistics.ShowActionRate"));
 	obs_properties_add_bool(p, "statistics.show_total_actions", obs_module_text("Statistics.ShowTotalActions"));
+	obs_properties_add_int_slider(p, "statistics.title_font_size", obs_module_text("Statistics.TitleFontSize"), 8,
+				      200, 1);
 	obs_properties_add_int_slider(p, "statistics.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
