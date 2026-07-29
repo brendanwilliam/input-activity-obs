@@ -1282,8 +1282,16 @@ public:
 		actions_title_font_size = title_size("statistics.actions_title_font_size");
 		metric_font_size =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.metric_font_size")), 8, 200);
-		element_spacing =
+		const int legacy_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "statistics.element_spacing")), 0, 200);
+		const auto spacing = [&](const char *name) {
+			return obs_data_has_user_value(settings, name)
+				       ? std::clamp(static_cast<int>(obs_data_get_int(settings, name)), 0, 200)
+				       : legacy_spacing;
+		};
+		horizontal_spacing = spacing("statistics.horizontal_spacing");
+		vertical_spacing = spacing("statistics.vertical_spacing");
+		group_spacing = spacing("statistics.group_spacing");
 		right_aligned = std::string(obs_data_get_string(settings, "statistics.alignment")) == "right";
 		show_lap_keys = obs_data_get_bool(settings, "statistics.show_lap_keys");
 		show_lap_clicks = obs_data_get_bool(settings, "statistics.show_lap_clicks");
@@ -1396,12 +1404,31 @@ public:
 
 		const QFont metric_font = font(metric_font_size);
 		const int metric_height = QFontMetrics(metric_font).lineSpacing();
+		size_t metric_columns{};
+		for (const statistic_block &block : blocks)
+			metric_columns = std::max(metric_columns, block.metrics.size());
+		std::vector<int> label_widths(metric_columns), value_widths(metric_columns);
+		for (const statistic_block &block : blocks)
+			for (size_t index = 0; index < block.metrics.size(); ++index) {
+				const statistic_metric &metric = block.metrics[index];
+				label_widths[index] = std::max(
+					label_widths[index], QFontMetrics(metric_font).horizontalAdvance(metric.label));
+				value_widths[index] = std::max(
+					value_widths[index], QFontMetrics(metric_font).horizontalAdvance(metric.value));
+			}
+		int grid_width{};
+		for (size_t index = 0; index < metric_columns; ++index) {
+			grid_width += label_widths[index] + value_widths[index];
+			if (index + 1 < metric_columns)
+				grid_width += horizontal_spacing;
+		}
 		int content_height{};
 		for (const statistic_block &block : blocks)
-			content_height += QFontMetrics(font(block.title_font_size)).lineSpacing() + metric_height;
-		const int gap = std::min(element_spacing,
-					 std::max(0, (bounds.height() - content_height) /
-							     std::max(1, static_cast<int>(blocks.size()) - 1)));
+			content_height += QFontMetrics(font(block.title_font_size)).lineSpacing() + vertical_spacing +
+					  metric_height;
+		const int gap =
+			std::min(group_spacing, std::max(0, (bounds.height() - content_height) /
+								    std::max(1, static_cast<int>(blocks.size()) - 1)));
 		const int total_height = content_height + std::max(0, static_cast<int>(blocks.size()) - 1) * gap;
 		int top = bounds.center().y() - total_height / 2;
 		for (const statistic_block &block : blocks) {
@@ -1413,26 +1440,23 @@ public:
 				  text_color);
 			top += title_height;
 			painter.setFont(metric_font);
-			const int separator_width = QFontMetrics(metric_font).horizontalAdvance("  ");
-			int metrics_width{};
-			for (size_t index = 0; index < block.metrics.size(); ++index) {
-				const statistic_metric &metric = block.metrics[index];
-				metrics_width += QFontMetrics(metric_font).horizontalAdvance(metric.label) +
-						 QFontMetrics(metric_font).horizontalAdvance(metric.value);
-				if (index + 1 < block.metrics.size())
-					metrics_width += separator_width;
-			}
-			int left = right_aligned ? bounds.right() - metrics_width + 1 : bounds.left();
-			for (const statistic_metric &metric : block.metrics) {
-				const int label_width = QFontMetrics(metric_font).horizontalAdvance(metric.label);
-				const int value_width = QFontMetrics(metric_font).horizontalAdvance(metric.value);
-				draw_text(painter, QRect(left, top, label_width, metric_height),
-					  Qt::AlignLeft | Qt::AlignVCenter, metric.label, text_color);
-				left += label_width;
-				draw_text(painter, QRect(left, top, value_width, metric_height),
-					  Qt::AlignLeft | Qt::AlignVCenter, metric.value,
-					  metric.increasing ? pressed_color : theme_color);
-				left += value_width + separator_width;
+			top += vertical_spacing;
+			int left = right_aligned ? bounds.right() - grid_width + 1 : bounds.left();
+			for (size_t index = 0; index < metric_columns; ++index) {
+				if (index < block.metrics.size()) {
+					const statistic_metric &metric = block.metrics[index];
+					const int label_width =
+						QFontMetrics(metric_font).horizontalAdvance(metric.label);
+					const int value_width =
+						QFontMetrics(metric_font).horizontalAdvance(metric.value);
+					draw_text(painter, QRect(left, top, label_width, metric_height),
+						  Qt::AlignLeft | Qt::AlignVCenter, metric.label, text_color);
+					draw_text(painter,
+						  QRect(left + label_widths[index], top, value_width, metric_height),
+						  Qt::AlignLeft | Qt::AlignVCenter, metric.value,
+						  metric.increasing ? pressed_color : theme_color);
+				}
+				left += label_widths[index] + value_widths[index] + horizontal_spacing;
 			}
 			top += metric_height + gap;
 		}
@@ -1457,7 +1481,7 @@ private:
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
 	uint64_t total_keys{}, total_clicks{}, lap_keys{}, lap_clicks{};
 	int keys_title_font_size{28}, clicks_title_font_size{28}, actions_title_font_size{28}, metric_font_size{36},
-		element_spacing{};
+		horizontal_spacing{10}, vertical_spacing{10}, group_spacing{10};
 	bool show_keys{true}, show_clicks{true}, show_actions{true}, right_aligned{};
 	bool show_lap_keys{}, show_lap_clicks{}, show_lap_actions{};
 	QColor theme_color{37, 99, 235};
@@ -1512,6 +1536,10 @@ public:
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "input_intensity.window")), 1, 60);
 		element_spacing = std::clamp(
 			static_cast<int>(obs_data_get_int(settings, "input_intensity.element_spacing")), 0, 200);
+		velocity_unit = obs_data_get_string(settings, "input_intensity.velocity_unit");
+		if (velocity_unit != "metric" && velocity_unit != "imperial")
+			velocity_unit = "pixels";
+		mouse_dpi = std::max<int64_t>(1, obs_data_get_int(settings, "input_intensity.mouse_dpi"));
 		std::array<intensity_row, intensity_max_fields> new_rows{};
 		for (size_t index = 0; index < new_rows.size(); ++index) {
 			const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
@@ -1748,7 +1776,11 @@ private:
 				.arg(obs_module_text("InputIntensity.Metric.MouseButton"))
 				.arg(row.button);
 		case intensity_metric::velocity:
-			return QString("%1 (px/s)").arg(obs_module_text("InputIntensity.Metric.Velocity"));
+			return QString("%1 (%2/s)")
+				.arg(obs_module_text("InputIntensity.Metric.Velocity"))
+				.arg(velocity_unit == "metric"     ? "cm"
+				     : velocity_unit == "imperial" ? "in"
+								   : "px");
 		}
 		return {};
 	}
@@ -1832,7 +1864,13 @@ private:
 
 	double display_value(size_t row_index, double value) const
 	{
-		return rows[row_index].metric == intensity_metric::velocity ? value : value * 60.0;
+		if (rows[row_index].metric != intensity_metric::velocity)
+			return value * 60.0;
+		if (velocity_unit == "metric")
+			return value / mouse_dpi * 2.54;
+		if (velocity_unit == "imperial")
+			return value / mouse_dpi;
+		return value;
 	}
 
 	static QString number_label(double value) { return QString::number(value, 'f', value < 10.0 ? 1 : 0); }
@@ -1847,6 +1885,8 @@ private:
 	QColor theme_color{37, 99, 235};
 	QColor pressed_color{239, 68, 68};
 	int element_spacing{};
+	std::string velocity_unit{"pixels"};
+	int64_t mouse_dpi{800};
 	uint64_t bucket_start_ns{};
 	bool configured{};
 };
@@ -2205,6 +2245,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.horizontal_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.vertical_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.group_spacing", 10);
 			obs_data_set_default_string(settings, "statistics.alignment", "left");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_keys", true);
@@ -2224,6 +2267,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
+			obs_data_set_default_string(settings, "input_intensity.velocity_unit", "pixels");
+			obs_data_set_default_int(settings, "input_intensity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "input_intensity.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "input_intensity.pressed_color", 0xff4444ef);
@@ -2317,6 +2362,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.horizontal_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.vertical_spacing", 10);
+			obs_data_set_default_int(settings, "statistics.group_spacing", 10);
 			obs_data_set_default_string(settings, "statistics.alignment", "left");
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
@@ -2325,6 +2373,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "activity.title", "Input Intensity");
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
+			obs_data_set_default_string(settings, "input_intensity.velocity_unit", "pixels");
+			obs_data_set_default_int(settings, "input_intensity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "input_intensity.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "input_intensity.pressed_color", 0xff4444ef);
@@ -2517,8 +2567,12 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 				      200, 1);
 	obs_properties_add_color_alpha(p, "statistics.theme_color", obs_module_text("Statistics.ThemeColor"));
 	obs_properties_add_color_alpha(p, "statistics.pressed_color", obs_module_text("Statistics.PressedColor"));
-	obs_properties_add_int_slider(p, "statistics.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
-				      200, 1);
+	obs_properties_add_int_slider(p, "statistics.horizontal_spacing",
+				      obs_module_text("Statistics.HorizontalSpacing"), 0, 200, 1);
+	obs_properties_add_int_slider(p, "statistics.vertical_spacing", obs_module_text("Statistics.VerticalSpacing"),
+				      0, 200, 1);
+	obs_properties_add_int_slider(p, "statistics.group_spacing", obs_module_text("Statistics.GroupSpacing"), 0, 200,
+				      1);
 	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
 	obs_properties_add_bool(p, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
 	obs_properties_add_bool(p, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
@@ -2596,6 +2650,15 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	obs_properties_add_color_alpha(p, "input_intensity.theme_color", obs_module_text("InputIntensity.ThemeColor"));
 	obs_properties_add_color_alpha(p, "input_intensity.pressed_color",
 				       obs_module_text("InputIntensity.PressedColor"));
+	auto *velocity_unit = obs_properties_add_list(p, "input_intensity.velocity_unit",
+						      obs_module_text("InputIntensity.VelocityUnit"),
+						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Pixels"), "pixels");
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Metric"), "metric");
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Imperial"),
+				     "imperial");
+	obs_properties_add_int(p, "input_intensity.mouse_dpi", obs_module_text("InputIntensity.MouseDPI"), 1, 100000,
+			       1);
 	for (size_t index = 0; index < intensity_max_fields; ++index) {
 		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 		const QByteArray row_label =
