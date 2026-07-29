@@ -745,6 +745,8 @@ public:
 		heatmap_gradient = obs_data_get_string(settings, "mouse_activity.heatmap_gradient");
 		custom_gradient_low = obs_color(
 			static_cast<uint32_t>(obs_data_get_int(settings, "mouse_activity.custom_gradient_low")));
+		custom_gradient_middle = obs_color(
+			static_cast<uint32_t>(obs_data_get_int(settings, "mouse_activity.custom_gradient_middle")));
 		custom_gradient_high = obs_color(
 			static_cast<uint32_t>(obs_data_get_int(settings, "mouse_activity.custom_gradient_high")));
 		hex_radius = std::clamp(static_cast<qreal>(obs_data_get_int(settings, "mouse_activity.hex_size")), 1.0,
@@ -1051,15 +1053,14 @@ private:
 	{
 		if (heatmap_gradient == "custom") {
 			const qreal amount = std::clamp(band / 3.0, 0.0, 1.0);
-			return {static_cast<int>(
-					std::lround(custom_gradient_low.red() +
-						    (custom_gradient_high.red() - custom_gradient_low.red()) * amount)),
-				static_cast<int>(std::lround(
-					custom_gradient_low.green() +
-					(custom_gradient_high.green() - custom_gradient_low.green()) * amount)),
-				static_cast<int>(std::lround(
-					custom_gradient_low.blue() +
-					(custom_gradient_high.blue() - custom_gradient_low.blue()) * amount))};
+			const QColor &from = amount <= 0.5 ? custom_gradient_low : custom_gradient_middle;
+			const QColor &to = amount <= 0.5 ? custom_gradient_middle : custom_gradient_high;
+			const qreal segment_amount = amount <= 0.5 ? amount * 2.0 : (amount - 0.5) * 2.0;
+			return {static_cast<int>(std::lround(from.red() + (to.red() - from.red()) * segment_amount)),
+				static_cast<int>(
+					std::lround(from.green() + (to.green() - from.green()) * segment_amount)),
+				static_cast<int>(
+					std::lround(from.blue() + (to.blue() - from.blue()) * segment_amount))};
 		}
 		if (heatmap_gradient == "lime") {
 			const QColor colors[] = {{101, 163, 13}, {132, 204, 22}, {190, 242, 100}, {250, 204, 21}};
@@ -1232,6 +1233,7 @@ private:
 		show_border{}, show_center_mark{}, map_clicks{};
 	std::string heatmap_gradient{"spectrum"};
 	QColor custom_gradient_low{37, 99, 235};
+	QColor custom_gradient_middle{250, 204, 21};
 	QColor custom_gradient_high{239, 68, 68};
 	uint64_t trail_duration_ns{1500ULL * 1000 * 1000};
 	qreal hex_radius{default_heatmap_hex_radius};
@@ -2150,6 +2152,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.trail_ms", 1500);
 			obs_data_set_default_string(settings, "mouse_activity.heatmap_gradient", "spectrum");
 			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_low", 0xffeb6325);
+			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_middle", 0xff15ccfa);
 			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_high", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.hex_size",
 						 static_cast<int64_t>(default_heatmap_hex_radius));
@@ -2245,6 +2248,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.trail_ms", 1500);
 			obs_data_set_default_string(settings, "mouse_activity.heatmap_gradient", "spectrum");
 			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_low", 0xffeb6325);
+			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_middle", 0xff15ccfa);
 			obs_data_set_default_int(settings, "mouse_activity.custom_gradient_high", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.hex_size",
 						 static_cast<int64_t>(default_heatmap_hex_radius));
@@ -2404,6 +2408,8 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common)
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Custom"), "custom");
 	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_low",
 				       obs_module_text("MouseActivity.CustomGradientLow"));
+	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_middle",
+				       obs_module_text("MouseActivity.CustomGradientMiddle"));
 	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_high",
 				       obs_module_text("MouseActivity.CustomGradientHigh"));
 	obs_properties_add_int_slider(p, "mouse_activity.hex_size", obs_module_text("MouseActivity.HexSize"), 2, 100,
@@ -2617,7 +2623,6 @@ obs_properties_t *unified_properties(void *data)
 	obs_property_list_add_string(mode, obs_module_text("InputIntensity"), "input_intensity");
 	obs_property_list_add_string(mode, obs_module_text("InputStatistics"), "input_statistics");
 	obs_property_set_modified_callback(mode, unified_mode_changed);
-	add_common_properties(p);
 	auto *unified = static_cast<unified_source *>(data);
 	auto *live_group = obs_properties_add_group(p, "input_activity.live_keys", obs_module_text("LiveKeys"),
 						    OBS_GROUP_NORMAL, keys_properties_impl(data, false));
@@ -2638,6 +2643,7 @@ obs_properties_t *unified_properties(void *data)
 		obs_property_set_visible(intensity_group, false);
 		obs_property_set_visible(statistics_group, false);
 	}
+	add_common_properties(p);
 	return p;
 }
 } // namespace
