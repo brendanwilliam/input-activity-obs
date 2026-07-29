@@ -428,13 +428,22 @@ public:
 					  ? Qt::AlignRight
 					  : Qt::AlignLeft;
 		const char *legacy_spacing = "live_keys.element_spacing";
-		const char *live_spacing = obs_data_has_user_value(settings, "live_keys.live_element_spacing")
-						   ? "live_keys.live_element_spacing"
-						   : legacy_spacing;
+		const char *legacy_live_spacing = obs_data_has_user_value(settings, "live_keys.live_element_spacing")
+							  ? "live_keys.live_element_spacing"
+							  : legacy_spacing;
+		const char *horizontal_spacing = obs_data_has_user_value(settings, "live_keys.horizontal_spacing")
+							 ? "live_keys.horizontal_spacing"
+							 : legacy_live_spacing;
+		const char *vertical_spacing = obs_data_has_user_value(settings, "live_keys.vertical_spacing")
+						       ? "live_keys.vertical_spacing"
+						       : legacy_live_spacing;
 		const char *most_used_spacing = obs_data_has_user_value(settings, "live_keys.most_used_element_spacing")
 							? "live_keys.most_used_element_spacing"
 							: legacy_spacing;
-		live_element_spacing = std::clamp(static_cast<int>(obs_data_get_int(settings, live_spacing)), 0, 200);
+		live_horizontal_spacing =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, horizontal_spacing)), 0, 200);
+		live_vertical_spacing =
+			std::clamp(static_cast<int>(obs_data_get_int(settings, vertical_spacing)), -100, 200);
 		most_used_element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, most_used_spacing)), 0, 200);
 		group_spacing =
@@ -455,6 +464,7 @@ public:
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
 		most_used_font_size =
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_font_size")));
+		totals_above = std::string(obs_data_get_string(settings, "live_keys.total_position")) != "below";
 		fade_duration_ns =
 			static_cast<uint64_t>(std::max<int64_t>(0, obs_data_get_int(settings, "live_keys.fade_ms"))) *
 			1000 * 1000;
@@ -544,20 +554,21 @@ public:
 		}
 		const int start = std::max(0, static_cast<int>(keys.size()) - maximum);
 		const int available_span = width - padding * 2;
-		const int gap = std::min(live_element_spacing,
-					 std::max(0, (available_span - maximum) / std::max(1, maximum - 1)));
-		const int key_width = std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum);
+		const int horizontal_gap = std::min(live_horizontal_spacing,
+						    std::max(0, (available_span - maximum) / std::max(1, maximum - 1)));
+		const int key_width = std::max(1, (width - padding * 2 - horizontal_gap * (maximum - 1)) / maximum);
 		const int cell_height = live_height;
 		const QFont total_font = font(total_font_size);
 		const QFontMetrics total_metrics(total_font);
 		const int total_height = std::min(total_metrics.height(), std::max(0, cell_height - 9));
-		const int key_height = std::max(1, cell_height - total_height - gap);
+		const int vertical_gap = std::min(live_vertical_spacing, std::max(0, cell_height - total_height - 1));
+		const int key_height = std::max(1, cell_height - total_height - vertical_gap);
 		const uint64_t now = os_gettime_ns();
 		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
 			const int position = index - start;
-			const int x = padding + position * (key_width + gap);
+			const int x = padding + position * (key_width + horizontal_gap);
 			const int y = padding + live_title_height;
-			const QRect row(x, y + total_height + gap, key_width, key_height);
+			const QRect row(x, totals_above ? y + total_height + vertical_gap : y, key_width, key_height);
 			const auto &key = keys[index];
 			const int alpha =
 				key.fade_until > now && fade_duration_ns > 0
@@ -575,7 +586,8 @@ public:
 			painter.setFont(total_font);
 			draw_text(painter,
 				  QPoint(x + (key_width - total_metrics.horizontalAdvance(count)) / 2,
-					 row.top() - gap - total_metrics.descent()),
+					 totals_above ? row.top() - vertical_gap - total_metrics.descent()
+						      : row.bottom() + 1 + vertical_gap + total_metrics.ascent()),
 				  count, text);
 			painter.setFont(font(key.alphanumeric ? key_font_size : special_key_font_size));
 			draw_text(painter, row, Qt::AlignCenter, key.label, text);
@@ -673,7 +685,7 @@ private:
 	int most_used_maximum = 8;
 	int live_row_height = 96;
 	int live_title_font_size = 28, most_used_title_font_size = 28;
-	int live_element_spacing = 2, most_used_element_spacing = 2, group_spacing = 10;
+	int live_horizontal_spacing = 2, live_vertical_spacing = 2, most_used_element_spacing = 2, group_spacing = 10;
 	int key_font_size = 36;
 	int special_key_font_size = 28;
 	int total_font_size = 24;
@@ -686,7 +698,7 @@ private:
 	std::unordered_map<uint16_t, uint64_t> press_counts;
 	std::unordered_map<uint16_t, QString> key_labels;
 	std::vector<active_key> ordered;
-	bool show_most_used{};
+	bool show_most_used{}, totals_above{true};
 	bool show_live_title{true}, show_most_used_title{true};
 	Qt::Alignment chart_alignment{Qt::AlignLeft};
 	QString live_title{"Live Keys"}, most_used_title{"Most Used Keys"};
@@ -2032,6 +2044,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
 			obs_data_set_default_int(settings, "live_keys.element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.live_element_spacing", 10);
+			obs_data_set_default_int(settings, "live_keys.horizontal_spacing", 10);
+			obs_data_set_default_int(settings, "live_keys.vertical_spacing", 10);
+			obs_data_set_default_string(settings, "live_keys.total_position", "above");
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
@@ -2100,6 +2115,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
 			obs_data_set_default_int(settings, "live_keys.element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.live_element_spacing", 10);
+			obs_data_set_default_int(settings, "live_keys.horizontal_spacing", 10);
+			obs_data_set_default_int(settings, "live_keys.vertical_spacing", 10);
+			obs_data_set_default_string(settings, "live_keys.total_position", "above");
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
 			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
@@ -2193,8 +2211,15 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 							OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Left"), "left");
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Right"), "right");
-	obs_properties_add_int_slider(p, "live_keys.live_element_spacing", obs_module_text("LiveKeys.LiveKeySpacing"),
+	obs_properties_add_int_slider(p, "live_keys.horizontal_spacing", obs_module_text("LiveKeys.HorizontalSpacing"),
 				      0, 200, 1);
+	obs_properties_add_int_slider(p, "live_keys.vertical_spacing", obs_module_text("LiveKeys.VerticalSpacing"),
+				      -100, 200, 1);
+	auto *total_position = obs_properties_add_list(p, "live_keys.total_position",
+						       obs_module_text("LiveKeys.TotalPosition"), OBS_COMBO_TYPE_LIST,
+						       OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(total_position, obs_module_text("LiveKeys.TotalPosition.Above"), "above");
+	obs_property_list_add_string(total_position, obs_module_text("LiveKeys.TotalPosition.Below"), "below");
 	obs_properties_add_int_slider(p, "live_keys.most_used_element_spacing",
 				      obs_module_text("LiveKeys.MostUsedSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(p, "live_keys.group_spacing", obs_module_text("LiveKeys.BetweenGroupSpacing"), 0,
