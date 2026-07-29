@@ -1981,14 +1981,16 @@ private:
 
 void unified_source::set_properties_visibility(obs_properties_t *properties) const
 {
-	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"),
-				 mode == source_mode::live_keys);
+	auto *settings = obs_source_get_settings(source);
+	const std::string selected = obs_data_get_string(settings, "input_activity.mode");
+	obs_data_release(settings);
+	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"), selected == "live_keys");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.mouse_activity"),
-				 mode == source_mode::mouse_activity);
+				 selected == "mouse_activity");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.input_intensity"),
-				 mode == source_mode::input_intensity);
+				 selected == "input_intensity");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.input_statistics"),
-				 mode == source_mode::input_statistics);
+				 selected == "input_statistics");
 }
 
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
