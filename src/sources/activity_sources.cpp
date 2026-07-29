@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <type_traits>
@@ -58,27 +59,32 @@ void migrate_legacy_colors(obs_data_t *settings, const char *migration_key,
 
 class activity_source {
 public:
-	activity_source(obs_source_t *source, obs_data_t *settings) : source(source)
+	activity_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
+			bool initial_update = true)
+		: source(source)
 	{
 		{
 			std::lock_guard<std::mutex> lock(activity_sources_mutex);
 			activity_sources.insert(this);
 		}
-		reset_hotkey = obs_hotkey_register_source(
-			source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
-			[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-				if (pressed)
-					reset_all_activity();
-			},
-			this);
-		lap_hotkey = obs_hotkey_register_source(
-			source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
-			[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-				if (pressed)
-					lap_all_activity();
-			},
-			this);
-		obs_source_update(source, settings);
+		if (register_hotkeys)
+			reset_hotkey = obs_hotkey_register_source(
+				source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
+				[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+					if (pressed)
+						reset_all_activity();
+				},
+				this);
+		if (register_hotkeys)
+			lap_hotkey = obs_hotkey_register_source(
+				source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
+				[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+					if (pressed)
+						lap_all_activity();
+				},
+				this);
+		if (initial_update)
+			obs_source_update(source, settings);
 	}
 	virtual ~activity_source()
 	{
@@ -102,13 +108,20 @@ public:
 		padding = std::max(0, static_cast<int>(obs_data_get_int(settings, "activity.padding")));
 		font_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.font_size")));
 		text_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "activity.text_color")));
+		background_color =
+			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "activity.background_color")));
 		text_shadow = obs_data_get_bool(settings, "activity.text_shadow");
 		text_shadow_color =
 			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "activity.text_shadow_color")));
 		text_shadow_offset =
 			std::max(0, static_cast<int>(obs_data_get_int(settings, "activity.text_shadow_offset")));
+		title = QString::fromUtf8(obs_data_get_string(settings, "activity.title"));
+		show_title = obs_data_get_bool(settings, "activity.show_title");
+		font_family = "Silom";
 		if (auto *font = obs_data_get_obj(settings, "activity.font")) {
-			font_family = QString::fromUtf8(obs_data_get_string(font, "face"));
+			const QString saved_face = QString::fromUtf8(obs_data_get_string(font, "face"));
+			if (!saved_face.isEmpty())
+				font_family = saved_face;
 			obs_data_release(font);
 		}
 		const std::string selected_target_type = obs_data_get_string(settings, "activity.target.type");
@@ -136,9 +149,18 @@ public:
 	void draw(gs_effect_t *effect)
 	{
 		image = QImage(width, height, QImage::Format_RGBA8888);
-		image.fill(Qt::transparent);
+		image.fill(background_color);
 		QPainter painter(&image);
 		painter.setRenderHint(QPainter::Antialiasing);
+		if (show_title && !title.isEmpty()) {
+			painter.setFont(font());
+			const int title_height = QFontMetrics(painter.font()).lineSpacing() + padding / 2;
+			draw_text(painter, QRect(padding, padding, std::max(1, width - padding * 2), title_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, title, text_color);
+			painter.translate(0, title_height + padding / 2);
+			painter.setClipRect(0, title_height + padding / 2, width,
+					    std::max(1, height - title_height - padding / 2));
+		}
 		render(painter);
 		if (texture && (texture_width != width || texture_height != height)) {
 			gs_texture_destroy(texture);
@@ -213,10 +235,13 @@ public:
 	obs_source_t *source{};
 	int width = 480, height = 180, padding = 12, font_size = 28;
 	QColor text_color{255, 255, 255};
+	QColor background_color{0, 0, 0, 0};
 	QColor text_shadow_color{0, 0, 0, 204};
 	bool text_shadow{};
 	int text_shadow_offset{2};
 	QString font_family;
+	QString title;
+	bool show_title{};
 	uint64_t cursor{};
 
 private:
@@ -278,22 +303,22 @@ QString key_name(const input_data::trace_event &event)
 		return "Ctrl";
 	case VC_ALT_L:
 	case VC_ALT_R:
-		return "Alt";
+		return "Opt";
 	case VC_META_L:
 	case VC_META_R:
 		return "Cmd";
 	case VC_SPACE:
 		return "Space";
 	case VC_ENTER:
-		return "Enter";
+		return "Return";
 	case VC_ESCAPE:
 		return "Esc";
 	case VC_BACKSPACE:
-		return "Backspace";
+		return "Del";
 	case VC_TAB:
 		return "Tab";
 	case VC_CAPS_LOCK:
-		return "Caps Lock";
+		return "Caps";
 	case VC_MINUS:
 		return "-";
 	case VC_EQUALS:
@@ -329,21 +354,21 @@ QString key_name(const input_data::trace_event &event)
 	case VC_END:
 		return "End";
 	case VC_PAGE_UP:
-		return "Page Up";
+		return "PgUp";
 	case VC_PAGE_DOWN:
-		return "Page Down";
+		return "PgDn";
 	case VC_INSERT:
 		return "Insert";
 	case VC_DELETE:
 		return "Delete";
 	case VC_PRINT_SCREEN:
-		return "Print Screen";
+		return "PrtSc";
 	case VC_SCROLL_LOCK:
-		return "Scroll Lock";
+		return "Scroll";
 	case VC_PAUSE:
 		return "Pause";
 	case VC_NUM_LOCK:
-		return "Num Lock";
+		return "NumLock";
 	case VC_KP_DIVIDE:
 		return "Num /";
 	case VC_KP_MULTIPLY:
@@ -361,21 +386,47 @@ QString key_name(const input_data::trace_event &event)
 	}
 }
 
+bool is_alphanumeric_key(const input_data::trace_event &event)
+{
+	return ((event.keychar >= 'A' && event.keychar <= 'Z') || (event.keychar >= 'a' && event.keychar <= 'z') ||
+		(event.keychar >= '0' && event.keychar <= '9')) ||
+	       (event.code >= VC_A && event.code <= VC_Z) || (event.code >= VC_0 && event.code <= VC_9) ||
+	       (event.code >= VC_KP_0 && event.code <= VC_KP_9);
+}
+
 class live_keys_source final : public activity_source {
 public:
 	enum class fade_curve { linear, ease_in, ease_out, ease_in_out };
 
-	using activity_source::activity_source;
+	live_keys_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
+			 bool initial_update = true)
+		: activity_source(source, settings, register_hotkeys, initial_update)
+	{
+	}
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
 		migrate_legacy_colors(settings, "live_keys.colors_with_alpha", {"live_keys.color"});
 		maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.maximum")));
-		row_layout = obs_data_get_bool(settings, "live_keys.row_layout");
+		most_used_maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.top_n")));
+		live_row_height = std::max(24, static_cast<int>(obs_data_get_int(settings, "live_keys.row_height")));
+		chart_alignment = std::string(obs_data_get_string(settings, "live_keys.top_n_alignment")) == "right"
+					  ? Qt::AlignRight
+					  : Qt::AlignLeft;
 		element_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "live_keys.element_spacing")), 0, 200);
 		show_most_used = obs_data_get_bool(settings, "live_keys.show_most_used");
+		live_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.live_title"));
+		show_live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
+		live_title_font_size =
+			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.live_title_font_size")));
+		most_used_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.most_used_title"));
+		show_most_used_title = obs_data_get_bool(settings, "live_keys.show_most_used_title");
+		most_used_title_font_size = std::max(
+			8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_title_font_size")));
 		key_font_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.key_font_size")));
+		special_key_font_size =
+			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.special_key_font_size")));
 		total_font_size =
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
 		fade_duration_ns =
@@ -390,7 +441,8 @@ public:
 			fade = fade_curve::ease_in_out;
 		else
 			fade = fade_curve::linear;
-		active_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "live_keys.color")));
+		theme_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "live_keys.color")));
+		pressed_color = obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "live_keys.pressed_color")));
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
@@ -400,7 +452,8 @@ public:
 			ordered.erase(std::remove_if(ordered.begin(), ordered.end(),
 						     [&event](const auto &key) { return key.code == event.code; }),
 				      ordered.end());
-			ordered.push_back({event.code, key_labels[event.code], 0, ++press_counts[event.code]});
+			ordered.push_back({event.code, key_labels[event.code], is_alphanumeric_key(event), 0,
+					   ++press_counts[event.code]});
 		} else if (event.type == EVENT_KEY_RELEASED) {
 			held[event.code] = false;
 			for (auto &key : ordered) {
@@ -433,7 +486,8 @@ public:
 				input_data::trace_event event{};
 				event.code = code;
 				key_labels.try_emplace(code, key_name(event));
-				ordered.push_back({code, key_labels[code], 0, press_counts[code]});
+				ordered.push_back(
+					{code, key_labels[code], is_alphanumeric_key(event), 0, press_counts[code]});
 			}
 		}
 	}
@@ -447,50 +501,44 @@ public:
 	void render(QPainter &painter) override
 	{
 		std::vector<active_key> keys = ordered;
-		if (show_most_used) {
-			keys.clear();
-			keys.reserve(press_counts.size());
-			for (const auto &[code, count] : press_counts) {
-				if (count == 0)
-					continue;
-				input_data::trace_event event{};
-				event.code = code;
-				keys.push_back(
-					{code, key_labels.count(code) ? key_labels[code] : key_name(event), 0, count});
-			}
-			std::sort(keys.begin(), keys.end(), [](const active_key &left, const active_key &right) {
-				return left.press_count != right.press_count ? left.press_count > right.press_count
-									     : left.code < right.code;
-			});
+		const int live_title_height =
+			show_live_title && !live_title.isEmpty() ? live_title_font_size + padding / 2 : 0;
+		const int chart_title_height = show_most_used && show_most_used_title && !most_used_title.isEmpty()
+						       ? most_used_title_font_size + padding / 2
+						       : 0;
+		const int live_height =
+			show_most_used
+				? std::min(live_row_height, std::max(1, height - padding * 2 - live_title_height -
+										chart_title_height - element_spacing))
+				: std::max(1, height - padding * 2 - live_title_height);
+		if (live_title_height) {
+			painter.setFont(font(live_title_font_size));
+			draw_text(painter, QRect(padding, padding, width - padding * 2, live_title_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, live_title, text_color);
 		}
-
-		const int start = show_most_used ? 0 : std::max(0, static_cast<int>(keys.size()) - maximum);
-		const int available_span = row_layout ? width - padding * 2 : height - padding * 2;
+		const int start = std::max(0, static_cast<int>(keys.size()) - maximum);
+		const int available_span = width - padding * 2;
 		const int gap =
 			std::min(element_spacing, std::max(0, (available_span - maximum) / std::max(1, maximum - 1)));
-		const int key_width = row_layout ? std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum)
-						 : std::max(1, width - padding * 2);
-		const int cell_height = row_layout
-						? std::max(1, height - padding * 2)
-						: std::max(1, (height - padding * 2 - gap * (maximum - 1)) / maximum);
+		const int key_width = std::max(1, (width - padding * 2 - gap * (maximum - 1)) / maximum);
+		const int cell_height = live_height;
 		painter.setFont(font(total_font_size));
 		const int total_height = std::min(QFontMetrics(painter.font()).height(), std::max(0, cell_height - 9));
 		const int key_height = std::max(1, cell_height - total_height - gap);
 		const uint64_t now = os_gettime_ns();
 		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
 			const int position = index - start;
-			const int x = row_layout ? padding + position * (key_width + gap) : padding;
-			const int y = row_layout ? padding : padding + position * (cell_height + gap);
+			const int x = padding + position * (key_width + gap);
+			const int y = padding + live_title_height;
 			const QRect total(x, y, key_width, total_height);
 			const QRect row(x, y + total_height + gap, key_width, key_height);
 			const auto &key = keys[index];
 			const int alpha =
-				show_most_used ? 255
-				: key.fade_until > now && fade_duration_ns > 0
+				key.fade_until > now && fade_duration_ns > 0
 					? static_cast<int>(255 * fade_alpha(static_cast<double>(key.fade_until - now) /
 									    fade_duration_ns))
 					: (key.fade_until ? 0 : 255);
-			QColor fill = active_color;
+			QColor fill = held[key.code] ? pressed_color : theme_color;
 			fill.setAlpha(std::clamp(alpha, 0, 255));
 			QColor text = text_color;
 			text.setAlpha(std::clamp(alpha, 0, 255));
@@ -499,12 +547,72 @@ public:
 			painter.drawRoundedRect(row, 6, 6);
 			painter.setFont(font(total_font_size));
 			draw_text(painter, total, Qt::AlignCenter, QString::number(key.press_count), text);
-			painter.setFont(font(key_font_size));
+			painter.setFont(font(key.alphanumeric ? key_font_size : special_key_font_size));
 			draw_text(painter, row, Qt::AlignCenter, key.label, text);
+		}
+		if (show_most_used) {
+			const int chart_top = padding + live_title_height + live_height + element_spacing;
+			if (chart_title_height) {
+				painter.setFont(font(most_used_title_font_size));
+				draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
+					  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
+			}
+			draw_most_used_chart(painter,
+					     QRect(padding, chart_top + chart_title_height,
+						   std::max(1, width - padding * 2),
+						   std::max(1, height - padding * 2 - live_title_height - live_height -
+								       chart_title_height - element_spacing)));
 		}
 	}
 
 private:
+	void draw_most_used_chart(QPainter &painter, const QRect &bounds) const
+	{
+		std::vector<active_key> keys;
+		for (const auto &[code, count] : press_counts) {
+			if (count == 0)
+				continue;
+			input_data::trace_event event{};
+			event.code = code;
+			keys.push_back({code, key_labels.count(code) ? key_labels.at(code) : key_name(event),
+					is_alphanumeric_key(event), 0, count});
+		}
+		std::sort(keys.begin(), keys.end(), [](const active_key &left, const active_key &right) {
+			return left.press_count != right.press_count ? left.press_count > right.press_count
+								     : left.code < right.code;
+		});
+		keys.resize(std::min(keys.size(), static_cast<size_t>(most_used_maximum)));
+		if (keys.empty())
+			return;
+		const uint64_t highest = keys.front().press_count;
+		const int gap =
+			std::min(element_spacing, std::max(0, bounds.height() / static_cast<int>(keys.size() * 3)));
+		const int row_height = std::max(1, (bounds.height() - gap * (static_cast<int>(keys.size()) - 1)) /
+							   static_cast<int>(keys.size()));
+		const QFontMetrics metrics(font(key_font_size));
+		const int value_height = std::min(metrics.height(), row_height / 2);
+		const int chart_width = bounds.width();
+		const bool right_aligned = chart_alignment == Qt::AlignRight;
+		const int chart_left = bounds.left();
+		for (size_t index = 0; index < keys.size(); ++index) {
+			const int top = bounds.top() + static_cast<int>(index) * (row_height + gap);
+			const int bar_width =
+				std::max(1, static_cast<int>(chart_width * keys[index].press_count / highest));
+			const QRect bar(right_aligned ? chart_left + chart_width - bar_width : chart_left,
+					top + value_height, bar_width, std::max(1, row_height - value_height));
+			painter.setPen(Qt::NoPen);
+			const auto pressed = held.find(keys[index].code);
+			painter.setBrush(pressed != held.end() && pressed->second ? pressed_color : theme_color);
+			painter.drawRoundedRect(bar, 3, 3);
+			painter.setFont(font(keys[index].alphanumeric ? key_font_size : special_key_font_size));
+			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, keys[index].label, text_color);
+			painter.setFont(font(total_font_size));
+			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
+				  Qt::AlignRight | Qt::AlignVCenter, QString::number(keys[index].press_count),
+				  text_color);
+		}
+	}
 	double fade_alpha(double remaining) const
 	{
 		remaining = std::clamp(remaining, 0.0, 1.0);
@@ -527,35 +635,46 @@ private:
 	struct active_key {
 		uint16_t code;
 		QString label;
+		bool alphanumeric;
 		uint64_t fade_until;
 		uint64_t press_count;
 	};
 	int maximum = 8;
+	int most_used_maximum = 8;
+	int live_row_height = 96;
+	int live_title_font_size = 28, most_used_title_font_size = 28;
 	int element_spacing = 2;
 	int key_font_size = 36;
+	int special_key_font_size = 28;
 	int total_font_size = 24;
 	uint64_t fade_duration_ns = 300ULL * 1000 * 1000;
 	fade_curve fade{fade_curve::linear};
-	QColor active_color{37, 99, 235};
+	QColor theme_color{37, 99, 235};
+	QColor pressed_color{239, 68, 68};
 	std::unordered_map<uint16_t, bool> held;
 	std::unordered_map<uint16_t, uint64_t> press_counts;
 	std::unordered_map<uint16_t, QString> key_labels;
 	std::vector<active_key> ordered;
-	bool row_layout{};
 	bool show_most_used{};
+	bool show_live_title{true}, show_most_used_title{true};
+	Qt::Alignment chart_alignment{Qt::AlignLeft};
+	QString live_title{"Live Keys"}, most_used_title{"Most Used Keys"};
 };
 
 class mouse_activity_source final : public activity_source {
 public:
-	mouse_activity_source(obs_source_t *source, obs_data_t *settings) : activity_source(source, settings)
+	mouse_activity_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
+			      bool initial_update = true)
+		: activity_source(source, settings, register_hotkeys, initial_update)
 	{
-		export_hotkey = obs_hotkey_register_source(
-			source, "export_mouse_heatmap", obs_module_text("MouseActivity.ExportHotkey"),
-			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-				if (pressed)
-					static_cast<mouse_activity_source *>(data)->export_heatmap();
-			},
-			this);
+		if (register_hotkeys)
+			export_hotkey = obs_hotkey_register_source(
+				source, "export_mouse_heatmap", obs_module_text("MouseActivity.ExportHotkey"),
+				[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+					if (pressed)
+						static_cast<mouse_activity_source *>(data)->export_heatmap();
+				},
+				this);
 	}
 	~mouse_activity_source() override { obs_hotkey_unregister(export_hotkey); }
 	void update(obs_data_t *settings) override
@@ -619,6 +738,7 @@ public:
 			bin.value = 0;
 		last_motion.reset();
 	}
+	void export_current_heatmap() const { export_heatmap(); }
 	void reset_activity() override
 	{
 		clear();
@@ -968,13 +1088,12 @@ private:
 									     : middle_label;
 		if (label.isEmpty())
 			return;
-		const QRect label_rect(static_cast<int>(point.x()) + 18, static_cast<int>(point.y()) + 12,
-				       std::max(1, font_size * 3), font_size + 8);
-		QColor label_background = color;
-		label_background.setAlpha(220);
-		painter.setBrush(label_background);
-		painter.drawRoundedRect(label_rect, 4, 4);
-		draw_text(painter, label_rect, Qt::AlignCenter, label, text_color);
+		const QFontMetrics metrics(painter.font());
+		const QRect label_rect(static_cast<int>(point.x()) - metrics.horizontalAdvance(label) - 4,
+				       static_cast<int>(point.y()) - metrics.height() - 4,
+				       std::max(1, metrics.horizontalAdvance(label) + 2),
+				       std::max(1, metrics.height() + 2));
+		draw_text(painter, label_rect, Qt::AlignCenter, label, color);
 	}
 	QString left_label{"L"}, right_label{"R"}, middle_label{"M"};
 	QColor active_color{37, 99, 235};
@@ -1003,7 +1122,11 @@ private:
 
 class statistics_source final : public activity_source {
 public:
-	using activity_source::activity_source;
+	statistics_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
+			  bool initial_update = true)
+		: activity_source(source, settings, register_hotkeys, initial_update)
+	{
+	}
 	void update(obs_data_t *settings) override
 	{
 		activity_source::update(settings);
@@ -1208,7 +1331,11 @@ class input_intensity_source final : public activity_source {
 public:
 	using sample = std::array<double, 8>;
 
-	using activity_source::activity_source;
+	input_intensity_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
+			       bool initial_update = true)
+		: activity_source(source, settings, register_hotkeys, initial_update)
+	{
+	}
 
 	void update(obs_data_t *settings) override
 	{
@@ -1331,16 +1458,16 @@ public:
 		QFont row_font = font();
 		row_font.setPixelSize(std::clamp(row_height / 3, 9, font_size));
 		painter.setFont(row_font);
+		const int text_height = QFontMetrics(row_font).lineSpacing() + 4;
 
 		for (size_t visible_index = 0; visible_index < active_rows.size(); ++visible_index) {
 			const size_t row_index = active_rows[visible_index];
 			const QRect row_rect(bounds.left(),
 					     bounds.top() + static_cast<int>(visible_index) * (row_height + gap),
 					     bounds.width(), row_height);
-			const int label_height = std::max(1, std::min(row_rect.height() / 3, row_font.pixelSize() + 2));
-			const int value_label_height =
-				std::max(1, std::min(row_rect.height() / 3, row_font.pixelSize() + 2));
-			const QRect label_rect(row_rect.left(), row_rect.top(), row_rect.width(), label_height);
+			const int label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
+			const int value_label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
+			const QRect label_rect(row_rect.left(), row_rect.top() + 1, row_rect.width(), label_height - 1);
 			const QRect chart_rect(row_rect.left(), label_rect.bottom() + 3, row_rect.width(),
 					       std::max(1, row_rect.height() - label_height - value_label_height - 4));
 			const QRect value_label_rect(row_rect.left(), chart_rect.bottom() + 1, row_rect.width(),
@@ -1504,12 +1631,160 @@ private:
 	bool configured{};
 };
 
+class unified_source final {
+public:
+	unified_source(obs_source_t *source, obs_data_t *settings) : source(source)
+	{
+		common_settings = obs_data_create();
+		copy_shared_settings(common_settings, settings);
+		for (auto &saved : mode_settings) {
+			saved = obs_data_create();
+			obs_data_apply(saved, settings);
+		}
+		obs_data_set_string(mode_settings[mode_index(source_mode::live_keys)], "activity.title", "Live Keys");
+		obs_data_set_bool(mode_settings[mode_index(source_mode::live_keys)], "activity.show_title", false);
+		obs_data_set_string(mode_settings[mode_index(source_mode::mouse_activity)], "activity.title",
+				    "Mouse Activity");
+		obs_data_set_string(mode_settings[mode_index(source_mode::input_intensity)], "activity.title",
+				    "Input Intensity");
+		obs_data_set_string(mode_settings[mode_index(source_mode::input_statistics)], "activity.title",
+				    "Input Statistics");
+		live_keys = std::make_unique<live_keys_source>(source, settings, false, false);
+		mouse_activity = std::make_unique<mouse_activity_source>(source, settings, false, false);
+		input_intensity = std::make_unique<input_intensity_source>(source, settings, false, false);
+		statistics = std::make_unique<statistics_source>(source, settings, false, false);
+		reset_hotkey = obs_hotkey_register_source(
+			source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
+			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					static_cast<unified_source *>(data)->active()->reset_activity();
+			},
+			this);
+		lap_hotkey = obs_hotkey_register_source(
+			source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
+			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					static_cast<unified_source *>(data)->active()->lap_activity();
+			},
+			this);
+		export_hotkey = obs_hotkey_register_source(
+			source, "export_mouse_heatmap", obs_module_text("MouseActivity.ExportHotkey"),
+			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				auto *unified = static_cast<unified_source *>(data);
+				if (pressed && unified->mode == source_mode::mouse_activity)
+					unified->mouse_activity->export_current_heatmap();
+			},
+			this);
+		update(settings);
+	}
+	~unified_source()
+	{
+		obs_hotkey_unregister(reset_hotkey);
+		obs_hotkey_unregister(lap_hotkey);
+		obs_hotkey_unregister(export_hotkey);
+		for (auto *saved : mode_settings)
+			obs_data_release(saved);
+		obs_data_release(common_settings);
+	}
+	void update(obs_data_t *settings)
+	{
+		const std::string selected = obs_data_get_string(settings, "input_activity.mode");
+		const source_mode selected_mode = selected == "mouse_activity"     ? source_mode::mouse_activity
+						  : selected == "input_intensity"  ? source_mode::input_intensity
+						  : selected == "input_statistics" ? source_mode::input_statistics
+										   : source_mode::live_keys;
+		if (configured) {
+			obs_data_apply(mode_settings[mode_index(mode)], settings);
+			copy_shared_settings(common_settings, settings);
+		}
+		if (configured && selected_mode != mode) {
+			obs_data_apply(settings, mode_settings[mode_index(selected_mode)]);
+			copy_shared_settings(settings, common_settings);
+			obs_data_set_string(settings, "input_activity.mode", selected.c_str());
+		}
+		mode = selected_mode;
+		configured = true;
+		active()->update(settings);
+	}
+	void tick(float seconds) { active()->tick(seconds); }
+	void draw(gs_effect_t *effect) { active()->draw(effect); }
+	uint32_t width() const { return static_cast<uint32_t>(active()->width); }
+	uint32_t height() const { return static_cast<uint32_t>(active()->height); }
+	void clear_mouse_activity() { mouse_activity->clear(); }
+	mouse_activity_source *mouse() const { return mouse_activity.get(); }
+
+private:
+	enum class source_mode { live_keys, mouse_activity, input_intensity, input_statistics };
+	static size_t mode_index(source_mode value) { return static_cast<size_t>(value); }
+	static void copy_shared_settings(obs_data_t *destination, obs_data_t *source)
+	{
+		const char *const integer_keys[] = {"activity.width",
+						    "activity.height",
+						    "activity.padding",
+						    "activity.font_size",
+						    "activity.text_color",
+						    "activity.background_color",
+						    "activity.text_shadow_color",
+						    "activity.text_shadow_offset",
+						    "activity.target.display"};
+		for (const char *key : integer_keys)
+			obs_data_set_int(destination, key, obs_data_get_int(source, key));
+		obs_data_set_bool(destination, "activity.text_shadow",
+				  obs_data_get_bool(source, "activity.text_shadow"));
+		const char *const string_keys[] = {"activity.target.type", "activity.target.application",
+						   "activity.target.window"};
+		for (const char *key : string_keys)
+			obs_data_set_string(destination, key, obs_data_get_string(source, key));
+		if (auto *font = obs_data_get_obj(source, "activity.font")) {
+			obs_data_set_obj(destination, "activity.font", font);
+			obs_data_release(font);
+		}
+	}
+	activity_source *active() const
+	{
+		switch (mode) {
+		case source_mode::mouse_activity:
+			return mouse_activity.get();
+		case source_mode::input_intensity:
+			return input_intensity.get();
+		case source_mode::input_statistics:
+			return statistics.get();
+		case source_mode::live_keys:
+			return live_keys.get();
+		}
+		return live_keys.get();
+	}
+	obs_source_t *source{};
+	obs_hotkey_id reset_hotkey = OBS_INVALID_HOTKEY_ID;
+	obs_hotkey_id lap_hotkey = OBS_INVALID_HOTKEY_ID;
+	obs_hotkey_id export_hotkey = OBS_INVALID_HOTKEY_ID;
+	source_mode mode{source_mode::live_keys};
+	std::unique_ptr<live_keys_source> live_keys;
+	std::unique_ptr<mouse_activity_source> mouse_activity;
+	std::unique_ptr<input_intensity_source> input_intensity;
+	std::unique_ptr<statistics_source> statistics;
+	std::array<obs_data_t *, 4> mode_settings{};
+	obs_data_t *common_settings{};
+	bool configured{};
+};
+
 bool distance_unit_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const std::string unit = obs_data_get_string(settings, "statistics.distance_unit");
 	obs_property_set_visible(obs_properties_get(props, "statistics.mouse_dpi"), unit != "px");
 	return true;
 }
+
+bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const std::string target_type = obs_data_get_string(settings, "activity.target.type");
+	obs_property_set_visible(obs_properties_get(props, "activity.target.display"), target_type == "display");
+	obs_property_set_visible(obs_properties_get(props, "activity.target.application"),
+				 target_type == "application");
+	obs_property_set_visible(obs_properties_get(props, "activity.target.window"), target_type == "window");
+	return true;
+}
+
 void add_common_properties(obs_properties_t *props, bool allow_height = true)
 {
 	auto *target_type = obs_properties_add_list(props, "activity.target.type", obs_module_text("Activity.Target"),
@@ -1518,6 +1793,7 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Display"), "display");
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Application"), "application");
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Window"), "window");
+	obs_property_set_modified_callback(target_type, target_type_changed);
 	auto *target_display = obs_properties_add_list(props, "activity.target.display",
 						       obs_module_text("Activity.Target.Display"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_INT);
@@ -1535,6 +1811,9 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 		const std::string id = window.application_id + "#" + std::to_string(window.id);
 		obs_property_list_add_string(target_window, window.label.c_str(), id.c_str());
 	}
+	obs_property_set_visible(target_display, false);
+	obs_property_set_visible(target_application, false);
+	obs_property_set_visible(target_window, false);
 	obs_properties_add_int(props, "activity.width", obs_module_text("Activity.Width"), 64, 3840, 1);
 	if (allow_height)
 		obs_properties_add_int(props, "activity.height", obs_module_text("Activity.Height"), 32, 2160, 1);
@@ -1542,11 +1821,18 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 	obs_properties_add_font(props, "activity.font", obs_module_text("Activity.Font"));
 	obs_properties_add_int(props, "activity.font_size", obs_module_text("Activity.FontSize"), 8, 256, 1);
 	obs_properties_add_color_alpha(props, "activity.text_color", obs_module_text("Activity.TextColor"));
+	obs_properties_add_color_alpha(props, "activity.background_color", obs_module_text("Activity.BackgroundColor"));
 	obs_properties_add_bool(props, "activity.text_shadow", obs_module_text("Activity.TextShadow"));
 	obs_properties_add_color_alpha(props, "activity.text_shadow_color",
 				       obs_module_text("Activity.TextShadowColor"));
 	obs_properties_add_int_slider(props, "activity.text_shadow_offset",
 				      obs_module_text("Activity.TextShadowOffset"), 0, 20, 1);
+}
+
+void add_mode_title_properties(obs_properties_t *props)
+{
+	obs_properties_add_bool(props, "activity.show_title", obs_module_text("Activity.ShowTitle"));
+	obs_properties_add_text(props, "activity.title", obs_module_text("Activity.Title"), OBS_TEXT_DEFAULT);
 }
 template<typename T> void register_source(const char *id, obs_properties_t *(*properties)(void *))
 {
@@ -1565,6 +1851,10 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 	else if constexpr (std::is_same_v<T, input_intensity_source>)
 		info.get_name = [](void *) {
 			return obs_module_text("InputIntensity");
+		};
+	else if constexpr (std::is_same_v<T, unified_source>)
+		info.get_name = [](void *) {
+			return obs_module_text("InputActivity");
 		};
 	else
 		info.get_name = [](void *) {
@@ -1586,33 +1876,112 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		static_cast<T *>(data)->draw(effect);
 	};
 	info.get_width = [](void *data) {
-		return static_cast<uint32_t>(static_cast<T *>(data)->width);
+		if constexpr (std::is_same_v<T, unified_source>)
+			return static_cast<T *>(data)->width();
+		else
+			return static_cast<uint32_t>(static_cast<T *>(data)->width);
 	};
 	info.get_height = [](void *data) {
-		return static_cast<uint32_t>(static_cast<T *>(data)->height);
+		if constexpr (std::is_same_v<T, unified_source>)
+			return static_cast<T *>(data)->height();
+		else
+			return static_cast<uint32_t>(static_cast<T *>(data)->height);
 	};
 	info.get_properties = properties;
 	info.get_defaults = [](obs_data_t *settings) {
 		obs_data_set_default_int(settings, "activity.width", 640);
 		obs_data_set_default_int(settings, "activity.height", 240);
-		obs_data_set_default_int(settings, "activity.padding", 16);
+		obs_data_set_default_int(settings, "activity.padding", 20);
 		obs_data_set_default_int(settings, "activity.font_size", 36);
 		obs_data_set_default_int(settings, "activity.text_color", 0xffffffff);
+		obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
 		obs_data_set_default_bool(settings, "activity.text_shadow", false);
 		obs_data_set_default_int(settings, "activity.text_shadow_color", 0xcc000000);
 		obs_data_set_default_int(settings, "activity.text_shadow_offset", 2);
+		obs_data_set_default_bool(settings, "activity.show_title", true);
 		obs_data_set_default_string(settings, "activity.target.type", "all");
-		if constexpr (std::is_same_v<T, live_keys_source>) {
+		if constexpr (std::is_same_v<T, unified_source>) {
+			obs_data_set_default_string(settings, "input_activity.mode", "live_keys");
+			obs_data_set_default_string(settings, "activity.title", "Live Keys");
+			obs_data_set_default_bool(settings, "activity.show_title", false);
 			obs_data_set_default_int(settings, "live_keys.maximum", 8);
-			obs_data_set_default_bool(settings, "live_keys.row_layout", false);
-			obs_data_set_default_int(settings, "live_keys.element_spacing", 2);
-			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
+			obs_data_set_default_int(settings, "live_keys.top_n", 8);
+			obs_data_set_default_int(settings, "live_keys.row_height", 96);
+			obs_data_set_default_bool(settings, "live_keys.row_layout", true);
+			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
+			obs_data_set_default_int(settings, "live_keys.element_spacing", 10);
+			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
+			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
+			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used_title", true);
+			obs_data_set_default_string(settings, "live_keys.most_used_title", "Most Used Keys");
+			obs_data_set_default_int(settings, "live_keys.most_used_title_font_size", 28);
 			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
+			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
 			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 300);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "linear");
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
+			obs_data_set_default_int(settings, "live_keys.pressed_color", 0xff4444ef);
+			obs_data_set_default_string(settings, "mouse_activity.left_label", "L");
+			obs_data_set_default_string(settings, "mouse_activity.right_label", "R");
+			obs_data_set_default_string(settings, "mouse_activity.middle_label", "M");
+			obs_data_set_default_int(settings, "mouse_activity.trail_ms", 1500);
+			obs_data_set_default_string(settings, "mouse_activity.heatmap_gradient", "spectrum");
+			obs_data_set_default_int(settings, "mouse_activity.hex_size",
+						 static_cast<int64_t>(default_heatmap_hex_radius));
+			obs_data_set_default_int(settings, "mouse_activity.opacity", 100);
+			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
+			obs_data_set_default_int(settings, "mouse_activity.color", 0xffeb6325);
+			obs_data_set_default_int(settings, "mouse_activity.left_color", 0xffeb6325);
+			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
+			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
+			obs_data_set_default_int(settings, "statistics.mouse_dpi", 800);
+			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
+			obs_data_set_default_string(settings, "statistics.distance_unit", "px");
+			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
+			obs_data_set_default_bool(settings, "statistics.show_total_keys", true);
+			obs_data_set_default_bool(settings, "statistics.show_click_rate", true);
+			obs_data_set_default_bool(settings, "statistics.show_total_clicks", true);
+			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
+			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
+			obs_data_set_default_bool(settings, "statistics.show_distance", true);
+			obs_data_set_default_int(settings, "input_intensity.window", 30);
+			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
+			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
+			for (size_t index = 0; index < 8; ++index) {
+				const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
+				obs_data_set_default_bool(settings, (prefix + "enabled").c_str(), index == 0);
+				obs_data_set_default_string(settings, (prefix + "metric").c_str(), "actions");
+				obs_data_set_default_int(settings, (prefix + "key").c_str(), VC_SPACE);
+				obs_data_set_default_int(settings, (prefix + "button").c_str(), MOUSE_BUTTON1);
+			}
+		}
+		if constexpr (std::is_same_v<T, live_keys_source>) {
+			obs_data_set_default_string(settings, "activity.title", "Live Keys");
+			obs_data_set_default_bool(settings, "activity.show_title", false);
+			obs_data_set_default_int(settings, "live_keys.maximum", 8);
+			obs_data_set_default_int(settings, "live_keys.top_n", 8);
+			obs_data_set_default_int(settings, "live_keys.row_height", 96);
+			obs_data_set_default_bool(settings, "live_keys.row_layout", true);
+			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
+			obs_data_set_default_int(settings, "live_keys.element_spacing", 10);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
+			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
+			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
+			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used_title", true);
+			obs_data_set_default_string(settings, "live_keys.most_used_title", "Most Used Keys");
+			obs_data_set_default_int(settings, "live_keys.most_used_title_font_size", 28);
+			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
+			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
+			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
+			obs_data_set_default_int(settings, "live_keys.fade_ms", 300);
+			obs_data_set_default_string(settings, "live_keys.fade_curve", "linear");
+			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
+			obs_data_set_default_int(settings, "live_keys.pressed_color", 0xff4444ef);
 		} else if constexpr (std::is_same_v<T, mouse_activity_source>) {
+			obs_data_set_default_string(settings, "activity.title", "Mouse Activity");
 			obs_data_set_default_string(settings, "mouse_activity.left_label", "L");
 			obs_data_set_default_string(settings, "mouse_activity.right_label", "R");
 			obs_data_set_default_string(settings, "mouse_activity.middle_label", "M");
@@ -1636,6 +2005,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
 			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
 		} else if constexpr (std::is_same_v<T, statistics_source>) {
+			obs_data_set_default_string(settings, "activity.title", "Input Statistics");
 			obs_data_set_default_int(settings, "statistics.mouse_dpi", 800);
 			obs_data_set_default_string(settings, "statistics.distance_unit", "px");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
@@ -1645,14 +2015,15 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_action_rate", true);
 			obs_data_set_default_bool(settings, "statistics.show_total_actions", true);
 			obs_data_set_default_bool(settings, "statistics.show_distance", true);
-			obs_data_set_default_int(settings, "statistics.element_spacing", 0);
+			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
 			obs_data_set_default_bool(settings, "statistics.show_lap_keys", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_clicks", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_actions", false);
 			obs_data_set_default_bool(settings, "statistics.show_lap_distance", false);
 		} else if constexpr (std::is_same_v<T, input_intensity_source>) {
+			obs_data_set_default_string(settings, "activity.title", "Input Intensity");
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
-			obs_data_set_default_int(settings, "input_intensity.element_spacing", 0);
+			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
 			for (size_t index = 0; index < 8; ++index) {
 				const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
@@ -1665,16 +2036,34 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 	};
 	obs_register_source(&info);
 }
-obs_properties_t *keys_properties(void *)
+obs_properties_t *keys_properties_impl(void *, bool include_common)
 {
 	auto *p = obs_properties_create();
-	add_common_properties(p);
+	if (include_common)
+		add_common_properties(p);
 	obs_properties_add_int(p, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
-	obs_properties_add_bool(p, "live_keys.row_layout", obs_module_text("LiveKeys.RowLayout"));
+	obs_properties_add_int(p, "live_keys.row_height", obs_module_text("LiveKeys.RowHeight"), 24, 2160, 1);
+	obs_properties_add_bool(p, "live_keys.show_live_title", obs_module_text("LiveKeys.ShowLiveTitle"));
+	obs_properties_add_text(p, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"), OBS_TEXT_DEFAULT);
+	obs_properties_add_int(p, "live_keys.live_title_font_size", obs_module_text("LiveKeys.TitleFontSize"), 8, 256,
+			       1);
+	obs_properties_add_int(p, "live_keys.top_n", obs_module_text("LiveKeys.TopN"), 1, 64, 1);
+	auto *top_n_alignment = obs_properties_add_list(p, "live_keys.top_n_alignment",
+							obs_module_text("LiveKeys.TopNAlignment"), OBS_COMBO_TYPE_LIST,
+							OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Left"), "left");
+	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Right"), "right");
 	obs_properties_add_int_slider(p, "live_keys.element_spacing", obs_module_text("Activity.ElementSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
+	obs_properties_add_bool(p, "live_keys.show_most_used_title", obs_module_text("LiveKeys.ShowMostUsedTitle"));
+	obs_properties_add_text(p, "live_keys.most_used_title", obs_module_text("LiveKeys.MostUsedTitle"),
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_int(p, "live_keys.most_used_title_font_size", obs_module_text("LiveKeys.TitleFontSize"), 8,
+			       256, 1);
 	obs_properties_add_int(p, "live_keys.key_font_size", obs_module_text("LiveKeys.KeyFontSize"), 8, 256, 1);
+	obs_properties_add_int(p, "live_keys.special_key_font_size", obs_module_text("LiveKeys.SpecialKeyFontSize"), 8,
+			       256, 1);
 	obs_properties_add_int(p, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8, 256, 1);
 	obs_properties_add_int_slider(p, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000, 10);
 	auto *fade_curve = obs_properties_add_list(p, "live_keys.fade_curve", obs_module_text("LiveKeys.FadeCurve"),
@@ -1683,13 +2072,21 @@ obs_properties_t *keys_properties(void *)
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseIn"), "ease_in");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseOut"), "ease_out");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseInOut"), "ease_in_out");
-	obs_properties_add_color_alpha(p, "live_keys.color", obs_module_text("Activity.ActiveColor"));
+	obs_properties_add_color_alpha(p, "live_keys.color", obs_module_text("LiveKeys.ThemeColor"));
+	obs_properties_add_color_alpha(p, "live_keys.pressed_color", obs_module_text("LiveKeys.PressedColor"));
 	return p;
 }
-obs_properties_t *mouse_properties(void *data)
+obs_properties_t *keys_properties(void *data)
+{
+	return keys_properties_impl(data, true);
+}
+
+obs_properties_t *mouse_properties_impl(void *data, bool include_common)
 {
 	auto *p = obs_properties_create();
-	add_common_properties(p, false);
+	if (include_common)
+		add_common_properties(p, false);
+	add_mode_title_properties(p);
 	obs_properties_add_text(p, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(p, "mouse_activity.right_label", obs_module_text("MouseActivity.RightLabel"),
@@ -1766,10 +2163,17 @@ obs_properties_t *mouse_properties(void *data)
 		data);
 	return p;
 }
-obs_properties_t *statistics_properties(void *)
+obs_properties_t *mouse_properties(void *data)
+{
+	return mouse_properties_impl(data, true);
+}
+
+obs_properties_t *statistics_properties_impl(void *, bool include_common)
 {
 	auto *p = obs_properties_create();
-	add_common_properties(p);
+	if (include_common)
+		add_common_properties(p);
+	add_mode_title_properties(p);
 	auto *distance_unit = obs_properties_add_list(p, "statistics.distance_unit",
 						      obs_module_text("Statistics.DistanceUnit"), OBS_COMBO_TYPE_LIST,
 						      OBS_COMBO_FORMAT_STRING);
@@ -1794,6 +2198,10 @@ obs_properties_t *statistics_properties(void *)
 	obs_properties_add_bool(p, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
 	obs_properties_add_bool(p, "statistics.show_lap_distance", obs_module_text("Statistics.ShowLapDistance"));
 	return p;
+}
+obs_properties_t *statistics_properties(void *data)
+{
+	return statistics_properties_impl(data, true);
 }
 
 void add_intensity_key_list(obs_property_t *list)
@@ -1851,10 +2259,12 @@ void add_intensity_key_list(obs_property_t *list)
 	}
 }
 
-obs_properties_t *intensity_properties(void *)
+obs_properties_t *intensity_properties_impl(void *, bool include_common)
 {
 	auto *p = obs_properties_create();
-	add_common_properties(p);
+	if (include_common)
+		add_common_properties(p);
+	add_mode_title_properties(p);
 	obs_properties_add_int_slider(p, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1, 60, 1);
 	obs_properties_add_int_slider(p, "input_intensity.element_spacing", obs_module_text("Activity.ElementSpacing"),
 				      0, 200, 1);
@@ -1889,6 +2299,52 @@ obs_properties_t *intensity_properties(void *)
 	}
 	return p;
 }
+obs_properties_t *intensity_properties(void *data)
+{
+	return intensity_properties_impl(data, true);
+}
+
+bool unified_mode_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const std::string mode = obs_data_get_string(settings, "input_activity.mode");
+	obs_property_set_visible(obs_properties_get(props, "input_activity.live_keys"), mode == "live_keys");
+	obs_property_set_visible(obs_properties_get(props, "input_activity.mouse_activity"), mode == "mouse_activity");
+	obs_property_set_visible(obs_properties_get(props, "input_activity.input_intensity"),
+				 mode == "input_intensity");
+	obs_property_set_visible(obs_properties_get(props, "input_activity.input_statistics"),
+				 mode == "input_statistics");
+	return true;
+}
+
+obs_properties_t *unified_properties(void *data)
+{
+	auto *p = obs_properties_create();
+	auto *mode = obs_properties_add_list(p, "input_activity.mode", obs_module_text("InputActivity.Mode"),
+					     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(mode, obs_module_text("LiveKeys"), "live_keys");
+	obs_property_list_add_string(mode, obs_module_text("MouseActivity"), "mouse_activity");
+	obs_property_list_add_string(mode, obs_module_text("InputIntensity"), "input_intensity");
+	obs_property_list_add_string(mode, obs_module_text("InputStatistics"), "input_statistics");
+	obs_property_set_modified_callback(mode, unified_mode_changed);
+	add_common_properties(p);
+	auto *unified = static_cast<unified_source *>(data);
+	auto *live_group = obs_properties_add_group(p, "input_activity.live_keys", obs_module_text("LiveKeys"),
+						    OBS_GROUP_NORMAL, keys_properties_impl(data, false));
+	auto *mouse_group = obs_properties_add_group(
+		p, "input_activity.mouse_activity", obs_module_text("MouseActivity"), OBS_GROUP_NORMAL,
+		mouse_properties_impl(unified ? unified->mouse() : nullptr, false));
+	auto *intensity_group = obs_properties_add_group(p, "input_activity.input_intensity",
+							 obs_module_text("InputIntensity"), OBS_GROUP_NORMAL,
+							 intensity_properties_impl(data, false));
+	auto *statistics_group = obs_properties_add_group(p, "input_activity.input_statistics",
+							  obs_module_text("InputStatistics"), OBS_GROUP_NORMAL,
+							  statistics_properties_impl(data, false));
+	obs_property_set_visible(live_group, true);
+	obs_property_set_visible(mouse_group, false);
+	obs_property_set_visible(intensity_group, false);
+	obs_property_set_visible(statistics_group, false);
+	return p;
+}
 } // namespace
 
 void register_activity_sources()
@@ -1897,5 +2353,6 @@ void register_activity_sources()
 	register_source<input_intensity_source>("input-activity-input-intensity", intensity_properties);
 	register_source<mouse_activity_source>("input-activity-mouse-activity", mouse_properties);
 	register_source<statistics_source>("input-activity-statistics", statistics_properties);
+	register_source<unified_source>("input-activity", unified_properties);
 }
 } // namespace sources
