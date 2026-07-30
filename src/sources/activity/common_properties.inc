@@ -161,6 +161,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		obs_data_set_default_int(settings, "activity.target.rectangle.right", 1919);
 		obs_data_set_default_int(settings, "activity.target.rectangle.bottom", 1079);
 		if constexpr (std::is_same_v<T, unified_source>) {
+			obs_data_set_default_int(settings, "activity.width", 240);
+			obs_data_set_default_int(settings, "activity.height", 640);
 			obs_data_set_default_string(settings, "input_activity.mode", "live_keys");
 			obs_data_set_default_bool(settings, "input_activity.show_advanced_settings", false);
 			obs_data_set_default_string(settings, "activity.title", "Live Keys");
@@ -180,6 +182,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.total_position", "above");
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used", true);
 			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
@@ -257,6 +260,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			}
 		}
 		if constexpr (std::is_same_v<T, live_keys_source>) {
+			obs_data_set_default_int(settings, "activity.width", 240);
+			obs_data_set_default_int(settings, "activity.height", 640);
 			obs_data_set_default_string(settings, "activity.title", "Live Keys");
 			obs_data_set_default_bool(settings, "activity.show_title", false);
 			obs_data_set_default_int(settings, "live_keys.maximum", 4);
@@ -268,7 +273,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.total_position", "above");
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
-			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
+			obs_data_set_default_bool(settings, "live_keys.show_most_used", true);
 			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
