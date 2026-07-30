@@ -99,30 +99,19 @@
 		if (trail.empty())
 			return;
 		painter.setBrush(Qt::NoBrush);
-		size_t first_segment = 0;
-		while (first_segment + 1 < trail.size()) {
-			const double age = std::clamp(static_cast<double>(now - trail[first_segment + 1].first) /
-							      trail_duration_ns,
-						      0.0, 1.0);
-			const int band = std::min(3, static_cast<int>(age * 4.0));
-			size_t last_point = first_segment + 1;
-			while (last_point + 1 < trail.size()) {
-				const double next_age = std::clamp(
-					static_cast<double>(now - trail[last_point + 1].first) / trail_duration_ns, 0.0,
-					1.0);
-				if (std::min(3, static_cast<int>(next_age * 4.0)) != band)
-					break;
-				++last_point;
-			}
-			const double strength = 1.0 - (band + 0.5) / 4.0;
+		for (size_t index = 0; index + 1 < trail.size(); ++index) {
+			const double age = std::clamp(
+				static_cast<double>(now - trail[index + 1].first) / trail_duration_ns, 0.0, 1.0);
+			const double strength = std::pow(1.0 - age, 2.0);
+			if (strength <= 0.0)
+				continue;
 			QPen pen(QColor(active_color.red(), active_color.green(), active_color.blue(),
-					static_cast<int>(active_color.alpha() * 180.0 / 255.0 * strength * strength)));
+					static_cast<int>(active_color.alpha() * 180.0 / 255.0 * strength)));
 			pen.setWidthF(2.0 + 6.0 * strength);
-			pen.setCapStyle(Qt::FlatCap);
+			pen.setCapStyle(Qt::RoundCap);
 			pen.setJoinStyle(Qt::RoundJoin);
 			painter.setPen(pen);
-			painter.drawPath(trail_path(first_segment, last_point));
-			first_segment = last_point;
+			painter.drawPath(trail_path(index, index + 1));
 		}
 		painter.setBrush(active_color);
 		painter.setPen(text_color);
@@ -375,4 +364,3 @@
 	int hex_columns{}, hex_rows{};
 	std::vector<hex_bin> hex_bins;
 };
-

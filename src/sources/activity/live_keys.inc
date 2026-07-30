@@ -144,6 +144,16 @@ public:
 			}
 		}
 	}
+	void tick(float seconds) override
+	{
+		activity_source::tick(seconds);
+		const uint64_t now = os_gettime_ns();
+		ordered.erase(std::remove_if(ordered.begin(), ordered.end(),
+					     [now](const active_key &key) {
+						     return key.fade_until != 0 && key.fade_until <= now;
+					     }),
+			      ordered.end());
+	}
 	void reset_activity() override
 	{
 		press_counts.clear();
