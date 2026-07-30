@@ -768,22 +768,35 @@ public:
 			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "mouse_activity.middle_color")));
 		const bool new_map_clicks = std::string(obs_data_get_string(settings, "mouse_activity.map")) ==
 					    "clicks";
+		const bool custom_region = std::string(obs_data_get_string(settings, "mouse_activity.region")) ==
+					   "custom";
 		const int new_display = static_cast<int>(obs_data_get_int(settings, "mouse_activity.display"));
-		const bool display_changed = new_display != display;
-		if (display_changed || new_map_clicks != map_clicks) {
+		QRect new_tracking_bounds;
+		if (custom_region) {
+			const int left = static_cast<int>(obs_data_get_int(settings, "mouse_activity.region.left"));
+			const int top = static_cast<int>(obs_data_get_int(settings, "mouse_activity.region.top"));
+			const int right = static_cast<int>(obs_data_get_int(settings, "mouse_activity.region.right"));
+			const int bottom = static_cast<int>(obs_data_get_int(settings, "mouse_activity.region.bottom"));
+			if (left <= right && top <= bottom)
+				new_tracking_bounds = QRect(left, top, right - left + 1, bottom - top + 1);
+		} else {
+			new_tracking_bounds = display_bounds(new_display);
+		}
+		const bool region_changed = new_tracking_bounds != tracking_bounds;
+		if (region_changed || new_map_clicks != map_clicks) {
 			coordinates.reset();
 			clear();
 		}
 		map_clicks = new_map_clicks;
 		display = new_display;
-		load_display();
+		tracking_bounds = new_tracking_bounds;
 		update_dimensions();
 		show_border = obs_data_get_bool(settings, "mouse_activity.show_border");
 		show_center_mark = obs_data_get_bool(settings, "mouse_activity.show_center_mark");
 		if (hex_radius != previous_hex_radius)
 			heatmap_bounds = {};
 		resize_heatmap();
-		if (display_changed || heatmap_rect() != previous_heatmap || hex_radius != previous_hex_radius)
+		if (region_changed || heatmap_rect() != previous_heatmap || hex_radius != previous_hex_radius)
 			trail.clear();
 	}
 	void clear()
@@ -811,23 +824,22 @@ public:
 				  event.code <= MOUSE_BUTTON3;
 		}
 		const bool moved = event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED;
-		if (clicked)
-			++total_clicks;
-		if ((!moved && !clicked) || monitor.width == 0)
+		if ((!moved && !clicked) || tracking_bounds.isEmpty())
 			return;
-		if (event.x < monitor.x || event.y < monitor.y || event.x >= monitor.x + monitor.width ||
-		    event.y >= monitor.y + monitor.height) {
+		if (!tracking_bounds.contains(QPoint(event.x, event.y))) {
 			coordinates.reset();
 			last_motion.reset();
 			last_distance.reset();
 			return;
 		}
-		const int relative_x = event.x - monitor.x;
-		const int relative_y = event.y - monitor.y;
+		if (clicked)
+			++total_clicks;
+		const int relative_x = event.x - tracking_bounds.x();
+		const int relative_y = event.y - tracking_bounds.y();
 		coordinates = QPoint(relative_x, relative_y);
 		const QRect heatmap = heatmap_rect();
-		const QPoint point(heatmap.x() + relative_x * heatmap.width() / monitor.width,
-				   heatmap.y() + relative_y * heatmap.height() / monitor.height);
+		const QPoint point(heatmap.x() + relative_x * heatmap.width() / tracking_bounds.width(),
+				   heatmap.y() + relative_y * heatmap.height() / tracking_bounds.height());
 		if (moved) {
 			if (last_distance)
 				distance +=
@@ -899,7 +911,7 @@ private:
 	}
 	void update_dimensions()
 	{
-		if (monitor.width <= 0 || monitor.height <= 0)
+		if (tracking_bounds.isEmpty())
 			return;
 		height = std::max(1, heatmap_height() + padding * 2 + summary_height() + title_content_offset());
 	}
@@ -910,10 +922,11 @@ private:
 	}
 	int heatmap_height() const
 	{
-		if (monitor.width <= 0 || monitor.height <= 0)
+		if (tracking_bounds.isEmpty())
 			return 1;
 		return std::max(1, static_cast<int>(std::lround(std::max(1, width - padding * 2) *
-								static_cast<double>(monitor.height) / monitor.width)));
+								static_cast<double>(tracking_bounds.height()) /
+								tracking_bounds.width())));
 	}
 	int information_line_height() const { return QFontMetrics(font()).lineSpacing(); }
 	int summary_height() const { return show_distance || show_clicks ? information_line_height() * 2 : 0; }
@@ -1103,14 +1116,14 @@ private:
 			image.save(path, "PNG");
 		}
 	}
-	void load_display()
+	QRect display_bounds(int selected_display) const
 	{
 		unsigned char count{};
 		std::unique_ptr<screen_data, decltype(&free)> screens(hook_create_screen_info(&count), &free);
-		if (screens && display >= 0 && display < count)
-			monitor = screens.get()[display];
-		else
-			monitor = {};
+		if (!screens || selected_display < 0 || selected_display >= count)
+			return {};
+		const auto &screen = screens.get()[selected_display];
+		return {screen.x, screen.y, screen.width, screen.height};
 	}
 	void draw_screen_guides(QPainter &painter, const QRect &rect) const
 	{
@@ -1186,11 +1199,11 @@ private:
 	}
 	void draw_pointer(QPainter &painter) const
 	{
-		if (!coordinates || monitor.width == 0 || monitor.height == 0)
+		if (!coordinates || tracking_bounds.isEmpty())
 			return;
 		const QRect heatmap = heatmap_rect();
-		const QPointF point(heatmap.x() + coordinates->x() * heatmap.width() / monitor.width,
-				    heatmap.y() + coordinates->y() * heatmap.height() / monitor.height);
+		const QPointF point(heatmap.x() + coordinates->x() * heatmap.width() / tracking_bounds.width(),
+				    heatmap.y() + coordinates->y() * heatmap.height() / tracking_bounds.height());
 		const auto is_pressed = [&](uint16_t button) {
 			const auto found = buttons.find(button);
 			return found != buttons.end() && found->second;
@@ -1248,7 +1261,7 @@ private:
 	QString distance_unit{"pixels"};
 	double distance{};
 	uint64_t total_clicks{};
-	screen_data monitor{};
+	QRect tracking_bounds;
 	std::unordered_map<uint16_t, bool> buttons;
 	std::deque<std::pair<uint64_t, QPoint>> trail;
 	std::optional<QPoint> coordinates;
@@ -2260,6 +2273,11 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.left_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
+			obs_data_set_default_string(settings, "mouse_activity.region", "display");
+			obs_data_set_default_int(settings, "mouse_activity.region.left", 0);
+			obs_data_set_default_int(settings, "mouse_activity.region.top", 0);
+			obs_data_set_default_int(settings, "mouse_activity.region.right", 1919);
+			obs_data_set_default_int(settings, "mouse_activity.region.bottom", 1079);
 			obs_data_set_default_int(settings, "statistics.element_spacing", 10);
 			obs_data_set_default_int(settings, "statistics.horizontal_spacing", 10);
 			obs_data_set_default_int(settings, "statistics.vertical_spacing", 10);
@@ -2361,6 +2379,11 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.right_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "mouse_activity.middle_color", 0xff15ccfa);
 			obs_data_set_default_string(settings, "mouse_activity.map", "movement");
+			obs_data_set_default_string(settings, "mouse_activity.region", "display");
+			obs_data_set_default_int(settings, "mouse_activity.region.left", 0);
+			obs_data_set_default_int(settings, "mouse_activity.region.top", 0);
+			obs_data_set_default_int(settings, "mouse_activity.region.right", 1919);
+			obs_data_set_default_int(settings, "mouse_activity.region.bottom", 1079);
 		} else if constexpr (std::is_same_v<T, statistics_source>) {
 			obs_data_set_default_string(settings, "activity.title", "Input Statistics");
 			obs_data_set_default_bool(settings, "statistics.show_key_rate", true);
@@ -2474,6 +2497,18 @@ obs_properties_t *keys_properties(void *data)
 	return keys_properties_impl(data, true);
 }
 
+bool mouse_region_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const bool custom = std::string(obs_data_get_string(settings, "mouse_activity.region")) == "custom";
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.display"), !custom);
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.region.left"), custom);
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.region.top"), custom);
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.region.right"), custom);
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.region.bottom"), custom);
+	obs_property_set_visible(obs_properties_get(props, "mouse_activity.region.help"), custom);
+	return true;
+}
+
 obs_properties_t *mouse_properties_impl(void *data, bool include_common, const char *title_prefix = nullptr)
 {
 	auto *p = obs_properties_create();
@@ -2539,6 +2574,11 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.PNG"), "png");
 	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.SVG"), "svg");
+	auto *region = obs_properties_add_list(p, "mouse_activity.region", obs_module_text("MouseActivity.Region"),
+					       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(region, obs_module_text("MouseActivity.Region.Display"), "display");
+	obs_property_list_add_string(region, obs_module_text("MouseActivity.Region.Custom"), "custom");
+	obs_property_set_modified_callback(region, mouse_region_changed);
 	auto *displays = obs_properties_add_list(p, "mouse_activity.display", obs_module_text("MouseActivity.Display"),
 						 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	unsigned char count{};
@@ -2554,6 +2594,16 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 						 .toUtf8();
 		obs_property_list_add_int(displays, label.constData(), i);
 	}
+	obs_properties_add_int(p, "mouse_activity.region.left", obs_module_text("MouseActivity.Region.Left"), -32768,
+			       32767, 1);
+	obs_properties_add_int(p, "mouse_activity.region.top", obs_module_text("MouseActivity.Region.Top"), -32768,
+			       32767, 1);
+	obs_properties_add_int(p, "mouse_activity.region.right", obs_module_text("MouseActivity.Region.Right"), -32768,
+			       32767, 1);
+	obs_properties_add_int(p, "mouse_activity.region.bottom", obs_module_text("MouseActivity.Region.Bottom"),
+			       -32768, 32767, 1);
+	obs_properties_add_text(p, "mouse_activity.region.help", obs_module_text("MouseActivity.Region.Help"),
+				OBS_TEXT_INFO);
 	obs_properties_add_button2(
 		p, "mouse_activity.clear", obs_module_text("MouseActivity.ClearHeatmap"),
 		[](obs_properties_t *, obs_property_t *, void *d) {
@@ -2561,6 +2611,11 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 			return true;
 		},
 		data);
+	if (data) {
+		auto *settings = obs_source_get_settings(static_cast<mouse_activity_source *>(data)->source);
+		mouse_region_changed(p, nullptr, settings);
+		obs_data_release(settings);
+	}
 	return p;
 }
 obs_properties_t *mouse_properties(void *data)

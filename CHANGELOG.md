@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Mouse Activity heatmap controls for hexbin size and opacity, plus hotkey-driven PNG or SVG exports.
 - Titled Input Intensity indicators with per-indicator keyboard scopes for all keys, letters, numbers, or a custom key list.
 - Mouse Activity display toggles for the title, hexbin chart, live mouse trail, distance, and coordinates, with configurable pixel, metric, or imperial distance units.
+- Mouse Activity custom tracking rectangles using inclusive desktop-coordinate corners.
 
 ### Changed
 
