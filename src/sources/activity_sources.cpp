@@ -449,6 +449,7 @@ public:
 		group_spacing =
 			std::clamp(static_cast<int>(obs_data_get_int(settings, "live_keys.group_spacing")), 0, 200);
 		show_most_used = obs_data_get_bool(settings, "live_keys.show_most_used");
+		chart_first = std::string(obs_data_get_string(settings, "live_keys.layout_order")) == "chart_first";
 		live_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.live_title"));
 		show_live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
 		live_title_font_size =
@@ -532,15 +533,29 @@ public:
 		const int chart_title_height = show_most_used && show_most_used_title && !most_used_title.isEmpty()
 						       ? most_used_title_font_size + padding / 2
 						       : 0;
+		const int content_height = height - padding * 2;
 		const int live_height =
 			show_most_used
-				? std::min(live_row_height, std::max(1, height - padding * 2 - live_title_height -
+				? std::min(live_row_height, std::max(1, content_height - live_title_height -
 										chart_title_height - group_spacing))
-				: std::max(1, height - padding * 2 - live_title_height);
+				: std::max(1, content_height - live_title_height);
+		const int chart_height = show_most_used ? std::max(1, content_height - live_title_height - live_height -
+									      chart_title_height - group_spacing)
+							: 0;
+		const int chart_top = padding;
+		const int live_title_top = chart_first && show_most_used
+						   ? chart_top + chart_title_height + chart_height + group_spacing
+						   : padding;
+		const int live_top = live_title_top + live_title_height;
 		if (live_title_height) {
 			painter.setFont(font(live_title_font_size));
-			draw_text(painter, QRect(padding, padding, width - padding * 2, live_title_height),
+			draw_text(painter, QRect(padding, live_title_top, width - padding * 2, live_title_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, live_title, text_color);
+		}
+		if (show_most_used && chart_first && chart_title_height) {
+			painter.setFont(font(most_used_title_font_size));
+			draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
+				  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
 		}
 		const int start = std::max(0, static_cast<int>(keys.size()) - maximum);
 		const int available_span = width - padding * 2;
@@ -557,7 +572,7 @@ public:
 		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
 			const int position = index - start;
 			const int x = padding + position * (key_width + horizontal_gap);
-			const int y = padding + live_title_height;
+			const int y = live_top;
 			const QRect row(x, totals_above ? y + total_height + vertical_gap : y, key_width, key_height);
 			const auto &key = keys[index];
 			const int alpha =
@@ -583,17 +598,15 @@ public:
 			draw_text(painter, row, Qt::AlignCenter, key.label, text);
 		}
 		if (show_most_used) {
-			const int chart_top = padding + live_title_height + live_height + group_spacing;
-			if (chart_title_height) {
+			const int chart_group_top = chart_first ? chart_top : live_top + live_height + group_spacing;
+			if (!chart_first && chart_title_height) {
 				painter.setFont(font(most_used_title_font_size));
-				draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
+				draw_text(painter,
+					  QRect(padding, chart_group_top, width - padding * 2, chart_title_height),
 					  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
 			}
-			draw_most_used_chart(painter,
-					     QRect(padding, chart_top + chart_title_height,
-						   std::max(1, width - padding * 2),
-						   std::max(1, height - padding * 2 - live_title_height - live_height -
-								       chart_title_height - group_spacing)));
+			draw_most_used_chart(painter, QRect(padding, chart_group_top + chart_title_height,
+							    std::max(1, width - padding * 2), chart_height));
 		}
 	}
 
@@ -688,7 +701,7 @@ private:
 	std::unordered_map<uint16_t, uint64_t> press_counts;
 	std::unordered_map<uint16_t, QString> key_labels;
 	std::vector<active_key> ordered;
-	bool show_most_used{}, totals_above{true};
+	bool show_most_used{}, chart_first{}, totals_above{true};
 	bool show_live_title{true}, show_most_used_title{true};
 	Qt::Alignment chart_alignment{Qt::AlignLeft};
 	QString live_title{"Live Keys"}, most_used_title{"Most Used Keys"};
@@ -2202,6 +2215,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.total_position", "above");
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
+			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
 			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
@@ -2294,6 +2308,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.most_used_element_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.group_spacing", 10);
 			obs_data_set_default_bool(settings, "live_keys.show_most_used", false);
+			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
 			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
@@ -2418,6 +2433,11 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	obs_properties_add_int_slider(p, "live_keys.group_spacing", obs_module_text("LiveKeys.BetweenGroupSpacing"), 0,
 				      200, 1);
 	obs_properties_add_bool(p, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
+	auto *layout_order = obs_properties_add_list(p, "live_keys.layout_order",
+						     obs_module_text("LiveKeys.LayoutOrder"), OBS_COMBO_TYPE_LIST,
+						     OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.LiveFirst"), "live_first");
+	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.ChartFirst"), "chart_first");
 	obs_properties_add_bool(p, "live_keys.show_most_used_title", obs_module_text("LiveKeys.ShowMostUsedTitle"));
 	obs_properties_add_text(p, "live_keys.most_used_title", obs_module_text("LiveKeys.MostUsedTitle"),
 				OBS_TEXT_DEFAULT);
