@@ -2367,8 +2367,10 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		obs_data_set_default_int(settings, "activity.section_title_size", 28);
 		obs_data_set_default_int(settings, "activity.input_title_size", 28);
 		obs_data_set_default_int(settings, "activity.input_value_size", 36);
-		obs_data_set_default_int(settings, "activity.inactive_color", 0xff625e42);
-		obs_data_set_default_int(settings, "activity.active_color", 0xffddc183);
+		// OBS stores color channels as AABBGGRR; the user-facing ARGB defaults are
+		// ff625e42 (inactive) and ffddc183 (active).
+		obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
+		obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
 		obs_data_set_default_int(settings, "activity.within_spacing", 10);
 		obs_data_set_default_int(settings, "activity.group_spacing", 20);
 		obs_data_set_default_string(settings, "activity.alignment", "left");
