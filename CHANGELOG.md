@@ -24,6 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- Preference panels now use clear characteristic headings, retire unused defaults with legacy fallbacks, and hide Mouse Activity and Live Keys options until their parent feature is enabled.
 - Rendering now falls back to Silom Regular when no explicit font is saved; target selectors adapt to the selected input target; Mouse Activity click labels use compact text-measured bounds; and Live Keys uses compact canonical key labels.
 - New sources default to 20px padding, 10px element spacing, and a row-oriented Live Keys layout.
 - Mouse Activity now places distance above the chart and coordinates below it, with shared left/right alignment and automatic metric or imperial distance scaling. Input Statistics no longer presents mouse distance totals.
