@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Code Size"
+  short_description: "Audit source-file size and module ownership"
+  default_prompt: "Check this refactor for the repository's code-size and ownership rules."
