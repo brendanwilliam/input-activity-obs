@@ -93,10 +93,13 @@ public:
 		events.clear();
 		if (!group.events.empty()) {
 			const uint64_t oldest = group.events.front().sequence;
-			if (cursor + 1 < oldest)
+			if (cursor < oldest)
 				cursor = oldest - 1;
-			const size_t first = static_cast<size_t>(cursor - oldest + 1);
-			events.assign(group.events.begin() + static_cast<std::ptrdiff_t>(first), group.events.end());
+			if (cursor < group.latest_sequence) {
+				const size_t first = static_cast<size_t>(cursor - oldest + 1);
+				events.assign(group.events.begin() + static_cast<std::ptrdiff_t>(first),
+					      group.events.end());
+			}
 			cursor = group.latest_sequence;
 		}
 		keyboard_out = keyboard;
