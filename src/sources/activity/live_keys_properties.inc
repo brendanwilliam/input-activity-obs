@@ -4,13 +4,10 @@ bool live_keys_options_changed(obs_properties_t *props, obs_property_t *, obs_da
 	const bool live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
 	const bool chart_title = chart && obs_data_get_bool(settings, "live_keys.show_most_used_title");
 	for (const char *name : {"live_keys.top_n", "live_keys.top_n_alignment", "live_keys.most_used_element_spacing",
-				 "live_keys.group_spacing", "live_keys.layout_order", "live_keys.show_most_used_title",
-				 "live_keys.most_used_font_size"})
+				 "live_keys.group_spacing", "live_keys.layout_order", "live_keys.show_most_used_title"})
 		obs_property_set_visible(obs_properties_get(props, name), chart);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.live_title"), live_title);
-	obs_property_set_visible(obs_properties_get(props, "live_keys.live_title_font_size"), live_title);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.most_used_title"), chart_title);
-	obs_property_set_visible(obs_properties_get(props, "live_keys.most_used_title_font_size"), chart_title);
 	return true;
 }
 
@@ -57,23 +54,11 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 		add_group(p, "input_activity.live_keys.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_text(typography, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_int(typography, "live_keys.live_title_font_size", obs_module_text("LiveKeys.TitleFontSize"),
-			       8, 256, 1);
 	auto *show_most_used_title = obs_properties_add_bool(typography, "live_keys.show_most_used_title",
 							     obs_module_text("LiveKeys.ShowMostUsedTitle"));
 	obs_property_set_modified_callback(show_most_used_title, live_keys_options_changed);
 	obs_properties_add_text(typography, "live_keys.most_used_title", obs_module_text("LiveKeys.MostUsedTitle"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_int(typography, "live_keys.most_used_title_font_size",
-			       obs_module_text("LiveKeys.TitleFontSize"), 8, 256, 1);
-	obs_properties_add_int(typography, "live_keys.key_font_size", obs_module_text("LiveKeys.KeyFontSize"), 8, 256,
-			       1);
-	obs_properties_add_int(typography, "live_keys.special_key_font_size",
-			       obs_module_text("LiveKeys.SpecialKeyFontSize"), 8, 256, 1);
-	obs_properties_add_int(typography, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8,
-			       256, 1);
-	obs_properties_add_int(typography, "live_keys.most_used_font_size",
-			       obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256, 1);
 	auto *behavior = add_group(p, "input_activity.live_keys.behavior", obs_module_text("Preferences.Behavior"));
 	obs_properties_add_text(behavior, "live_keys.blacklist", obs_module_text("LiveKeys.Blacklist"),
 				OBS_TEXT_DEFAULT);
@@ -92,4 +77,3 @@ obs_properties_t *keys_properties(void *data)
 {
 	return keys_properties_impl(data, true);
 }
-

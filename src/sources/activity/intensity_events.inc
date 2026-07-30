@@ -181,10 +181,10 @@ public:
 		const int total_spacing = gap * std::max(0, static_cast<int>(active_rows.size()) - 1);
 		const int item_span =
 			std::max(1, (available_span - total_spacing) / static_cast<int>(active_rows.size()));
-		QFont row_font = font();
-		row_font.setPixelSize(std::clamp(std::min(bounds.height(), item_span) / 3, 9, font_size));
-		painter.setFont(row_font);
-		const int text_height = QFontMetrics(row_font).lineSpacing() + 4;
+		const QFont label_font = font(subtitle_size);
+		const QFont value_font = font(text_size);
+		const int label_text_height = QFontMetrics(label_font).lineSpacing() + 4;
+		const int value_text_height = QFontMetrics(value_font).lineSpacing() + 4;
 
 		for (size_t visible_index = 0; visible_index < active_rows.size(); ++visible_index) {
 			const size_t row_index = active_rows[visible_index];
@@ -195,15 +195,17 @@ public:
 					: QRect(bounds.left(),
 						bounds.top() + static_cast<int>(visible_index) * (item_span + gap),
 						bounds.width(), item_span);
-			const int label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
-			const int value_label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
+			const int label_height = std::max(1, std::min(row_rect.height() / 3, label_text_height));
+			const int value_label_height = std::max(1, std::min(row_rect.height() / 3, value_text_height));
 			const QRect label_rect(row_rect.left(), row_rect.top() + 1, row_rect.width(), label_height - 1);
 			const QRect chart_rect(row_rect.left(), label_rect.bottom() + 3, row_rect.width(),
 					       std::max(1, row_rect.height() - label_height - value_label_height - 4));
 			const QRect value_label_rect(row_rect.left(), chart_rect.bottom() + 1, row_rect.width(),
 						     value_label_height + 1);
+			painter.setFont(label_font);
 			draw_text(painter, label_rect, Qt::AlignLeft | Qt::AlignTop, row_label(rows[row_index]),
 				  text_color);
+			painter.setFont(value_font);
 			draw_box_plot(painter, chart_rect, value_label_rect, row_index);
 		}
 	}

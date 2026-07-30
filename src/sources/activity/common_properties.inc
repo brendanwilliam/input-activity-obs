@@ -57,12 +57,12 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 	auto *typography =
 		add_group(props, "input_activity.general.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_font(typography, "activity.font", obs_module_text("Activity.Font"));
-	obs_properties_add_int(typography, "activity.section_title_size", obs_module_text("Activity.SectionTitleSize"),
-			       8, 256, 1);
-	obs_properties_add_int(typography, "activity.input_title_size", obs_module_text("Activity.InputTitleSize"), 8,
+	obs_properties_add_int(typography, "activity.section_title_size", obs_module_text("Activity.TitleSize"), 8, 256,
+			       1);
+	obs_properties_add_int(typography, "activity.input_title_size", obs_module_text("Activity.SubtitleSize"), 8,
 			       256, 1);
-	obs_properties_add_int(typography, "activity.input_value_size", obs_module_text("Activity.InputValueSize"), 8,
-			       256, 1);
+	obs_properties_add_int(typography, "activity.input_value_size", obs_module_text("Activity.TextSize"), 8, 256,
+			       1);
 	auto *appearance =
 		add_group(props, "input_activity.general.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "activity.inactive_color",
@@ -137,10 +137,10 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		obs_data_set_default_int(settings, "activity.width", 640);
 		obs_data_set_default_int(settings, "activity.height", 240);
 		obs_data_set_default_int(settings, "activity.padding", 20);
-		obs_data_set_default_int(settings, "activity.font_size", 36);
-		obs_data_set_default_int(settings, "activity.section_title_size", 28);
-		obs_data_set_default_int(settings, "activity.input_title_size", 28);
-		obs_data_set_default_int(settings, "activity.input_value_size", 36);
+		obs_data_set_default_int(settings, "activity.font_size", default_text_font_size);
+		obs_data_set_default_int(settings, "activity.section_title_size", default_title_font_size);
+		obs_data_set_default_int(settings, "activity.input_title_size", default_subtitle_font_size);
+		obs_data_set_default_int(settings, "activity.input_value_size", default_text_font_size);
 		// OBS stores color channels as AABBGGRR; the user-facing ARGB defaults are
 		// ff625e42 (inactive) and ffddc183 (active).
 		obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
@@ -186,14 +186,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
-			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
 			obs_data_set_default_bool(settings, "live_keys.show_most_used_title", true);
 			obs_data_set_default_string(settings, "live_keys.most_used_title", "Most Used Keys");
-			obs_data_set_default_int(settings, "live_keys.most_used_title_font_size", 28);
-			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
-			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
-			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
-			obs_data_set_default_int(settings, "live_keys.most_used_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 2000);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "ease_out");
 			obs_data_set_default_string(settings, "live_keys.blacklist", "");
@@ -233,10 +227,6 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_clicks", true);
 			obs_data_set_default_bool(settings, "statistics.show_actions", true);
-			obs_data_set_default_int(settings, "statistics.keys_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.clicks_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.actions_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.metric_font_size", 36);
 			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
@@ -277,13 +267,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "live_keys.layout_order", "live_first");
 			obs_data_set_default_bool(settings, "live_keys.show_live_title", true);
 			obs_data_set_default_string(settings, "live_keys.live_title", "Live Keys");
-			obs_data_set_default_int(settings, "live_keys.live_title_font_size", 28);
 			obs_data_set_default_bool(settings, "live_keys.show_most_used_title", true);
 			obs_data_set_default_string(settings, "live_keys.most_used_title", "Most Used Keys");
-			obs_data_set_default_int(settings, "live_keys.most_used_title_font_size", 28);
-			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
-			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
-			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 2000);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "ease_out");
 			obs_data_set_default_string(settings, "live_keys.blacklist", "");
@@ -330,10 +315,6 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_bool(settings, "statistics.show_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_clicks", true);
 			obs_data_set_default_bool(settings, "statistics.show_actions", true);
-			obs_data_set_default_int(settings, "statistics.keys_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.clicks_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.actions_title_font_size", 28);
-			obs_data_set_default_int(settings, "statistics.metric_font_size", 36);
 			obs_data_set_default_int(settings, "statistics.theme_color", 0xffeb6325);
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "statistics.horizontal_spacing", 10);

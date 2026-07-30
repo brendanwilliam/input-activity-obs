@@ -10,6 +10,8 @@ public:
 	}
 	void update(obs_data_t *settings) override
 	{
+		migrate_legacy_typography(settings, "live_keys.typography_migrated", "live_keys.live_title_font_size",
+					  "live_keys.total_font_size", "live_keys.key_font_size");
 		activity_source::update(settings);
 		migrate_legacy_colors(settings, "live_keys.colors_with_alpha", {"live_keys.color"});
 		maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.maximum")));
@@ -57,19 +59,8 @@ public:
 		chart_first = std::string(obs_data_get_string(settings, "live_keys.layout_order")) == "chart_first";
 		live_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.live_title"));
 		show_live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
-		live_title_font_size =
-			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.live_title_font_size")));
 		most_used_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.most_used_title"));
 		show_most_used_title = obs_data_get_bool(settings, "live_keys.show_most_used_title");
-		most_used_title_font_size = std::max(
-			8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_title_font_size")));
-		key_font_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.key_font_size")));
-		special_key_font_size =
-			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.special_key_font_size")));
-		total_font_size =
-			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
-		most_used_font_size =
-			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_font_size")));
 		blacklist = QString::fromUtf8(obs_data_get_string(settings, "live_keys.blacklist"))
 				    .trimmed()
 				    .toLower()
@@ -164,10 +155,9 @@ public:
 	void render(QPainter &painter) override
 	{
 		std::vector<active_key> keys = ordered;
-		const int live_title_height =
-			show_live_title && !live_title.isEmpty() ? live_title_font_size + padding / 2 : 0;
+		const int live_title_height = show_live_title && !live_title.isEmpty() ? title_size + padding / 2 : 0;
 		const int chart_title_height = show_most_used && show_most_used_title && !most_used_title.isEmpty()
-						       ? most_used_title_font_size + padding / 2
+						       ? title_size + padding / 2
 						       : 0;
 		const int content_height = height - padding * 2;
 		const int live_height =
@@ -184,12 +174,12 @@ public:
 						   : padding;
 		const int live_top = live_title_top + live_title_height;
 		if (live_title_height) {
-			painter.setFont(font(live_title_font_size));
+			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, live_title_top, width - padding * 2, live_title_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, live_title, text_color);
 		}
 		if (show_most_used && chart_first && chart_title_height) {
-			painter.setFont(font(most_used_title_font_size));
+			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
 		}
@@ -199,7 +189,7 @@ public:
 						    std::max(0, (available_span - maximum) / std::max(1, maximum - 1)));
 		const int key_width = std::max(1, (width - padding * 2 - horizontal_gap * (maximum - 1)) / maximum);
 		const int cell_height = live_height;
-		const QFont total_font = font(total_font_size);
+		const QFont total_font = font(subtitle_size);
 		const QFontMetrics total_metrics(total_font);
 		const int total_height = std::min(total_metrics.height(), std::max(0, cell_height - 9));
 		const int vertical_gap = std::min(live_vertical_spacing, std::max(0, cell_height - total_height - 1));
@@ -230,12 +220,12 @@ public:
 					 totals_above ? row.top() - vertical_gap - total_metrics.descent()
 						      : row.bottom() + 1 + vertical_gap + total_metrics.ascent()),
 				  count, text);
-			const qreal input_text_height = QFontMetrics(font(key_font_size)).height();
+			const qreal input_text_height = QFontMetrics(font(text_size)).height();
 			if (!key.alphanumeric &&
 			    draw_modifier_indicator(painter, row, key.code, text, input_text_height))
 				continue;
 			const QString indicator = key.alphanumeric ? key.label : key_indicator(key.code);
-			painter.setFont(font(key_font_size));
+			painter.setFont(font(text_size));
 			const QString rendered_label = indicator.isEmpty() ? (key.label.size() > 1 ? "?" : key.label)
 									   : indicator;
 			draw_text(painter, row, Qt::AlignCenter, rendered_label, text);
@@ -243,7 +233,7 @@ public:
 		if (show_most_used) {
 			const int chart_group_top = chart_first ? chart_top : live_top + live_height + group_spacing;
 			if (!chart_first && chart_title_height) {
-				painter.setFont(font(most_used_title_font_size));
+				painter.setFont(font(title_size));
 				draw_text(painter,
 					  QRect(padding, chart_group_top, width - padding * 2, chart_title_height),
 					  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
@@ -278,7 +268,7 @@ private:
 					 std::max(0, bounds.height() / static_cast<int>(keys.size() * 3)));
 		const int row_height = std::max(1, (bounds.height() - gap * (static_cast<int>(keys.size()) - 1)) /
 							   static_cast<int>(keys.size()));
-		const QFontMetrics metrics(font(most_used_font_size));
+		const QFontMetrics metrics(font(subtitle_size));
 		const int value_height = std::min(metrics.height(), row_height / 2);
 		const int chart_width = bounds.width();
 		const bool right_aligned = chart_alignment == Qt::AlignRight;
@@ -293,10 +283,10 @@ private:
 			const auto pressed = held.find(keys[index].code);
 			painter.setBrush(pressed != held.end() && pressed->second ? pressed_color : theme_color);
 			painter.drawRoundedRect(bar, 3, 3);
-			painter.setFont(font(most_used_font_size));
+			painter.setFont(font(subtitle_size));
 			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, keys[index].label, text_color);
-			painter.setFont(font(most_used_font_size));
+			painter.setFont(font(subtitle_size));
 			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
 				  Qt::AlignRight | Qt::AlignVCenter, QString::number(keys[index].press_count),
 				  text_color);
@@ -331,12 +321,7 @@ private:
 	int maximum = 8;
 	int most_used_maximum = 8;
 	int live_row_height = 96;
-	int live_title_font_size = 28, most_used_title_font_size = 28;
 	int live_horizontal_spacing = 2, live_vertical_spacing = 2, most_used_element_spacing = 2, group_spacing = 10;
-	int key_font_size = 36;
-	int special_key_font_size = 28;
-	int total_font_size = 24;
-	int most_used_font_size = 24;
 	uint64_t fade_duration_ns = 300ULL * 1000 * 1000;
 	fade_curve fade{fade_curve::linear};
 	QColor theme_color{37, 99, 235};

@@ -27,6 +27,10 @@ hidden controls must retain valid saved values.
    - Input Statistics: **Content**, **Colors & appearance**, **Layout & spacing**,
      **Typography**, **Behavior & data**.
 
+**Typography** has one shared set of sizes: **Title**, **Subtitle**, and **Text**. These are the only
+font-size controls, including when advanced settings are shown. Their new-source defaults are 22px, 18px,
+and 30px respectively.
+
 Primary target controls, shared color theme, primary sizing, Content/Metrics controls stay visible
 by default. The persisted shared UI-only **Show advanced settings** control reveals detailed
 layout, typography, behavior/data, and export/action controls. It must not alter rendering, input

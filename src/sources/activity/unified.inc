@@ -211,8 +211,7 @@ void set_advanced_properties_visibility(obs_properties_t *properties, bool show_
 				 "input_activity.live_keys.typography", "input_activity.live_keys.behavior",
 				 "input_activity.mouse_activity.behavior", "input_activity.mouse_activity.actions",
 				 "input_activity.input_intensity.layout", "input_activity.input_intensity.behavior",
-				 "input_activity.input_statistics.layout", "input_activity.input_statistics.typography",
-				 "input_activity.input_statistics.behavior"})
+				 "input_activity.input_statistics.layout", "input_activity.input_statistics.behavior"})
 		obs_property_set_visible(obs_properties_get(properties, name), show_advanced);
 	for (const char *name :
 	     {"activity.padding", "activity.text_shadow", "activity.text_shadow_color", "activity.text_shadow_offset"})

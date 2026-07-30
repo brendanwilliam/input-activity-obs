@@ -39,6 +39,9 @@ constexpr uint64_t minute_ns = 60ULL * 1000 * 1000 * 1000;
 constexpr uint64_t statistics_highlight_duration_ns = 300ULL * 1000 * 1000;
 constexpr uint64_t max_heatmap_gap_ns = 250ULL * 1000 * 1000;
 constexpr qreal default_heatmap_hex_radius = 10.0;
+constexpr int default_title_font_size = 22;
+constexpr int default_subtitle_font_size = 18;
+constexpr int default_text_font_size = 30;
 
 QColor obs_color(uint32_t color)
 {
@@ -55,6 +58,22 @@ void migrate_legacy_colors(obs_data_t *settings, const char *migration_key,
 		const uint32_t color = static_cast<uint32_t>(obs_data_get_int(settings, color_key));
 		obs_data_set_int(settings, color_key, color | 0xff000000);
 	}
+	obs_data_set_bool(settings, migration_key, true);
+}
+
+void migrate_legacy_typography(obs_data_t *settings, const char *migration_key, const char *legacy_title,
+			       const char *legacy_subtitle, const char *legacy_text)
+{
+	if (obs_data_get_bool(settings, migration_key))
+		return;
+	const auto migrate = [&](const char *shared_key, const char *legacy_key) {
+		if (legacy_key && !obs_data_has_user_value(settings, shared_key) &&
+		    obs_data_has_user_value(settings, legacy_key))
+			obs_data_set_int(settings, shared_key, obs_data_get_int(settings, legacy_key));
+	};
+	migrate("activity.section_title_size", legacy_title);
+	migrate("activity.input_title_size", legacy_subtitle);
+	migrate("activity.input_value_size", legacy_text);
 	obs_data_set_bool(settings, migration_key, true);
 }
 
@@ -107,9 +126,9 @@ public:
 		width = std::max(1, static_cast<int>(obs_data_get_int(settings, "activity.width")));
 		height = std::max(1, static_cast<int>(obs_data_get_int(settings, "activity.height")));
 		padding = std::max(0, static_cast<int>(obs_data_get_int(settings, "activity.padding")));
-		font_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.input_value_size")));
-		section_title_size =
-			std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.section_title_size")));
+		text_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.input_value_size")));
+		title_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.section_title_size")));
+		subtitle_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.input_title_size")));
 		title_right_aligned = std::string(obs_data_get_string(settings, "activity.alignment")) == "right";
 		text_color = QColor{255, 255, 255};
 		background_color =
@@ -163,7 +182,7 @@ public:
 		QPainter painter(&image);
 		painter.setRenderHint(QPainter::Antialiasing);
 		if (show_title && !title.isEmpty()) {
-			painter.setFont(font(section_title_size));
+			painter.setFont(font(title_size));
 			const int title_height = title_content_offset() - padding / 2;
 			const int title_alignment = title_right_aligned ? Qt::AlignRight : Qt::AlignLeft;
 			draw_text(painter, QRect(padding, padding, std::max(1, width - padding * 2), title_height),
@@ -226,13 +245,12 @@ public:
 	{
 		QFont result(font_family);
 		result.setBold(true);
-		result.setPixelSize(pixel_size > 0 ? pixel_size : font_size);
+		result.setPixelSize(pixel_size > 0 ? pixel_size : text_size);
 		return result;
 	}
 	int title_content_offset() const
 	{
-		return show_title && !title.isEmpty() ? QFontMetrics(font(section_title_size)).lineSpacing() + padding
-						      : 0;
+		return show_title && !title.isEmpty() ? QFontMetrics(font(title_size)).lineSpacing() + padding : 0;
 	}
 	void draw_text(QPainter &painter, const QRect &rect, int alignment, const QString &text,
 		       const QColor &color) const
@@ -258,7 +276,8 @@ public:
 		painter.drawText(baseline, text);
 	}
 	obs_source_t *source{};
-	int width = 480, height = 180, padding = 12, font_size = 28, section_title_size = 28;
+	int width = 480, height = 180, padding = 12, title_size = default_title_font_size,
+	    subtitle_size = default_subtitle_font_size, text_size = default_text_font_size;
 	bool title_right_aligned{};
 	QColor text_color{255, 255, 255};
 	QColor background_color{0, 0, 0, 0};

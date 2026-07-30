@@ -32,8 +32,9 @@
 		const int y = padding + (summary_above_heatmap ? summary_height() : 0) + vertical_space / 2;
 		return {x, y, plot_width, plot_height};
 	}
-	int information_line_height() const { return QFontMetrics(font()).lineSpacing(); }
-	int summary_height() const { return show_distance || show_clicks ? information_line_height() * 2 : 0; }
+	int subtitle_line_height() const { return QFontMetrics(font(subtitle_size)).lineSpacing(); }
+	int text_line_height() const { return QFontMetrics(font(text_size)).lineSpacing(); }
+	int summary_height() const { return show_distance || show_clicks ? subtitle_line_height() + text_line_height() : 0; }
 	void build_hex_lattice()
 	{
 		hex_bins.clear();
@@ -241,22 +242,27 @@
 	{
 		const int top = summary_above_heatmap ? padding : heatmap.bottom() + 1;
 		const int column_width = std::max(1, (width - padding * 2) / 2);
-		const int line_height = information_line_height();
+		const int subtitle_height = subtitle_line_height();
+		const int text_height = text_line_height();
 		if (show_distance) {
 			const QRect column(padding, top, column_width, summary_height());
-			draw_text(painter, QRect(column.left(), top, column.width(), line_height),
+			painter.setFont(font(subtitle_size));
+			draw_text(painter, QRect(column.left(), top, column.width(), subtitle_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, obs_module_text("MouseActivity.Distance"),
 				  text_color);
-			draw_text(painter, QRect(column.left(), top + line_height, column.width(), line_height),
+			painter.setFont(font(text_size));
+			draw_text(painter, QRect(column.left(), top + subtitle_height, column.width(), text_height),
 				  Qt::AlignLeft | Qt::AlignVCenter, distance_label(), text_color);
 		}
 		if (show_clicks) {
 			const QRect column(padding + column_width, top, width - padding * 2 - column_width,
 					   summary_height());
-			draw_text(painter, QRect(column.left(), top, column.width(), line_height),
+			painter.setFont(font(subtitle_size));
+			draw_text(painter, QRect(column.left(), top, column.width(), subtitle_height),
 				  Qt::AlignRight | Qt::AlignVCenter, obs_module_text("MouseActivity.Clicks"),
 				  text_color);
-			draw_text(painter, QRect(column.left(), top + line_height, column.width(), line_height),
+			painter.setFont(font(text_size));
+			draw_text(painter, QRect(column.left(), top + subtitle_height, column.width(), text_height),
 				  Qt::AlignRight | Qt::AlignVCenter, QString::number(total_clicks), text_color);
 		}
 	}
@@ -322,9 +328,10 @@
 			return;
 		const QString &label = highlighted_button == MOUSE_BUTTON1   ? left_label
 				       : highlighted_button == MOUSE_BUTTON2 ? right_label
-									     : middle_label;
+								     : middle_label;
 		if (label.isEmpty())
 			return;
+		painter.setFont(font(text_size));
 		const QFontMetrics metrics(painter.font());
 		const QRect label_rect(static_cast<int>(point.x()) - metrics.horizontalAdvance(label) - 4,
 				       static_cast<int>(point.y()) - metrics.height() - 4,

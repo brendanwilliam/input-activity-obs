@@ -145,16 +145,6 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 						  OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Left"), "left");
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Right"), "right");
-	auto *typography =
-		add_group(p, "input_activity.input_statistics.typography", obs_module_text("Preferences.Typography"));
-	obs_properties_add_int_slider(typography, "statistics.keys_title_font_size",
-				      obs_module_text("Statistics.KeysTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(typography, "statistics.clicks_title_font_size",
-				      obs_module_text("Statistics.ClicksTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(typography, "statistics.actions_title_font_size",
-				      obs_module_text("Statistics.ActionsTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(typography, "statistics.metric_font_size",
-				      obs_module_text("Statistics.MetricFontSize"), 8, 200, 1);
 	obs_properties_add_int_slider(layout, "statistics.horizontal_spacing",
 				      obs_module_text("Statistics.HorizontalSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "statistics.vertical_spacing",
