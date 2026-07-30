@@ -220,6 +220,8 @@ public:
 					 totals_above ? row.top() - vertical_gap - total_metrics.descent()
 						      : row.bottom() + 1 + vertical_gap + total_metrics.ascent()),
 				  count, text);
+			if (!key.alphanumeric && draw_modifier_indicator(painter, row, key.code, text))
+				continue;
 			const QString indicator = key.alphanumeric ? key.label : key_indicator(key.code);
 			painter.setFont(font(key_font_size));
 			const QString rendered_label = indicator.isEmpty() ? (key.label.size() > 1 ? "?" : key.label)

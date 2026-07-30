@@ -190,3 +190,77 @@ QString key_indicator(uint16_t code)
 		return {};
 	}
 }
+
+bool draw_modifier_indicator(QPainter &painter, const QRect &bounds, uint16_t code, const QColor &color)
+{
+	const QRectF icon =
+		bounds.adjusted(bounds.width() / 4, bounds.height() / 4, -bounds.width() / 4, -bounds.height() / 4);
+	const QPointF center = icon.center();
+	const qreal stroke_width = std::max<qreal>(2.0, icon.height() / 10.0);
+	const auto draw_path = [&](const QPainterPath &path, bool filled = false) {
+		QPen shadow(QColor(0, 0, 0, color.alpha()), stroke_width);
+		painter.setBrush(filled ? QBrush(QColor(0, 0, 0, color.alpha())) : QBrush(Qt::NoBrush));
+		painter.setPen(filled ? Qt::NoPen : shadow);
+		painter.drawPath(path.translated(2, 2));
+		painter.setBrush(filled ? QBrush(color) : QBrush(Qt::NoBrush));
+		painter.setPen(filled ? Qt::NoPen : QPen(color, stroke_width));
+		painter.drawPath(path);
+	};
+
+	QPainterPath path;
+	switch (code) {
+	case VC_SHIFT_L:
+	case VC_SHIFT_R:
+		path.moveTo(center.x(), icon.top());
+		path.lineTo(icon.right(), center.y());
+		path.lineTo(center.x() + icon.width() / 5, center.y());
+		path.lineTo(center.x() + icon.width() / 5, icon.bottom());
+		path.lineTo(center.x() - icon.width() / 5, icon.bottom());
+		path.lineTo(center.x() - icon.width() / 5, center.y());
+		path.lineTo(icon.left(), center.y());
+		path.closeSubpath();
+		draw_path(path, true);
+		return true;
+	case VC_CONTROL_L:
+	case VC_CONTROL_R:
+		path.moveTo(icon.left(), icon.bottom() - icon.height() / 4);
+		path.lineTo(center.x(), icon.top() + icon.height() / 4);
+		path.lineTo(icon.right(), icon.bottom() - icon.height() / 4);
+		draw_path(path);
+		return true;
+	case VC_ALT_L:
+	case VC_ALT_R:
+		path.addEllipse(QRectF(icon.left(), center.y() - stroke_width, stroke_width * 2, stroke_width * 2));
+		path.moveTo(icon.left() + stroke_width * 2, center.y());
+		path.lineTo(icon.right(), center.y());
+		path.moveTo(icon.right() - icon.width() / 3, center.y());
+		path.lineTo(icon.right(), icon.top() + icon.height() / 4);
+		draw_path(path);
+		return true;
+	case VC_META_L:
+	case VC_META_R:
+#if defined(__APPLE__)
+		for (const QPointF &offset : {QPointF(-1, -1), QPointF(1, -1), QPointF(-1, 1), QPointF(1, 1)}) {
+			const QPointF point(center.x() + offset.x() * icon.width() / 4,
+					    center.y() + offset.y() * icon.height() / 4);
+			path.addEllipse(QRectF(point.x() - icon.width() / 7, point.y() - icon.height() / 7,
+					       icon.width() * 2 / 7, icon.height() * 2 / 7));
+		}
+		path.addRect(QRectF(center.x() - icon.width() / 7, center.y() - icon.height() / 7, icon.width() * 2 / 7,
+				    icon.height() * 2 / 7));
+#else
+		path.addRect(QRectF(icon.left(), icon.top(), icon.width() / 2 - stroke_width / 2,
+				    icon.height() / 2 - stroke_width / 2));
+		path.addRect(QRectF(center.x() + stroke_width / 2, icon.top(), icon.width() / 2 - stroke_width / 2,
+				    icon.height() / 2 - stroke_width / 2));
+		path.addRect(QRectF(icon.left(), center.y() + stroke_width / 2, icon.width() / 2 - stroke_width / 2,
+				    icon.height() / 2 - stroke_width / 2));
+		path.addRect(QRectF(center.x() + stroke_width / 2, center.y() + stroke_width / 2,
+				    icon.width() / 2 - stroke_width / 2, icon.height() / 2 - stroke_width / 2));
+#endif
+		draw_path(path);
+		return true;
+	default:
+		return false;
+	}
+}
