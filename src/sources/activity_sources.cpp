@@ -2084,10 +2084,12 @@ bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *
 
 void set_advanced_properties_visibility(obs_properties_t *properties, bool show_advanced)
 {
-	for (const char *name :
-	     {"activity.typography", "live_keys.layout", "live_keys.typography", "live_keys.behavior",
-	      "mouse_activity.behavior", "mouse_activity.actions", "input_intensity.layout", "input_intensity.behavior",
-	      "statistics.layout", "statistics.typography", "statistics.behavior"})
+	for (const char *name : {"input_activity.general.typography", "input_activity.live_keys.layout",
+				 "input_activity.live_keys.typography", "input_activity.live_keys.behavior",
+				 "input_activity.mouse_activity.behavior", "input_activity.mouse_activity.actions",
+				 "input_activity.input_intensity.layout", "input_activity.input_intensity.behavior",
+				 "input_activity.input_statistics.layout", "input_activity.input_statistics.typography",
+				 "input_activity.input_statistics.behavior"})
 		obs_property_set_visible(obs_properties_get(properties, name), show_advanced);
 	for (const char *name :
 	     {"activity.padding", "activity.text_shadow", "activity.text_shadow_color", "activity.text_shadow_offset"})
@@ -2099,6 +2101,7 @@ void unified_source::set_properties_visibility(obs_properties_t *properties) con
 	auto *settings = obs_source_get_settings(source);
 	const std::string selected = obs_data_get_string(settings, "input_activity.mode");
 	const bool show_advanced = obs_data_get_bool(settings, "input_activity.show_advanced_settings");
+	obs_properties_apply_settings(properties, settings);
 	target_type_changed(properties, nullptr, settings);
 	obs_data_release(settings);
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"), selected == "live_keys");
@@ -2130,7 +2133,7 @@ obs_properties_t *add_group(obs_properties_t *parent, const char *name, const ch
 
 void add_common_properties(obs_properties_t *props, bool allow_height = true)
 {
-	auto *target = add_group(props, "activity.target", obs_module_text("Preferences.InputTarget"));
+	auto *target = add_group(props, "input_activity.general.target", obs_module_text("Preferences.InputTarget"));
 	auto *target_type = obs_properties_add_list(target, "activity.target.type", obs_module_text("Activity.Target"),
 						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.All"), "all");
@@ -2158,15 +2161,17 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 	obs_property_set_visible(target_display, false);
 	obs_property_set_visible(target_application, false);
 	obs_property_set_visible(target_window, false);
-	auto *layout = add_group(props, "activity.layout", obs_module_text("Preferences.LayoutSizing"));
+	auto *layout = add_group(props, "input_activity.general.layout", obs_module_text("Preferences.LayoutSizing"));
 	obs_properties_add_int(layout, "activity.width", obs_module_text("Activity.Width"), 64, 3840, 1);
 	if (allow_height)
 		obs_properties_add_int(layout, "activity.height", obs_module_text("Activity.Height"), 32, 2160, 1);
 	obs_properties_add_int(layout, "activity.padding", obs_module_text("Activity.Padding"), 0, 200, 1);
-	auto *typography = add_group(props, "activity.typography", obs_module_text("Preferences.Typography"));
+	auto *typography =
+		add_group(props, "input_activity.general.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_font(typography, "activity.font", obs_module_text("Activity.Font"));
 	obs_properties_add_int(typography, "activity.font_size", obs_module_text("Activity.FontSize"), 8, 256, 1);
-	auto *appearance = add_group(props, "activity.appearance", obs_module_text("Preferences.Appearance"));
+	auto *appearance =
+		add_group(props, "input_activity.general.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "activity.text_color", obs_module_text("Activity.TextColor"));
 	obs_properties_add_color_alpha(appearance, "activity.background_color",
 				       obs_module_text("Activity.BackgroundColor"));
@@ -2469,7 +2474,7 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	auto *content = add_group(p, "live_keys.content", obs_module_text("Preferences.Content"));
+	auto *content = add_group(p, "input_activity.live_keys.content", obs_module_text("Preferences.Content"));
 	obs_properties_add_int(content, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
 	obs_properties_add_int(content, "live_keys.row_height", obs_module_text("LiveKeys.RowHeight"), 24, 2160, 1);
 	auto *show_live_title = obs_properties_add_bool(content, "live_keys.show_live_title",
@@ -2479,7 +2484,7 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	auto *show_most_used =
 		obs_properties_add_bool(content, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
 	obs_property_set_modified_callback(show_most_used, live_keys_options_changed);
-	auto *layout = add_group(p, "live_keys.layout", obs_module_text("Preferences.Layout"));
+	auto *layout = add_group(p, "input_activity.live_keys.layout", obs_module_text("Preferences.Layout"));
 	auto *top_n_alignment = obs_properties_add_list(layout, "live_keys.top_n_alignment",
 							obs_module_text("LiveKeys.TopNAlignment"), OBS_COMBO_TYPE_LIST,
 							OBS_COMBO_FORMAT_STRING);
@@ -2503,7 +2508,8 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 						     OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.LiveFirst"), "live_first");
 	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.ChartFirst"), "chart_first");
-	auto *typography = add_group(p, "live_keys.typography", obs_module_text("Preferences.Typography"));
+	auto *typography =
+		add_group(p, "input_activity.live_keys.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_text(typography, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(typography, "live_keys.live_title_font_size", obs_module_text("LiveKeys.TitleFontSize"),
@@ -2523,7 +2529,7 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 			       256, 1);
 	obs_properties_add_int(typography, "live_keys.most_used_font_size",
 			       obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256, 1);
-	auto *behavior = add_group(p, "live_keys.behavior", obs_module_text("Preferences.Behavior"));
+	auto *behavior = add_group(p, "input_activity.live_keys.behavior", obs_module_text("Preferences.Behavior"));
 	obs_properties_add_int_slider(behavior, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000,
 				      10);
 	auto *fade_curve = obs_properties_add_list(behavior, "live_keys.fade_curve",
@@ -2533,7 +2539,8 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseIn"), "ease_in");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseOut"), "ease_out");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseInOut"), "ease_in_out");
-	auto *appearance = add_group(p, "live_keys.appearance", obs_module_text("Preferences.Appearance"));
+	auto *appearance =
+		add_group(p, "input_activity.live_keys.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "live_keys.color", obs_module_text("LiveKeys.ThemeColor"));
 	obs_properties_add_color_alpha(appearance, "live_keys.pressed_color", obs_module_text("LiveKeys.PressedColor"));
 	return p;
@@ -2581,7 +2588,7 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p, false);
-	auto *content = add_group(p, "mouse_activity.content", obs_module_text("Preferences.Content"));
+	auto *content = add_group(p, "input_activity.mouse_activity.content", obs_module_text("Preferences.Content"));
 	add_mode_title_properties(content, title_prefix);
 	obs_properties_add_text(content, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
 				OBS_TEXT_DEFAULT);
@@ -2589,7 +2596,8 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(content, "mouse_activity.middle_label", obs_module_text("MouseActivity.MiddleLabel"),
 				OBS_TEXT_DEFAULT);
-	auto *appearance = add_group(p, "mouse_activity.appearance", obs_module_text("Preferences.Appearance"));
+	auto *appearance =
+		add_group(p, "input_activity.mouse_activity.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "mouse_activity.left_color",
 				       obs_module_text("MouseActivity.LeftColor"));
 	obs_properties_add_color_alpha(appearance, "mouse_activity.right_color",
@@ -2597,7 +2605,8 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 	obs_properties_add_color_alpha(appearance, "mouse_activity.middle_color",
 				       obs_module_text("MouseActivity.MiddleColor"));
 	obs_properties_add_color_alpha(appearance, "mouse_activity.color", obs_module_text("Activity.ActiveColor"));
-	auto *behavior = add_group(p, "mouse_activity.behavior", obs_module_text("Preferences.Behavior"));
+	auto *behavior =
+		add_group(p, "input_activity.mouse_activity.behavior", obs_module_text("Preferences.Behavior"));
 	auto *show_heatmap = obs_properties_add_bool(behavior, "mouse_activity.show_heatmap",
 						     obs_module_text("MouseActivity.ShowHeatmap"));
 	obs_property_set_modified_callback(show_heatmap, mouse_options_changed);
@@ -2651,7 +2660,7 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 					    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Movement"), "movement");
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Clicks"), "clicks");
-	auto *actions = add_group(p, "mouse_activity.actions", obs_module_text("Preferences.Actions"));
+	auto *actions = add_group(p, "input_activity.mouse_activity.actions", obs_module_text("Preferences.Actions"));
 	obs_properties_add_path(actions, "mouse_activity.export_directory",
 				obs_module_text("MouseActivity.ExportDirectory"), OBS_PATH_DIRECTORY, nullptr, nullptr);
 	auto *export_format = obs_properties_add_list(actions, "mouse_activity.export_format",
@@ -2716,22 +2725,24 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	auto *content = add_group(p, "statistics.content", obs_module_text("Preferences.Content"));
+	auto *content = add_group(p, "input_activity.input_statistics.content", obs_module_text("Preferences.Content"));
 	add_mode_title_properties(content, title_prefix);
 	obs_properties_add_bool(content, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
 	obs_properties_add_bool(content, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
 	obs_properties_add_bool(content, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
-	auto *appearance = add_group(p, "statistics.appearance", obs_module_text("Preferences.Appearance"));
+	auto *appearance =
+		add_group(p, "input_activity.input_statistics.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "statistics.theme_color", obs_module_text("Statistics.ThemeColor"));
 	obs_properties_add_color_alpha(appearance, "statistics.pressed_color",
 				       obs_module_text("Statistics.PressedColor"));
-	auto *layout = add_group(p, "statistics.layout", obs_module_text("Preferences.Layout"));
+	auto *layout = add_group(p, "input_activity.input_statistics.layout", obs_module_text("Preferences.Layout"));
 	auto *alignment = obs_properties_add_list(layout, "statistics.alignment",
 						  obs_module_text("Statistics.Alignment"), OBS_COMBO_TYPE_LIST,
 						  OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Left"), "left");
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Right"), "right");
-	auto *typography = add_group(p, "statistics.typography", obs_module_text("Preferences.Typography"));
+	auto *typography =
+		add_group(p, "input_activity.input_statistics.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_int_slider(typography, "statistics.keys_title_font_size",
 				      obs_module_text("Statistics.KeysTitleFontSize"), 8, 200, 1);
 	obs_properties_add_int_slider(typography, "statistics.clicks_title_font_size",
@@ -2746,7 +2757,8 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 				      obs_module_text("Statistics.VerticalSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "statistics.group_spacing", obs_module_text("Statistics.GroupSpacing"), 0,
 				      200, 1);
-	auto *behavior = add_group(p, "statistics.behavior", obs_module_text("Preferences.Behavior"));
+	auto *behavior =
+		add_group(p, "input_activity.input_statistics.behavior", obs_module_text("Preferences.Behavior"));
 	obs_properties_add_bool(behavior, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
 	obs_properties_add_bool(behavior, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
 	obs_properties_add_bool(behavior, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
@@ -2817,7 +2829,7 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	auto *metrics = add_group(p, "input_intensity.metrics", obs_module_text("Preferences.Metrics"));
+	auto *metrics = add_group(p, "input_activity.input_intensity.metrics", obs_module_text("Preferences.Metrics"));
 	add_mode_title_properties(metrics, title_prefix);
 	obs_properties_add_int_slider(metrics, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1,
 				      60, 1);
@@ -2838,12 +2850,13 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.MouseButton"), "button");
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Velocity"), "velocity");
 	}
-	auto *appearance = add_group(p, "input_intensity.appearance", obs_module_text("Preferences.Appearance"));
+	auto *appearance =
+		add_group(p, "input_activity.input_intensity.appearance", obs_module_text("Preferences.Appearance"));
 	obs_properties_add_color_alpha(appearance, "input_intensity.theme_color",
 				       obs_module_text("InputIntensity.ThemeColor"));
 	obs_properties_add_color_alpha(appearance, "input_intensity.pressed_color",
 				       obs_module_text("InputIntensity.PressedColor"));
-	auto *layout = add_group(p, "input_intensity.layout", obs_module_text("Preferences.Layout"));
+	auto *layout = add_group(p, "input_activity.input_intensity.layout", obs_module_text("Preferences.Layout"));
 	obs_properties_add_int_slider(layout, "input_intensity.element_spacing",
 				      obs_module_text("Activity.ElementSpacing"), 0, 200, 1);
 	auto *layout_type = obs_properties_add_list(layout, "input_intensity.layout",
@@ -2851,7 +2864,8 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 						    OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(layout_type, obs_module_text("InputIntensity.Layout.Column"), "column");
 	obs_property_list_add_string(layout_type, obs_module_text("InputIntensity.Layout.Row"), "row");
-	auto *behavior = add_group(p, "input_intensity.behavior", obs_module_text("Preferences.Behavior"));
+	auto *behavior =
+		add_group(p, "input_activity.input_intensity.behavior", obs_module_text("Preferences.Behavior"));
 	auto *velocity_unit = obs_properties_add_list(behavior, "input_intensity.velocity_unit",
 						      obs_module_text("InputIntensity.VelocityUnit"),
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -2940,9 +2954,9 @@ obs_properties_t *unified_properties(void *data)
 	auto *statistics_group = obs_properties_add_group(p, "input_activity.input_statistics",
 							  obs_module_text("InputStatistics"), OBS_GROUP_NORMAL,
 							  statistics_properties_impl(data, false, "statistics"));
-	if (unified)
+	if (unified) {
 		unified->set_properties_visibility(p);
-	else {
+	} else {
 		obs_property_set_visible(live_group, true);
 		obs_property_set_visible(mouse_group, false);
 		obs_property_set_visible(intensity_group, false);
