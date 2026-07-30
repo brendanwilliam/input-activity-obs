@@ -2027,6 +2027,8 @@ private:
 			obs_data_set_int(destination, key, obs_data_get_int(source, key));
 		obs_data_set_bool(destination, "activity.text_shadow",
 				  obs_data_get_bool(source, "activity.text_shadow"));
+		obs_data_set_bool(destination, "input_activity.show_advanced_settings",
+				  obs_data_get_bool(source, "input_activity.show_advanced_settings"));
 		const char *const string_keys[] = {"activity.target.type", "activity.target.application",
 						   "activity.target.window"};
 		for (const char *key : string_keys)
@@ -2078,10 +2080,26 @@ private:
 	bool configured{};
 };
 
+bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
+
+void set_advanced_properties_visibility(obs_properties_t *properties, bool show_advanced)
+{
+	for (const char *name :
+	     {"activity.typography", "live_keys.layout", "live_keys.typography", "live_keys.behavior",
+	      "mouse_activity.behavior", "mouse_activity.actions", "input_intensity.layout", "input_intensity.behavior",
+	      "statistics.layout", "statistics.typography", "statistics.behavior"})
+		obs_property_set_visible(obs_properties_get(properties, name), show_advanced);
+	for (const char *name :
+	     {"activity.padding", "activity.text_shadow", "activity.text_shadow_color", "activity.text_shadow_offset"})
+		obs_property_set_visible(obs_properties_get(properties, name), show_advanced);
+}
+
 void unified_source::set_properties_visibility(obs_properties_t *properties) const
 {
 	auto *settings = obs_source_get_settings(source);
 	const std::string selected = obs_data_get_string(settings, "input_activity.mode");
+	const bool show_advanced = obs_data_get_bool(settings, "input_activity.show_advanced_settings");
+	target_type_changed(properties, nullptr, settings);
 	obs_data_release(settings);
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"), selected == "live_keys");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.mouse_activity"),
@@ -2090,6 +2108,7 @@ void unified_source::set_properties_visibility(obs_properties_t *properties) con
 				 selected == "input_intensity");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.input_statistics"),
 				 selected == "input_statistics");
+	set_advanced_properties_visibility(properties, show_advanced);
 }
 
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
@@ -2102,28 +2121,34 @@ bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *
 	return true;
 }
 
+obs_properties_t *add_group(obs_properties_t *parent, const char *name, const char *description)
+{
+	auto *contents = obs_properties_create();
+	obs_properties_add_group(parent, name, description, OBS_GROUP_NORMAL, contents);
+	return contents;
+}
+
 void add_common_properties(obs_properties_t *props, bool allow_height = true)
 {
-	obs_properties_add_text(props, "activity.group.behavior", obs_module_text("Preferences.Behavior"),
-				OBS_TEXT_INFO);
-	auto *target_type = obs_properties_add_list(props, "activity.target.type", obs_module_text("Activity.Target"),
+	auto *target = add_group(props, "activity.target", obs_module_text("Preferences.InputTarget"));
+	auto *target_type = obs_properties_add_list(target, "activity.target.type", obs_module_text("Activity.Target"),
 						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.All"), "all");
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Display"), "display");
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Application"), "application");
 	obs_property_list_add_string(target_type, obs_module_text("Activity.Target.Window"), "window");
 	obs_property_set_modified_callback(target_type, target_type_changed);
-	auto *target_display = obs_properties_add_list(props, "activity.target.display",
+	auto *target_display = obs_properties_add_list(target, "activity.target.display",
 						       obs_module_text("Activity.Target.Display"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_INT);
 	for (const auto &display : uiohook::target_displays())
 		obs_property_list_add_int(target_display, display.label.c_str(), display.id);
-	auto *target_application = obs_properties_add_list(props, "activity.target.application",
+	auto *target_application = obs_properties_add_list(target, "activity.target.application",
 							   obs_module_text("Activity.Target.Application"),
 							   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (const auto &application : uiohook::target_applications())
 		obs_property_list_add_string(target_application, application.label.c_str(), application.id.c_str());
-	auto *target_window = obs_properties_add_list(props, "activity.target.window",
+	auto *target_window = obs_properties_add_list(target, "activity.target.window",
 						      obs_module_text("Activity.Target.Window"), OBS_COMBO_TYPE_LIST,
 						      OBS_COMBO_FORMAT_STRING);
 	for (const auto &window : uiohook::target_windows()) {
@@ -2133,23 +2158,22 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 	obs_property_set_visible(target_display, false);
 	obs_property_set_visible(target_application, false);
 	obs_property_set_visible(target_window, false);
-	obs_properties_add_text(props, "activity.group.layout", obs_module_text("Preferences.Layout"), OBS_TEXT_INFO);
-	obs_properties_add_int(props, "activity.width", obs_module_text("Activity.Width"), 64, 3840, 1);
+	auto *layout = add_group(props, "activity.layout", obs_module_text("Preferences.LayoutSizing"));
+	obs_properties_add_int(layout, "activity.width", obs_module_text("Activity.Width"), 64, 3840, 1);
 	if (allow_height)
-		obs_properties_add_int(props, "activity.height", obs_module_text("Activity.Height"), 32, 2160, 1);
-	obs_properties_add_int(props, "activity.padding", obs_module_text("Activity.Padding"), 0, 200, 1);
-	obs_properties_add_text(props, "activity.group.typography", obs_module_text("Preferences.Typography"),
-				OBS_TEXT_INFO);
-	obs_properties_add_font(props, "activity.font", obs_module_text("Activity.Font"));
-	obs_properties_add_int(props, "activity.font_size", obs_module_text("Activity.FontSize"), 8, 256, 1);
-	obs_properties_add_text(props, "activity.group.appearance", obs_module_text("Preferences.Appearance"),
-				OBS_TEXT_INFO);
-	obs_properties_add_color_alpha(props, "activity.text_color", obs_module_text("Activity.TextColor"));
-	obs_properties_add_color_alpha(props, "activity.background_color", obs_module_text("Activity.BackgroundColor"));
-	obs_properties_add_bool(props, "activity.text_shadow", obs_module_text("Activity.TextShadow"));
-	obs_properties_add_color_alpha(props, "activity.text_shadow_color",
+		obs_properties_add_int(layout, "activity.height", obs_module_text("Activity.Height"), 32, 2160, 1);
+	obs_properties_add_int(layout, "activity.padding", obs_module_text("Activity.Padding"), 0, 200, 1);
+	auto *typography = add_group(props, "activity.typography", obs_module_text("Preferences.Typography"));
+	obs_properties_add_font(typography, "activity.font", obs_module_text("Activity.Font"));
+	obs_properties_add_int(typography, "activity.font_size", obs_module_text("Activity.FontSize"), 8, 256, 1);
+	auto *appearance = add_group(props, "activity.appearance", obs_module_text("Preferences.Appearance"));
+	obs_properties_add_color_alpha(appearance, "activity.text_color", obs_module_text("Activity.TextColor"));
+	obs_properties_add_color_alpha(appearance, "activity.background_color",
+				       obs_module_text("Activity.BackgroundColor"));
+	obs_properties_add_bool(appearance, "activity.text_shadow", obs_module_text("Activity.TextShadow"));
+	obs_properties_add_color_alpha(appearance, "activity.text_shadow_color",
 				       obs_module_text("Activity.TextShadowColor"));
-	obs_properties_add_int_slider(props, "activity.text_shadow_offset",
+	obs_properties_add_int_slider(appearance, "activity.text_shadow_offset",
 				      obs_module_text("Activity.TextShadowOffset"), 0, 20, 1);
 }
 
@@ -2228,6 +2252,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		obs_data_set_default_string(settings, "activity.target.type", "all");
 		if constexpr (std::is_same_v<T, unified_source>) {
 			obs_data_set_default_string(settings, "input_activity.mode", "live_keys");
+			obs_data_set_default_bool(settings, "input_activity.show_advanced_settings", false);
 			obs_data_set_default_string(settings, "activity.title", "Live Keys");
 			obs_data_set_default_bool(settings, "activity.show_title", false);
 			obs_data_set_default_bool(settings, "mouse_activity.show_title", true);
@@ -2444,63 +2469,73 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	obs_properties_add_int(p, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
-	obs_properties_add_int(p, "live_keys.row_height", obs_module_text("LiveKeys.RowHeight"), 24, 2160, 1);
-	auto *show_live_title =
-		obs_properties_add_bool(p, "live_keys.show_live_title", obs_module_text("LiveKeys.ShowLiveTitle"));
+	auto *content = add_group(p, "live_keys.content", obs_module_text("Preferences.Content"));
+	obs_properties_add_int(content, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
+	obs_properties_add_int(content, "live_keys.row_height", obs_module_text("LiveKeys.RowHeight"), 24, 2160, 1);
+	auto *show_live_title = obs_properties_add_bool(content, "live_keys.show_live_title",
+							obs_module_text("LiveKeys.ShowLiveTitle"));
 	obs_property_set_modified_callback(show_live_title, live_keys_options_changed);
-	obs_properties_add_text(p, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"), OBS_TEXT_DEFAULT);
-	obs_properties_add_int(p, "live_keys.live_title_font_size", obs_module_text("LiveKeys.TitleFontSize"), 8, 256,
-			       1);
-	obs_properties_add_int(p, "live_keys.top_n", obs_module_text("LiveKeys.TopN"), 1, 64, 1);
-	auto *top_n_alignment = obs_properties_add_list(p, "live_keys.top_n_alignment",
+	obs_properties_add_int(content, "live_keys.top_n", obs_module_text("LiveKeys.TopN"), 1, 64, 1);
+	auto *show_most_used =
+		obs_properties_add_bool(content, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
+	obs_property_set_modified_callback(show_most_used, live_keys_options_changed);
+	auto *layout = add_group(p, "live_keys.layout", obs_module_text("Preferences.Layout"));
+	auto *top_n_alignment = obs_properties_add_list(layout, "live_keys.top_n_alignment",
 							obs_module_text("LiveKeys.TopNAlignment"), OBS_COMBO_TYPE_LIST,
 							OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Left"), "left");
 	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Right"), "right");
-	obs_properties_add_int_slider(p, "live_keys.horizontal_spacing", obs_module_text("LiveKeys.HorizontalSpacing"),
-				      0, 200, 1);
-	obs_properties_add_int_slider(p, "live_keys.vertical_spacing", obs_module_text("LiveKeys.VerticalSpacing"),
+	obs_properties_add_int_slider(layout, "live_keys.horizontal_spacing",
+				      obs_module_text("LiveKeys.HorizontalSpacing"), 0, 200, 1);
+	obs_properties_add_int_slider(layout, "live_keys.vertical_spacing", obs_module_text("LiveKeys.VerticalSpacing"),
 				      -100, 200, 1);
-	auto *total_position = obs_properties_add_list(p, "live_keys.total_position",
+	auto *total_position = obs_properties_add_list(layout, "live_keys.total_position",
 						       obs_module_text("LiveKeys.TotalPosition"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(total_position, obs_module_text("LiveKeys.TotalPosition.Above"), "above");
 	obs_property_list_add_string(total_position, obs_module_text("LiveKeys.TotalPosition.Below"), "below");
-	obs_properties_add_int_slider(p, "live_keys.most_used_element_spacing",
+	obs_properties_add_int_slider(layout, "live_keys.most_used_element_spacing",
 				      obs_module_text("LiveKeys.MostUsedSpacing"), 0, 200, 1);
-	obs_properties_add_int_slider(p, "live_keys.group_spacing", obs_module_text("LiveKeys.BetweenGroupSpacing"), 0,
-				      200, 1);
-	auto *show_most_used =
-		obs_properties_add_bool(p, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
-	obs_property_set_modified_callback(show_most_used, live_keys_options_changed);
-	auto *layout_order = obs_properties_add_list(p, "live_keys.layout_order",
+	obs_properties_add_int_slider(layout, "live_keys.group_spacing",
+				      obs_module_text("LiveKeys.BetweenGroupSpacing"), 0, 200, 1);
+	auto *layout_order = obs_properties_add_list(layout, "live_keys.layout_order",
 						     obs_module_text("LiveKeys.LayoutOrder"), OBS_COMBO_TYPE_LIST,
 						     OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.LiveFirst"), "live_first");
 	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.ChartFirst"), "chart_first");
-	auto *show_most_used_title = obs_properties_add_bool(p, "live_keys.show_most_used_title",
+	auto *typography = add_group(p, "live_keys.typography", obs_module_text("Preferences.Typography"));
+	obs_properties_add_text(typography, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"),
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_int(typography, "live_keys.live_title_font_size", obs_module_text("LiveKeys.TitleFontSize"),
+			       8, 256, 1);
+	auto *show_most_used_title = obs_properties_add_bool(typography, "live_keys.show_most_used_title",
 							     obs_module_text("LiveKeys.ShowMostUsedTitle"));
 	obs_property_set_modified_callback(show_most_used_title, live_keys_options_changed);
-	obs_properties_add_text(p, "live_keys.most_used_title", obs_module_text("LiveKeys.MostUsedTitle"),
+	obs_properties_add_text(typography, "live_keys.most_used_title", obs_module_text("LiveKeys.MostUsedTitle"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_int(p, "live_keys.most_used_title_font_size", obs_module_text("LiveKeys.TitleFontSize"), 8,
-			       256, 1);
-	obs_properties_add_int(p, "live_keys.key_font_size", obs_module_text("LiveKeys.KeyFontSize"), 8, 256, 1);
-	obs_properties_add_int(p, "live_keys.special_key_font_size", obs_module_text("LiveKeys.SpecialKeyFontSize"), 8,
-			       256, 1);
-	obs_properties_add_int(p, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8, 256, 1);
-	obs_properties_add_int(p, "live_keys.most_used_font_size", obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256,
+	obs_properties_add_int(typography, "live_keys.most_used_title_font_size",
+			       obs_module_text("LiveKeys.TitleFontSize"), 8, 256, 1);
+	obs_properties_add_int(typography, "live_keys.key_font_size", obs_module_text("LiveKeys.KeyFontSize"), 8, 256,
 			       1);
-	obs_properties_add_int_slider(p, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000, 10);
-	auto *fade_curve = obs_properties_add_list(p, "live_keys.fade_curve", obs_module_text("LiveKeys.FadeCurve"),
-						   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_properties_add_int(typography, "live_keys.special_key_font_size",
+			       obs_module_text("LiveKeys.SpecialKeyFontSize"), 8, 256, 1);
+	obs_properties_add_int(typography, "live_keys.total_font_size", obs_module_text("LiveKeys.TotalFontSize"), 8,
+			       256, 1);
+	obs_properties_add_int(typography, "live_keys.most_used_font_size",
+			       obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256, 1);
+	auto *behavior = add_group(p, "live_keys.behavior", obs_module_text("Preferences.Behavior"));
+	obs_properties_add_int_slider(behavior, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000,
+				      10);
+	auto *fade_curve = obs_properties_add_list(behavior, "live_keys.fade_curve",
+						   obs_module_text("LiveKeys.FadeCurve"), OBS_COMBO_TYPE_LIST,
+						   OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.Linear"), "linear");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseIn"), "ease_in");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseOut"), "ease_out");
 	obs_property_list_add_string(fade_curve, obs_module_text("LiveKeys.FadeCurve.EaseInOut"), "ease_in_out");
-	obs_properties_add_color_alpha(p, "live_keys.color", obs_module_text("LiveKeys.ThemeColor"));
-	obs_properties_add_color_alpha(p, "live_keys.pressed_color", obs_module_text("LiveKeys.PressedColor"));
+	auto *appearance = add_group(p, "live_keys.appearance", obs_module_text("Preferences.Appearance"));
+	obs_properties_add_color_alpha(appearance, "live_keys.color", obs_module_text("LiveKeys.ThemeColor"));
+	obs_properties_add_color_alpha(appearance, "live_keys.pressed_color", obs_module_text("LiveKeys.PressedColor"));
 	return p;
 }
 obs_properties_t *keys_properties(void *data)
@@ -2546,51 +2581,55 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p, false);
-	add_mode_title_properties(p, title_prefix);
-	obs_properties_add_text(p, "mouse_activity.group.content", obs_module_text("Preferences.Content"),
-				OBS_TEXT_INFO);
-	obs_properties_add_text(p, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
+	auto *content = add_group(p, "mouse_activity.content", obs_module_text("Preferences.Content"));
+	add_mode_title_properties(content, title_prefix);
+	obs_properties_add_text(content, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(p, "mouse_activity.right_label", obs_module_text("MouseActivity.RightLabel"),
+	obs_properties_add_text(content, "mouse_activity.right_label", obs_module_text("MouseActivity.RightLabel"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(p, "mouse_activity.middle_label", obs_module_text("MouseActivity.MiddleLabel"),
+	obs_properties_add_text(content, "mouse_activity.middle_label", obs_module_text("MouseActivity.MiddleLabel"),
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_color_alpha(p, "mouse_activity.left_color", obs_module_text("MouseActivity.LeftColor"));
-	obs_properties_add_color_alpha(p, "mouse_activity.right_color", obs_module_text("MouseActivity.RightColor"));
-	obs_properties_add_color_alpha(p, "mouse_activity.middle_color", obs_module_text("MouseActivity.MiddleColor"));
-	obs_properties_add_text(p, "mouse_activity.group.behavior", obs_module_text("Preferences.Behavior"),
-				OBS_TEXT_INFO);
-	auto *show_heatmap =
-		obs_properties_add_bool(p, "mouse_activity.show_heatmap", obs_module_text("MouseActivity.ShowHeatmap"));
+	auto *appearance = add_group(p, "mouse_activity.appearance", obs_module_text("Preferences.Appearance"));
+	obs_properties_add_color_alpha(appearance, "mouse_activity.left_color",
+				       obs_module_text("MouseActivity.LeftColor"));
+	obs_properties_add_color_alpha(appearance, "mouse_activity.right_color",
+				       obs_module_text("MouseActivity.RightColor"));
+	obs_properties_add_color_alpha(appearance, "mouse_activity.middle_color",
+				       obs_module_text("MouseActivity.MiddleColor"));
+	obs_properties_add_color_alpha(appearance, "mouse_activity.color", obs_module_text("Activity.ActiveColor"));
+	auto *behavior = add_group(p, "mouse_activity.behavior", obs_module_text("Preferences.Behavior"));
+	auto *show_heatmap = obs_properties_add_bool(behavior, "mouse_activity.show_heatmap",
+						     obs_module_text("MouseActivity.ShowHeatmap"));
 	obs_property_set_modified_callback(show_heatmap, mouse_options_changed);
-	obs_properties_add_bool(p, "mouse_activity.show_live_mouse", obs_module_text("MouseActivity.ShowLiveMouse"));
-	auto *show_distance = obs_properties_add_bool(p, "mouse_activity.show_distance",
+	obs_properties_add_bool(behavior, "mouse_activity.show_live_mouse",
+				obs_module_text("MouseActivity.ShowLiveMouse"));
+	auto *show_distance = obs_properties_add_bool(behavior, "mouse_activity.show_distance",
 						      obs_module_text("MouseActivity.ShowDistance"));
-	auto *show_clicks =
-		obs_properties_add_bool(p, "mouse_activity.show_clicks", obs_module_text("MouseActivity.ShowClicks"));
+	auto *show_clicks = obs_properties_add_bool(behavior, "mouse_activity.show_clicks",
+						    obs_module_text("MouseActivity.ShowClicks"));
 	obs_property_set_modified_callback(show_distance, mouse_options_changed);
 	obs_property_set_modified_callback(show_clicks, mouse_options_changed);
-	auto *summary_position = obs_properties_add_list(p, "mouse_activity.summary_position",
+	auto *summary_position = obs_properties_add_list(behavior, "mouse_activity.summary_position",
 							 obs_module_text("MouseActivity.SummaryPosition"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(summary_position, obs_module_text("MouseActivity.SummaryPosition.Top"), "top");
 	obs_property_list_add_string(summary_position, obs_module_text("MouseActivity.SummaryPosition.Bottom"),
 				     "bottom");
-	auto *distance_unit = obs_properties_add_list(p, "mouse_activity.distance_unit",
+	auto *distance_unit = obs_properties_add_list(behavior, "mouse_activity.distance_unit",
 						      obs_module_text("MouseActivity.DistanceUnit"),
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Pixels"), "pixels");
 	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Metric"), "metric");
 	obs_property_list_add_string(distance_unit, obs_module_text("MouseActivity.DistanceUnit.Imperial"), "imperial");
 	obs_property_set_modified_callback(distance_unit, mouse_options_changed);
-	obs_properties_add_int(p, "mouse_activity.mouse_dpi", obs_module_text("MouseActivity.MouseDPI"), 1, 100000, 1);
-	obs_properties_add_bool(p, "mouse_activity.show_border", obs_module_text("MouseActivity.ShowBorder"));
-	obs_properties_add_bool(p, "mouse_activity.show_center_mark", obs_module_text("MouseActivity.ShowCenterMark"));
-	obs_properties_add_int_slider(p, "mouse_activity.trail_ms", obs_module_text("MouseActivity.TrailDuration"), 100,
-				      10000, 50);
-	obs_properties_add_text(p, "mouse_activity.group.appearance", obs_module_text("Preferences.Appearance"),
-				OBS_TEXT_INFO);
-	auto *gradient = obs_properties_add_list(p, "mouse_activity.heatmap_gradient",
+	obs_properties_add_int(behavior, "mouse_activity.mouse_dpi", obs_module_text("MouseActivity.MouseDPI"), 1,
+			       100000, 1);
+	obs_properties_add_bool(behavior, "mouse_activity.show_border", obs_module_text("MouseActivity.ShowBorder"));
+	obs_properties_add_bool(behavior, "mouse_activity.show_center_mark",
+				obs_module_text("MouseActivity.ShowCenterMark"));
+	obs_properties_add_int_slider(behavior, "mouse_activity.trail_ms",
+				      obs_module_text("MouseActivity.TrailDuration"), 100, 10000, 50);
+	auto *gradient = obs_properties_add_list(appearance, "mouse_activity.heatmap_gradient",
 						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_COMBO_TYPE_LIST,
 						 OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Spectrum"), "spectrum");
@@ -2598,37 +2637,37 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Ocean"), "ocean");
 	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Custom"), "custom");
 	obs_property_set_modified_callback(gradient, mouse_options_changed);
-	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_low",
+	obs_properties_add_color_alpha(appearance, "mouse_activity.custom_gradient_low",
 				       obs_module_text("MouseActivity.CustomGradientLow"));
-	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_middle",
+	obs_properties_add_color_alpha(appearance, "mouse_activity.custom_gradient_middle",
 				       obs_module_text("MouseActivity.CustomGradientMiddle"));
-	obs_properties_add_color_alpha(p, "mouse_activity.custom_gradient_high",
+	obs_properties_add_color_alpha(appearance, "mouse_activity.custom_gradient_high",
 				       obs_module_text("MouseActivity.CustomGradientHigh"));
-	obs_properties_add_int_slider(p, "mouse_activity.hex_size", obs_module_text("MouseActivity.HexSize"), 2, 100,
-				      1);
-	obs_properties_add_int_slider(p, "mouse_activity.opacity", obs_module_text("MouseActivity.HeatmapOpacity"), 0,
-				      100, 1);
-	auto *map = obs_properties_add_list(p, "mouse_activity.map", obs_module_text("MouseActivity.Map"),
+	obs_properties_add_int_slider(appearance, "mouse_activity.hex_size", obs_module_text("MouseActivity.HexSize"),
+				      2, 100, 1);
+	obs_properties_add_int_slider(appearance, "mouse_activity.opacity",
+				      obs_module_text("MouseActivity.HeatmapOpacity"), 0, 100, 1);
+	auto *map = obs_properties_add_list(appearance, "mouse_activity.map", obs_module_text("MouseActivity.Map"),
 					    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Movement"), "movement");
 	obs_property_list_add_string(map, obs_module_text("MouseActivity.Map.Clicks"), "clicks");
-	obs_properties_add_color_alpha(p, "mouse_activity.color", obs_module_text("Activity.ActiveColor"));
-	obs_properties_add_text(p, "mouse_activity.group.actions", obs_module_text("Preferences.Actions"),
-				OBS_TEXT_INFO);
-	obs_properties_add_path(p, "mouse_activity.export_directory", obs_module_text("MouseActivity.ExportDirectory"),
-				OBS_PATH_DIRECTORY, nullptr, nullptr);
-	auto *export_format = obs_properties_add_list(p, "mouse_activity.export_format",
+	auto *actions = add_group(p, "mouse_activity.actions", obs_module_text("Preferences.Actions"));
+	obs_properties_add_path(actions, "mouse_activity.export_directory",
+				obs_module_text("MouseActivity.ExportDirectory"), OBS_PATH_DIRECTORY, nullptr, nullptr);
+	auto *export_format = obs_properties_add_list(actions, "mouse_activity.export_format",
 						      obs_module_text("MouseActivity.ExportFormat"),
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.PNG"), "png");
 	obs_property_list_add_string(export_format, obs_module_text("MouseActivity.ExportFormat.SVG"), "svg");
-	auto *region = obs_properties_add_list(p, "mouse_activity.region", obs_module_text("MouseActivity.Region"),
-					       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	auto *region = obs_properties_add_list(behavior, "mouse_activity.region",
+					       obs_module_text("MouseActivity.Region"), OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(region, obs_module_text("MouseActivity.Region.Display"), "display");
 	obs_property_list_add_string(region, obs_module_text("MouseActivity.Region.Custom"), "custom");
 	obs_property_set_modified_callback(region, mouse_region_changed);
-	auto *displays = obs_properties_add_list(p, "mouse_activity.display", obs_module_text("MouseActivity.Display"),
-						 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	auto *displays = obs_properties_add_list(behavior, "mouse_activity.display",
+						 obs_module_text("MouseActivity.Display"), OBS_COMBO_TYPE_LIST,
+						 OBS_COMBO_FORMAT_INT);
 	unsigned char count{};
 	std::unique_ptr<screen_data, decltype(&free)> screens(hook_create_screen_info(&count), &free);
 	for (int i = 0; screens && i < count; ++i) {
@@ -2642,18 +2681,18 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 						 .toUtf8();
 		obs_property_list_add_int(displays, label.constData(), i);
 	}
-	obs_properties_add_int(p, "mouse_activity.region.left", obs_module_text("MouseActivity.Region.Left"), -32768,
-			       32767, 1);
-	obs_properties_add_int(p, "mouse_activity.region.top", obs_module_text("MouseActivity.Region.Top"), -32768,
-			       32767, 1);
-	obs_properties_add_int(p, "mouse_activity.region.right", obs_module_text("MouseActivity.Region.Right"), -32768,
-			       32767, 1);
-	obs_properties_add_int(p, "mouse_activity.region.bottom", obs_module_text("MouseActivity.Region.Bottom"),
+	obs_properties_add_int(behavior, "mouse_activity.region.left", obs_module_text("MouseActivity.Region.Left"),
 			       -32768, 32767, 1);
-	obs_properties_add_text(p, "mouse_activity.region.help", obs_module_text("MouseActivity.Region.Help"),
+	obs_properties_add_int(behavior, "mouse_activity.region.top", obs_module_text("MouseActivity.Region.Top"),
+			       -32768, 32767, 1);
+	obs_properties_add_int(behavior, "mouse_activity.region.right", obs_module_text("MouseActivity.Region.Right"),
+			       -32768, 32767, 1);
+	obs_properties_add_int(behavior, "mouse_activity.region.bottom", obs_module_text("MouseActivity.Region.Bottom"),
+			       -32768, 32767, 1);
+	obs_properties_add_text(behavior, "mouse_activity.region.help", obs_module_text("MouseActivity.Region.Help"),
 				OBS_TEXT_INFO);
 	obs_properties_add_button2(
-		p, "mouse_activity.clear", obs_module_text("MouseActivity.ClearHeatmap"),
+		actions, "mouse_activity.clear", obs_module_text("MouseActivity.ClearHeatmap"),
 		[](obs_properties_t *, obs_property_t *, void *d) {
 			static_cast<mouse_activity_source *>(d)->clear();
 			return true;
@@ -2677,33 +2716,40 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	add_mode_title_properties(p, title_prefix);
-	obs_properties_add_bool(p, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
-	obs_properties_add_bool(p, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
-	obs_properties_add_bool(p, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
-	auto *alignment = obs_properties_add_list(p, "statistics.alignment", obs_module_text("Statistics.Alignment"),
-						  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	auto *content = add_group(p, "statistics.content", obs_module_text("Preferences.Content"));
+	add_mode_title_properties(content, title_prefix);
+	obs_properties_add_bool(content, "statistics.show_keys", obs_module_text("Statistics.ShowKeys"));
+	obs_properties_add_bool(content, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
+	obs_properties_add_bool(content, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
+	auto *appearance = add_group(p, "statistics.appearance", obs_module_text("Preferences.Appearance"));
+	obs_properties_add_color_alpha(appearance, "statistics.theme_color", obs_module_text("Statistics.ThemeColor"));
+	obs_properties_add_color_alpha(appearance, "statistics.pressed_color",
+				       obs_module_text("Statistics.PressedColor"));
+	auto *layout = add_group(p, "statistics.layout", obs_module_text("Preferences.Layout"));
+	auto *alignment = obs_properties_add_list(layout, "statistics.alignment",
+						  obs_module_text("Statistics.Alignment"), OBS_COMBO_TYPE_LIST,
+						  OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Left"), "left");
 	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Right"), "right");
-	obs_properties_add_int_slider(p, "statistics.keys_title_font_size",
+	auto *typography = add_group(p, "statistics.typography", obs_module_text("Preferences.Typography"));
+	obs_properties_add_int_slider(typography, "statistics.keys_title_font_size",
 				      obs_module_text("Statistics.KeysTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(p, "statistics.clicks_title_font_size",
+	obs_properties_add_int_slider(typography, "statistics.clicks_title_font_size",
 				      obs_module_text("Statistics.ClicksTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(p, "statistics.actions_title_font_size",
+	obs_properties_add_int_slider(typography, "statistics.actions_title_font_size",
 				      obs_module_text("Statistics.ActionsTitleFontSize"), 8, 200, 1);
-	obs_properties_add_int_slider(p, "statistics.metric_font_size", obs_module_text("Statistics.MetricFontSize"), 8,
-				      200, 1);
-	obs_properties_add_color_alpha(p, "statistics.theme_color", obs_module_text("Statistics.ThemeColor"));
-	obs_properties_add_color_alpha(p, "statistics.pressed_color", obs_module_text("Statistics.PressedColor"));
-	obs_properties_add_int_slider(p, "statistics.horizontal_spacing",
+	obs_properties_add_int_slider(typography, "statistics.metric_font_size",
+				      obs_module_text("Statistics.MetricFontSize"), 8, 200, 1);
+	obs_properties_add_int_slider(layout, "statistics.horizontal_spacing",
 				      obs_module_text("Statistics.HorizontalSpacing"), 0, 200, 1);
-	obs_properties_add_int_slider(p, "statistics.vertical_spacing", obs_module_text("Statistics.VerticalSpacing"),
-				      0, 200, 1);
-	obs_properties_add_int_slider(p, "statistics.group_spacing", obs_module_text("Statistics.GroupSpacing"), 0, 200,
-				      1);
-	obs_properties_add_bool(p, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
-	obs_properties_add_bool(p, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
-	obs_properties_add_bool(p, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
+	obs_properties_add_int_slider(layout, "statistics.vertical_spacing",
+				      obs_module_text("Statistics.VerticalSpacing"), 0, 200, 1);
+	obs_properties_add_int_slider(layout, "statistics.group_spacing", obs_module_text("Statistics.GroupSpacing"), 0,
+				      200, 1);
+	auto *behavior = add_group(p, "statistics.behavior", obs_module_text("Preferences.Behavior"));
+	obs_properties_add_bool(behavior, "statistics.show_lap_keys", obs_module_text("Statistics.ShowLapKeys"));
+	obs_properties_add_bool(behavior, "statistics.show_lap_clicks", obs_module_text("Statistics.ShowLapClicks"));
+	obs_properties_add_bool(behavior, "statistics.show_lap_actions", obs_module_text("Statistics.ShowLapActions"));
 	return p;
 }
 obs_properties_t *statistics_properties(void *data)
@@ -2771,34 +2817,18 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	auto *p = obs_properties_create();
 	if (include_common)
 		add_common_properties(p);
-	add_mode_title_properties(p, title_prefix);
-	obs_properties_add_int_slider(p, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1, 60, 1);
-	obs_properties_add_int_slider(p, "input_intensity.element_spacing", obs_module_text("Activity.ElementSpacing"),
-				      0, 200, 1);
-	auto *layout = obs_properties_add_list(p, "input_intensity.layout", obs_module_text("InputIntensity.Layout"),
-					       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(layout, obs_module_text("InputIntensity.Layout.Column"), "column");
-	obs_property_list_add_string(layout, obs_module_text("InputIntensity.Layout.Row"), "row");
-	obs_properties_add_color_alpha(p, "input_intensity.theme_color", obs_module_text("InputIntensity.ThemeColor"));
-	obs_properties_add_color_alpha(p, "input_intensity.pressed_color",
-				       obs_module_text("InputIntensity.PressedColor"));
-	auto *velocity_unit = obs_properties_add_list(p, "input_intensity.velocity_unit",
-						      obs_module_text("InputIntensity.VelocityUnit"),
-						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Pixels"), "pixels");
-	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Metric"), "metric");
-	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Imperial"),
-				     "imperial");
-	obs_properties_add_int(p, "input_intensity.mouse_dpi", obs_module_text("InputIntensity.MouseDPI"), 1, 100000,
-			       1);
+	auto *metrics = add_group(p, "input_intensity.metrics", obs_module_text("Preferences.Metrics"));
+	add_mode_title_properties(metrics, title_prefix);
+	obs_properties_add_int_slider(metrics, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1,
+				      60, 1);
 	for (size_t index = 0; index < intensity_max_fields; ++index) {
 		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 		const QByteArray row_label =
 			QString("%1 %2").arg(obs_module_text("InputIntensity.Row")).arg(index + 1).toUtf8();
-		obs_properties_add_bool(p, (prefix + "enabled").c_str(), row_label.constData());
-		obs_properties_add_text(p, (prefix + "title").c_str(), obs_module_text("InputIntensity.Title"),
+		obs_properties_add_bool(metrics, (prefix + "enabled").c_str(), row_label.constData());
+		obs_properties_add_text(metrics, (prefix + "title").c_str(), obs_module_text("InputIntensity.Title"),
 					OBS_TEXT_DEFAULT);
-		auto *metric = obs_properties_add_list(p, (prefix + "metric").c_str(),
+		auto *metric = obs_properties_add_list(metrics, (prefix + "metric").c_str(),
 						       obs_module_text("InputIntensity.Metric"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_STRING);
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Actions"), "actions");
@@ -2807,19 +2837,46 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Key"), "key");
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.MouseButton"), "button");
 		obs_property_list_add_string(metric, obs_module_text("InputIntensity.Metric.Velocity"), "velocity");
-		auto *key_scope = obs_properties_add_list(p, (prefix + "key_scope").c_str(),
+	}
+	auto *appearance = add_group(p, "input_intensity.appearance", obs_module_text("Preferences.Appearance"));
+	obs_properties_add_color_alpha(appearance, "input_intensity.theme_color",
+				       obs_module_text("InputIntensity.ThemeColor"));
+	obs_properties_add_color_alpha(appearance, "input_intensity.pressed_color",
+				       obs_module_text("InputIntensity.PressedColor"));
+	auto *layout = add_group(p, "input_intensity.layout", obs_module_text("Preferences.Layout"));
+	obs_properties_add_int_slider(layout, "input_intensity.element_spacing",
+				      obs_module_text("Activity.ElementSpacing"), 0, 200, 1);
+	auto *layout_type = obs_properties_add_list(layout, "input_intensity.layout",
+						    obs_module_text("InputIntensity.Layout"), OBS_COMBO_TYPE_LIST,
+						    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout_type, obs_module_text("InputIntensity.Layout.Column"), "column");
+	obs_property_list_add_string(layout_type, obs_module_text("InputIntensity.Layout.Row"), "row");
+	auto *behavior = add_group(p, "input_intensity.behavior", obs_module_text("Preferences.Behavior"));
+	auto *velocity_unit = obs_properties_add_list(behavior, "input_intensity.velocity_unit",
+						      obs_module_text("InputIntensity.VelocityUnit"),
+						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Pixels"), "pixels");
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Metric"), "metric");
+	obs_property_list_add_string(velocity_unit, obs_module_text("InputIntensity.VelocityUnit.Imperial"),
+				     "imperial");
+	obs_properties_add_int(behavior, "input_intensity.mouse_dpi", obs_module_text("InputIntensity.MouseDPI"), 1,
+			       100000, 1);
+	for (size_t index = 0; index < intensity_max_fields; ++index) {
+		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
+		auto *key_scope = obs_properties_add_list(behavior, (prefix + "key_scope").c_str(),
 							  obs_module_text("InputIntensity.KeyScope"),
 							  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.All"), "all");
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Letters"), "letters");
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Numbers"), "numbers");
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.List"), "list");
-		obs_properties_add_text(p, (prefix + "key_list").c_str(), obs_module_text("InputIntensity.KeyList"),
-					OBS_TEXT_DEFAULT);
-		auto *key = obs_properties_add_list(p, (prefix + "key").c_str(), obs_module_text("InputIntensity.Key"),
-						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+		obs_properties_add_text(behavior, (prefix + "key_list").c_str(),
+					obs_module_text("InputIntensity.KeyList"), OBS_TEXT_DEFAULT);
+		auto *key = obs_properties_add_list(behavior, (prefix + "key").c_str(),
+						    obs_module_text("InputIntensity.Key"), OBS_COMBO_TYPE_LIST,
+						    OBS_COMBO_FORMAT_INT);
 		add_intensity_key_list(key);
-		auto *button = obs_properties_add_list(p, (prefix + "button").c_str(),
+		auto *button = obs_properties_add_list(behavior, (prefix + "button").c_str(),
 						       obs_module_text("InputIntensity.Button"), OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_INT);
 		for (uint16_t code = MOUSE_BUTTON1; code <= MOUSE_BUTTON5; ++code) {
@@ -2846,13 +2903,25 @@ bool unified_mode_changed(obs_properties_t *props, obs_property_t *, obs_data_t 
 				 mode == "input_intensity");
 	obs_property_set_visible(obs_properties_get(props, "input_activity.input_statistics"),
 				 mode == "input_statistics");
+	set_advanced_properties_visibility(props, obs_data_get_bool(settings, "input_activity.show_advanced_settings"));
+	return true;
+}
+
+bool advanced_settings_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	set_advanced_properties_visibility(props, obs_data_get_bool(settings, "input_activity.show_advanced_settings"));
 	return true;
 }
 
 obs_properties_t *unified_properties(void *data)
 {
 	auto *p = obs_properties_create();
-	auto *mode = obs_properties_add_list(p, "input_activity.mode", obs_module_text("InputActivity.Mode"),
+	auto *general = add_group(p, "input_activity.general", obs_module_text("Preferences.General"));
+	add_common_properties(general);
+	auto *advanced = obs_properties_add_bool(general, "input_activity.show_advanced_settings",
+						 obs_module_text("Preferences.ShowAdvanced"));
+	obs_property_set_modified_callback(advanced, advanced_settings_changed);
+	auto *mode = obs_properties_add_list(general, "input_activity.mode", obs_module_text("InputActivity.Mode"),
 					     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(mode, obs_module_text("LiveKeys"), "live_keys");
 	obs_property_list_add_string(mode, obs_module_text("MouseActivity"), "mouse_activity");
@@ -2878,8 +2947,8 @@ obs_properties_t *unified_properties(void *data)
 		obs_property_set_visible(mouse_group, false);
 		obs_property_set_visible(intensity_group, false);
 		obs_property_set_visible(statistics_group, false);
+		set_advanced_properties_visibility(p, false);
 	}
-	add_common_properties(p);
 	return p;
 }
 } // namespace
