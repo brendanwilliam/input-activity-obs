@@ -48,6 +48,24 @@ signatures, ownership, and lifecycle constraints in the matching OBS Studio sour
 build artifacts before relying on it. Refresh the local reference whenever the pinned OBS version
 changes, or when explicitly asked to audit OBS documentation.
 
+## Local development plugin refresh
+
+After every commit, rebuild and reinstall the macOS plugin from the **currently checked-out working
+branch** before handing off work for local testing. Never check out, build, or install `main`, `release`,
+or another branch as a substitute for the branch containing the change.
+
+First verify the current branch with `git branch --show-current`. Use one matching CMake configuration
+for both build and installation; the normal development configuration is `RelWithDebInfo`:
+
+```sh
+cmake --preset macos
+cmake --build --preset macos --config RelWithDebInfo
+cmake --install build_macos --config RelWithDebInfo
+```
+
+Do not install a stale `Release` bundle after building `RelWithDebInfo`. Ask the user to fully quit and
+reopen OBS after installation; do not control OBS unless explicitly asked.
+
 ## Repository-owned skills
 
 - [`skills/start-change`](skills/start-change/SKILL.md): start a governed branch and synchronize with `main`.
