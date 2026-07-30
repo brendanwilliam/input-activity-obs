@@ -2859,6 +2859,7 @@ obs_properties_t *unified_properties(void *data)
 	obs_property_list_add_string(mode, obs_module_text("InputIntensity"), "input_intensity");
 	obs_property_list_add_string(mode, obs_module_text("InputStatistics"), "input_statistics");
 	obs_property_set_modified_callback(mode, unified_mode_changed);
+	add_common_properties(p);
 	auto *unified = static_cast<unified_source *>(data);
 	auto *live_group = obs_properties_add_group(p, "input_activity.live_keys", obs_module_text("LiveKeys"),
 						    OBS_GROUP_NORMAL, keys_properties_impl(data, false));
@@ -2879,7 +2880,6 @@ obs_properties_t *unified_properties(void *data)
 		obs_property_set_visible(intensity_group, false);
 		obs_property_set_visible(statistics_group, false);
 	}
-	add_common_properties(p);
 	return p;
 }
 } // namespace

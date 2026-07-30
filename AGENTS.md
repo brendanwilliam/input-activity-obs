@@ -40,6 +40,8 @@ lifecycle, callbacks, or frontend APIs, use [`docs/obs-reference.md`](docs/obs-r
 before implementing or reviewing the change. It maps this plugin's work to the official OBS
 documentation at <https://docs.obsproject.com>.
 
+For source-properties UI changes, also follow [`docs/settings-ui-guide.md`](docs/settings-ui-guide.md).
+
 `buildspec.json` is the compatibility authority: this plugin currently builds against OBS Studio
 31.1.1. The live documentation can describe a newer OBS release, so verify exact API availability,
 signatures, ownership, and lifecycle constraints in the matching OBS Studio source or generated
