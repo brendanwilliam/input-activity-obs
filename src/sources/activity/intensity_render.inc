@@ -144,11 +144,15 @@ void draw_box_plot(QPainter &painter, const QRect &rect, const QRect &value_labe
 	painter.setPen(median_pen);
 	painter.drawLine(median_x, box.top(), median_x, box.bottom());
 
-	QPen current_pen(pressed_color, 2.0);
+	const int current_marker_height = std::min(rect.height(), (box_height * 3 + 1) / 2);
+	const int current_marker_radius = std::max(2, box_height / 8);
+	QPen current_pen(pressed_color, 4.0);
 	painter.setPen(current_pen);
-	painter.drawLine(current_x, rect.top(), current_x, rect.bottom());
+	painter.drawLine(current_x, center_y - current_marker_height / 2, current_x,
+			 current_marker_height % 2 == 0 ? center_y + current_marker_height / 2 - 1
+							: center_y + current_marker_height / 2);
 	painter.setBrush(pressed_color);
-	painter.drawEllipse(QPoint(current_x, center_y), 3, 3);
+	painter.drawEllipse(QPoint(current_x, center_y), current_marker_radius, current_marker_radius);
 
 	const QString min_label = number_label(minimum);
 	const QString max_label = number_label(maximum);
