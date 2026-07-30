@@ -140,11 +140,6 @@ obs_properties_t *statistics_properties_impl(void *, bool include_common, const 
 	obs_properties_add_bool(content, "statistics.show_clicks", obs_module_text("Statistics.ShowClicks"));
 	obs_properties_add_bool(content, "statistics.show_actions", obs_module_text("Statistics.ShowActions"));
 	auto *layout = add_group(p, "input_activity.input_statistics.layout", obs_module_text("Preferences.Layout"));
-	auto *alignment = obs_properties_add_list(layout, "statistics.alignment",
-						  obs_module_text("Statistics.Alignment"), OBS_COMBO_TYPE_LIST,
-						  OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Left"), "left");
-	obs_property_list_add_string(alignment, obs_module_text("Statistics.Alignment.Right"), "right");
 	obs_properties_add_int_slider(layout, "statistics.horizontal_spacing",
 				      obs_module_text("Statistics.HorizontalSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "statistics.vertical_spacing",

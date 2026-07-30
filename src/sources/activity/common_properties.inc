@@ -177,6 +177,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.top_n", 8);
 			obs_data_set_default_int(settings, "live_keys.row_height", 96);
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
+			obs_data_set_default_bool(settings, "live_keys.invert_layout", false);
 			obs_data_set_default_int(settings, "live_keys.horizontal_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.vertical_spacing", 10);
 			obs_data_set_default_string(settings, "live_keys.total_position", "above");
@@ -258,6 +259,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.top_n", 8);
 			obs_data_set_default_int(settings, "live_keys.row_height", 96);
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
+			obs_data_set_default_bool(settings, "live_keys.invert_layout", false);
 			obs_data_set_default_int(settings, "live_keys.horizontal_spacing", 10);
 			obs_data_set_default_int(settings, "live_keys.vertical_spacing", 10);
 			obs_data_set_default_string(settings, "live_keys.total_position", "above");

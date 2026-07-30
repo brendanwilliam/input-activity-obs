@@ -129,7 +129,6 @@ public:
 		text_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.input_value_size")));
 		title_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.section_title_size")));
 		subtitle_size = std::max(8, static_cast<int>(obs_data_get_int(settings, "activity.input_title_size")));
-		title_right_aligned = std::string(obs_data_get_string(settings, "activity.alignment")) == "right";
 		text_color = QColor{255, 255, 255};
 		background_color =
 			obs_color(static_cast<uint32_t>(obs_data_get_int(settings, "activity.background_color")));
@@ -184,9 +183,8 @@ public:
 		if (show_title && !title.isEmpty()) {
 			painter.setFont(font(title_size));
 			const int title_height = title_content_offset() - padding / 2;
-			const int title_alignment = title_right_aligned ? Qt::AlignRight : Qt::AlignLeft;
 			draw_text(painter, QRect(padding, padding, std::max(1, width - padding * 2), title_height),
-				  title_alignment | Qt::AlignVCenter, title, text_color);
+				  Qt::AlignRight | Qt::AlignVCenter, title, text_color);
 			painter.translate(0, title_content_offset());
 			painter.setClipRect(0, 0, width, std::max(1, height - title_content_offset()));
 		}
@@ -278,7 +276,6 @@ public:
 	obs_source_t *source{};
 	int width = 480, height = 180, padding = 12, title_size = default_title_font_size,
 	    subtitle_size = default_subtitle_font_size, text_size = default_text_font_size;
-	bool title_right_aligned{};
 	QColor text_color{255, 255, 255};
 	QColor background_color{0, 0, 0, 0};
 	QColor text_shadow_color{0, 0, 0, 204};

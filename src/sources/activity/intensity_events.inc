@@ -89,6 +89,7 @@ public:
 		window_seconds = new_window;
 		rows = new_rows;
 		horizontal_layout = std::string(obs_data_get_string(settings, "input_intensity.layout")) == "row";
+		right_aligned = std::string(obs_data_get_string(settings, "activity.alignment")) == "right";
 		theme_color = new_theme_color;
 		pressed_color = new_pressed_color;
 		if (data_changed)
@@ -203,7 +204,7 @@ public:
 			const QRect value_label_rect(row_rect.left(), chart_rect.bottom() + 1, row_rect.width(),
 						     value_label_height + 1);
 			painter.setFont(label_font);
-			draw_text(painter, label_rect, Qt::AlignLeft | Qt::AlignTop, row_label(rows[row_index]),
+			draw_text(painter, label_rect, Qt::AlignRight | Qt::AlignTop, row_label(rows[row_index]),
 				  text_color);
 			painter.setFont(value_font);
 			draw_box_plot(painter, chart_rect, value_label_rect, row_index);

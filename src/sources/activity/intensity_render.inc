@@ -119,8 +119,9 @@
 		const auto position = [&](double value) {
 			if (range == 0.0)
 				return rect.center().x();
-			return rect.left() +
-			       static_cast<int>(std::lround((value - scale_minimum) / range * (rect.width() - 1)));
+			const int offset =
+				static_cast<int>(std::lround((value - scale_minimum) / range * (rect.width() - 1)));
+			return right_aligned ? rect.right() - offset : rect.left() + offset;
 		};
 		const int min_x = position(minimum);
 		const int max_x = position(maximum);
@@ -155,8 +156,10 @@
 
 		const QString min_label = number_label(minimum);
 		const QString max_label = number_label(maximum);
-		draw_text(painter, value_label_rect, Qt::AlignLeft | Qt::AlignVCenter, min_label, text_color);
-		draw_text(painter, value_label_rect, Qt::AlignRight | Qt::AlignVCenter, max_label, text_color);
+		draw_text(painter, value_label_rect,
+			  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, min_label, text_color);
+		draw_text(painter, value_label_rect,
+			  (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter, max_label, text_color);
 	}
 
 	double current_rate(size_t row_index) const
@@ -188,7 +191,7 @@
 	static constexpr uint64_t second_ns = 1000ULL * 1000 * 1000;
 	int window_seconds{30};
 	std::array<intensity_row, intensity_max_fields> rows{};
-	bool horizontal_layout{};
+	bool horizontal_layout{}, right_aligned{};
 	std::deque<sample> samples;
 	sample current{};
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
@@ -201,4 +204,3 @@
 	uint64_t bucket_start_ns{};
 	bool configured{};
 };
-

@@ -117,7 +117,7 @@ private:
 		obs_data_set_bool(destination, "activity.target.display_rectangle",
 				  obs_data_get_bool(source, "activity.target.display_rectangle"));
 		const char *const string_keys[] = {"activity.target.type", "activity.target.application",
-						   "activity.target.window"};
+						   "activity.target.window", "activity.alignment"};
 		for (const char *key : string_keys)
 			obs_data_set_string(destination, key, obs_data_get_string(source, key));
 		if (auto *font = obs_data_get_obj(source, "activity.font")) {

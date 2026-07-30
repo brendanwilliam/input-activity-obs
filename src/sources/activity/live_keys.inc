@@ -17,10 +17,22 @@ public:
 		maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.maximum")));
 		most_used_maximum = std::max(1, static_cast<int>(obs_data_get_int(settings, "live_keys.top_n")));
 		live_row_height = std::max(24, static_cast<int>(obs_data_get_int(settings, "live_keys.row_height")));
-		chart_alignment = std::string(obs_data_get_string(settings, "live_keys.top_n_alignment")) == "right"
-					  ? Qt::AlignRight
-					  : Qt::AlignLeft;
+		if (!obs_data_get_bool(settings, "live_keys.alignment_migrated")) {
+			if (!obs_data_has_user_value(settings, "activity.alignment") &&
+			    obs_data_has_user_value(settings, "live_keys.top_n_alignment"))
+				obs_data_set_string(settings, "activity.alignment",
+						    obs_data_get_string(settings, "live_keys.top_n_alignment"));
+			obs_data_set_bool(settings, "live_keys.alignment_migrated", true);
+		}
 		right_aligned = std::string(obs_data_get_string(settings, "activity.alignment")) == "right";
+		if (!obs_data_get_bool(settings, "live_keys.invert_layout_migrated")) {
+			if (!obs_data_has_user_value(settings, "live_keys.invert_layout") &&
+			    obs_data_has_user_value(settings, "live_keys.layout_order"))
+				obs_data_set_bool(settings, "live_keys.invert_layout",
+						  std::string(obs_data_get_string(
+							  settings, "live_keys.layout_order")) == "chart_first");
+			obs_data_set_bool(settings, "live_keys.invert_layout_migrated", true);
+		}
 		const char *legacy_spacing = "live_keys.element_spacing";
 		const char *legacy_live_spacing = obs_data_has_user_value(settings, "live_keys.live_element_spacing")
 							  ? "live_keys.live_element_spacing"
@@ -56,7 +68,7 @@ public:
 					     200)
 				: shared_between;
 		show_most_used = obs_data_get_bool(settings, "live_keys.show_most_used");
-		chart_first = std::string(obs_data_get_string(settings, "live_keys.layout_order")) == "chart_first";
+		invert_layout = obs_data_get_bool(settings, "live_keys.invert_layout");
 		live_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.live_title"));
 		show_live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
 		most_used_title = QString::fromUtf8(obs_data_get_string(settings, "live_keys.most_used_title"));
@@ -169,19 +181,19 @@ public:
 									      chart_title_height - group_spacing)
 							: 0;
 		const int chart_top = padding;
-		const int live_title_top = chart_first && show_most_used
+		const int live_title_top = invert_layout && show_most_used
 						   ? chart_top + chart_title_height + chart_height + group_spacing
 						   : padding;
 		const int live_top = live_title_top + live_title_height;
 		if (live_title_height) {
 			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, live_title_top, width - padding * 2, live_title_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, live_title, text_color);
+				  Qt::AlignRight | Qt::AlignVCenter, live_title, text_color);
 		}
-		if (show_most_used && chart_first && chart_title_height) {
+		if (show_most_used && invert_layout && chart_title_height) {
 			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
+				  Qt::AlignRight | Qt::AlignVCenter, most_used_title, text_color);
 		}
 		const int start = std::max(0, static_cast<int>(keys.size()) - maximum);
 		const int available_span = width - padding * 2;
@@ -231,12 +243,12 @@ public:
 			draw_text(painter, row, Qt::AlignCenter, rendered_label, text);
 		}
 		if (show_most_used) {
-			const int chart_group_top = chart_first ? chart_top : live_top + live_height + group_spacing;
-			if (!chart_first && chart_title_height) {
+			const int chart_group_top = invert_layout ? chart_top : live_top + live_height + group_spacing;
+			if (!invert_layout && chart_title_height) {
 				painter.setFont(font(title_size));
 				draw_text(painter,
 					  QRect(padding, chart_group_top, width - padding * 2, chart_title_height),
-					  Qt::AlignLeft | Qt::AlignVCenter, most_used_title, text_color);
+					  Qt::AlignRight | Qt::AlignVCenter, most_used_title, text_color);
 			}
 			draw_most_used_chart(painter, QRect(padding, chart_group_top + chart_title_height,
 							    std::max(1, width - padding * 2), chart_height));
@@ -245,6 +257,16 @@ public:
 
 private:
 	bool is_blacklisted(const QString &label) const { return blacklist.contains(label.trimmed().toLower()); }
+	void draw_chart_key(QPainter &painter, const QRect &bounds, uint16_t code, const QString &label,
+			    bool alphanumeric) const
+	{
+		const qreal text_height = QFontMetrics(font(subtitle_size)).height();
+		if (!alphanumeric && draw_modifier_indicator(painter, bounds, code, text_color, text_height))
+			return;
+		const QString indicator = alphanumeric ? label : key_indicator(code);
+		draw_text(painter, bounds, Qt::AlignVCenter | (right_aligned ? Qt::AlignRight : Qt::AlignLeft),
+			  indicator.isEmpty() ? label : indicator, text_color);
+	}
 	void draw_most_used_chart(QPainter &painter, const QRect &bounds) const
 	{
 		std::vector<active_key> keys;
@@ -256,40 +278,49 @@ private:
 			keys.push_back({code, key_labels.count(code) ? key_labels.at(code) : key_name(event),
 					is_alphanumeric_key(event), 0, count});
 		}
-		std::sort(keys.begin(), keys.end(), [](const active_key &left, const active_key &right) {
-			return left.press_count != right.press_count ? left.press_count > right.press_count
+		std::sort(keys.begin(), keys.end(), [this](const active_key &left, const active_key &right) {
+			return left.press_count != right.press_count ? invert_layout
+									       ? left.press_count < right.press_count
+									       : left.press_count > right.press_count
 								     : left.code < right.code;
 		});
 		keys.resize(std::min(keys.size(), static_cast<size_t>(most_used_maximum)));
 		if (keys.empty())
 			return;
-		const uint64_t highest = keys.front().press_count;
+		const uint64_t highest =
+			std::max_element(keys.begin(), keys.end(), [](const auto &left, const auto &right) {
+				return left.press_count < right.press_count;
+			})->press_count;
 		const int gap = std::min(most_used_element_spacing,
 					 std::max(0, bounds.height() / static_cast<int>(keys.size() * 3)));
 		const int row_height = std::max(1, (bounds.height() - gap * (static_cast<int>(keys.size()) - 1)) /
 							   static_cast<int>(keys.size()));
-		const QFontMetrics metrics(font(subtitle_size));
-		const int value_height = std::min(metrics.height(), row_height / 2);
+		const int bar_height = std::max(1, std::min(row_height, (subtitle_size * 2 + 2) / 3));
+		const int value_height = std::max(0, row_height - bar_height);
 		const int chart_width = bounds.width();
-		const bool right_aligned = chart_alignment == Qt::AlignRight;
 		const int chart_left = bounds.left();
 		for (size_t index = 0; index < keys.size(); ++index) {
 			const int top = bounds.top() + static_cast<int>(index) * (row_height + gap);
 			const int bar_width =
 				std::max(1, static_cast<int>(chart_width * keys[index].press_count / highest));
 			const QRect bar(right_aligned ? chart_left + chart_width - bar_width : chart_left,
-					top + value_height, bar_width, std::max(1, row_height - value_height));
+					top + value_height, bar_width, bar_height);
 			painter.setPen(Qt::NoPen);
 			const auto pressed = held.find(keys[index].code);
 			painter.setBrush(pressed != held.end() && pressed->second ? pressed_color : theme_color);
 			painter.drawRoundedRect(bar, 3, 3);
 			painter.setFont(font(subtitle_size));
-			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
-				  Qt::AlignLeft | Qt::AlignVCenter, keys[index].label, text_color);
-			painter.setFont(font(subtitle_size));
-			draw_text(painter, QRect(chart_left, top, chart_width, value_height),
-				  Qt::AlignRight | Qt::AlignVCenter, QString::number(keys[index].press_count),
-				  text_color);
+			const QRect label_bounds(right_aligned ? chart_left + chart_width / 2 : chart_left, top,
+						 right_aligned ? chart_width - chart_width / 2 : chart_width / 2,
+						 value_height);
+			const QRect count_bounds(right_aligned ? chart_left : chart_left + chart_width / 2, top,
+						 right_aligned ? chart_width / 2 : chart_width - chart_width / 2,
+						 value_height);
+			draw_chart_key(painter, label_bounds, keys[index].code, keys[index].label,
+				       keys[index].alphanumeric);
+			draw_text(painter, count_bounds,
+				  Qt::AlignVCenter | (right_aligned ? Qt::AlignLeft : Qt::AlignRight),
+				  QString::number(keys[index].press_count), text_color);
 		}
 	}
 	double fade_alpha(double remaining) const
@@ -330,9 +361,8 @@ private:
 	std::unordered_map<uint16_t, uint64_t> press_counts;
 	std::unordered_map<uint16_t, QString> key_labels;
 	std::vector<active_key> ordered;
-	bool show_most_used{}, chart_first{}, totals_above{true};
+	bool show_most_used{}, invert_layout{}, totals_above{true};
 	bool show_live_title{true}, show_most_used_title{true}, right_aligned{};
-	Qt::Alignment chart_alignment{Qt::AlignLeft};
 	QString live_title{"Live Keys"}, most_used_title{"Most Used Keys"};
 	QStringList blacklist;
 };

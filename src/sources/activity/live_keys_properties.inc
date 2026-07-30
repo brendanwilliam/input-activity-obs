@@ -3,8 +3,8 @@ bool live_keys_options_changed(obs_properties_t *props, obs_property_t *, obs_da
 	const bool chart = obs_data_get_bool(settings, "live_keys.show_most_used");
 	const bool live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
 	const bool chart_title = chart && obs_data_get_bool(settings, "live_keys.show_most_used_title");
-	for (const char *name : {"live_keys.top_n", "live_keys.top_n_alignment", "live_keys.most_used_element_spacing",
-				 "live_keys.group_spacing", "live_keys.layout_order", "live_keys.show_most_used_title"})
+	for (const char *name : {"live_keys.top_n", "live_keys.invert_layout", "live_keys.most_used_element_spacing",
+				 "live_keys.group_spacing", "live_keys.show_most_used_title"})
 		obs_property_set_visible(obs_properties_get(props, name), chart);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.live_title"), live_title);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.most_used_title"), chart_title);
@@ -27,11 +27,7 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 		obs_properties_add_bool(content, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
 	obs_property_set_modified_callback(show_most_used, live_keys_options_changed);
 	auto *layout = add_group(p, "input_activity.live_keys.layout", obs_module_text("Preferences.Layout"));
-	auto *top_n_alignment = obs_properties_add_list(layout, "live_keys.top_n_alignment",
-							obs_module_text("LiveKeys.TopNAlignment"), OBS_COMBO_TYPE_LIST,
-							OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Left"), "left");
-	obs_property_list_add_string(top_n_alignment, obs_module_text("LiveKeys.TopNAlignment.Right"), "right");
+	obs_properties_add_bool(layout, "live_keys.invert_layout", obs_module_text("LiveKeys.InvertLayout"));
 	obs_properties_add_int_slider(layout, "live_keys.horizontal_spacing",
 				      obs_module_text("LiveKeys.HorizontalSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "live_keys.vertical_spacing", obs_module_text("LiveKeys.VerticalSpacing"),
@@ -45,11 +41,6 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 				      obs_module_text("LiveKeys.MostUsedSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "live_keys.group_spacing",
 				      obs_module_text("LiveKeys.BetweenGroupSpacing"), 0, 200, 1);
-	auto *layout_order = obs_properties_add_list(layout, "live_keys.layout_order",
-						     obs_module_text("LiveKeys.LayoutOrder"), OBS_COMBO_TYPE_LIST,
-						     OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.LiveFirst"), "live_first");
-	obs_property_list_add_string(layout_order, obs_module_text("LiveKeys.LayoutOrder.ChartFirst"), "chart_first");
 	auto *typography =
 		add_group(p, "input_activity.live_keys.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_text(typography, "live_keys.live_title", obs_module_text("LiveKeys.LiveTitle"),

@@ -176,8 +176,7 @@ public:
 			const int title_height = QFontMetrics(title_font).lineSpacing();
 			painter.setFont(title_font);
 			draw_text(painter, QRect(bounds.left(), top, bounds.width(), title_height),
-				  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, block.title,
-				  text_color);
+				  Qt::AlignRight | Qt::AlignVCenter, block.title, text_color);
 			top += title_height;
 			top += vertical_spacing;
 			int left = right_aligned ? bounds.right() - grid_width + 1 : bounds.left();
