@@ -52,6 +52,8 @@ target_sources(
     src/hook/uiohook_helper_macos.mm
     src/input/input_data.hpp
     src/input/input_data.cpp
+    src/input/input_broker.hpp
+    src/input/input_broker.cpp
     src/input/keycodes.h
     src/sources/activity_sources.hpp
     src/sources/activity_sources.cpp

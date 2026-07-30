@@ -1,7 +1,7 @@
 #include "../activity_sources.hpp"
 
 #include "../../hook/uiohook_helper.hpp"
-#include "../../input/input_data.hpp"
+#include "../../input/input_broker.hpp"
 #include <QColor>
 #include <QDateTime>
 #include <QDir>
@@ -79,41 +79,14 @@ void migrate_legacy_typography(obs_data_t *settings, const char *migration_key, 
 
 class activity_source {
 public:
-	activity_source(obs_source_t *source, obs_data_t *settings, bool register_hotkeys = true,
-			bool initial_update = true)
+	activity_source(obs_source_t *source, obs_data_t *settings, bool = true, bool initial_update = true)
 		: source(source)
 	{
-		{
-			std::lock_guard<std::mutex> lock(activity_sources_mutex);
-			activity_sources.insert(this);
-		}
-		if (register_hotkeys)
-			reset_hotkey = obs_hotkey_register_source(
-				source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
-				[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-					if (pressed)
-						reset_all_activity();
-				},
-				this);
-		if (register_hotkeys)
-			lap_hotkey = obs_hotkey_register_source(
-				source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
-				[](void *, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
-					if (pressed)
-						lap_all_activity();
-				},
-				this);
 		if (initial_update)
 			obs_source_update(source, settings);
 	}
 	virtual ~activity_source()
 	{
-		{
-			std::lock_guard<std::mutex> lock(activity_sources_mutex);
-			activity_sources.erase(this);
-		}
-		obs_hotkey_unregister(reset_hotkey);
-		obs_hotkey_unregister(lap_hotkey);
 		if (texture) {
 			obs_enter_graphics();
 			gs_texture_destroy(texture);
@@ -146,26 +119,22 @@ public:
 			obs_data_release(font);
 		}
 		const std::string selected_target_type = obs_data_get_string(settings, "activity.target.type");
-		target = selected_target_type == "display"       ? target_type::display
-			 : selected_target_type == "application" ? target_type::application
-			 : selected_target_type == "window"      ? target_type::window
-								 : target_type::all;
-		target_display = static_cast<uint32_t>(obs_data_get_int(settings, "activity.target.display"));
-		target_rectangle_enabled = obs_data_get_bool(settings, "activity.target.display_rectangle");
-		target_rectangle = QRect(
-			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.left")),
-			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.top")),
-			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.right")) -
-				static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.left")) + 1,
-			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.bottom")) -
-				static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.top")) + 1);
-		target_application = obs_data_get_string(settings, "activity.target.application");
+		const uint32_t target_display =
+			static_cast<uint32_t>(obs_data_get_int(settings, "activity.target.display"));
+		const bool target_rectangle_enabled = obs_data_get_bool(settings, "activity.target.display_rectangle");
+		const int rectangle_left =
+			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.left"));
+		const int rectangle_top = static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.top"));
+		const int rectangle_right =
+			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.right"));
+		const int rectangle_bottom =
+			static_cast<int>(obs_data_get_int(settings, "activity.target.rectangle.bottom"));
+		const std::string target_application = obs_data_get_string(settings, "activity.target.application");
 		const std::string window = obs_data_get_string(settings, "activity.target.window");
 		const size_t delimiter = window.rfind('#');
-		if (delimiter == std::string::npos) {
-			target_window_application.clear();
-			target_window = 0;
-		} else {
+		std::string target_window_application;
+		uint64_t target_window{};
+		if (delimiter != std::string::npos) {
 			target_window_application = window.substr(0, delimiter);
 			try {
 				target_window = std::stoull(window.substr(delimiter + 1));
@@ -173,6 +142,26 @@ public:
 				target_window = 0;
 			}
 		}
+		input_broker::target new_broker_target;
+		new_broker_target.type = selected_target_type == "display" ? input_broker::target_type::display
+					 : selected_target_type == "application"
+						 ? input_broker::target_type::application
+					 : selected_target_type == "window" ? input_broker::target_type::window
+									    : input_broker::target_type::all;
+		new_broker_target.display = target_display;
+		new_broker_target.rectangle_enabled = target_rectangle_enabled;
+		new_broker_target.rectangle_left = rectangle_left;
+		new_broker_target.rectangle_top = rectangle_top;
+		new_broker_target.rectangle_right = rectangle_right;
+		new_broker_target.rectangle_bottom = rectangle_bottom;
+		new_broker_target.application_id = new_broker_target.type == input_broker::target_type::window
+							   ? target_window_application
+							   : target_application;
+		new_broker_target.window_id = target_window;
+		if (target_configured && !(new_broker_target == broker_target))
+			discard_backlog = true;
+		broker_target = std::move(new_broker_target);
+		target_configured = true;
 	}
 	virtual void tick(float) { consume_events(); }
 	void draw(gs_effect_t *effect)
@@ -215,34 +204,17 @@ public:
 		std::vector<input_data::trace_event> events;
 		input_data::button_map<uint16_t> keyboard;
 		input_data::button_map<uint16_t> mouse;
-		{
-			std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
-			local_data::data.events_after(cursor, events);
-			keyboard = local_data::data.keyboard;
-			mouse = local_data::data.mouse;
-		}
+		input_broker::consume(broker_target, cursor, discard_backlog, events, keyboard, mouse);
 		for (const auto &event : events)
-			if (matches(event))
-				on_event(event);
+			on_event(event);
 		on_snapshot(keyboard, mouse);
 	}
 	virtual void on_event(const input_data::trace_event &) {}
 	virtual void on_snapshot(const input_data::button_map<uint16_t> &, const input_data::button_map<uint16_t> &) {}
 	virtual void reset_activity() {}
 	virtual void lap_activity() {}
+	const input_broker::target &input_target() const { return broker_target; }
 	virtual void render(QPainter &) = 0;
-	static void reset_all_activity()
-	{
-		std::lock_guard<std::mutex> lock(activity_sources_mutex);
-		for (auto *activity : activity_sources)
-			activity->reset_activity();
-	}
-	static void lap_all_activity()
-	{
-		std::lock_guard<std::mutex> lock(activity_sources_mutex);
-		for (auto *activity : activity_sources)
-			activity->lap_activity();
-	}
 	QFont font(int pixel_size = -1) const
 	{
 		QFont result(font_family);
@@ -290,44 +262,12 @@ public:
 	QString title;
 	bool show_title{};
 	uint64_t cursor{};
+	input_broker::target broker_target;
+	bool target_configured{};
+	bool discard_backlog{};
 
 private:
-	enum class target_type { all, display, application, window };
-	bool matches(const input_data::trace_event &event) const
-	{
-		switch (target) {
-		case target_type::all:
-			return true;
-		case target_type::display: {
-			const bool mouse_motion = event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED;
-			if ((mouse_motion ? event.pointer_display_id : event.focused_display_id) != target_display)
-				return false;
-			return !target_rectangle_enabled || !mouse_motion ||
-			       target_rectangle.contains(event.x, event.y);
-		}
-		case target_type::application:
-			return !target_application.empty() && event.application_id == target_application;
-		case target_type::window:
-			return target_window != 0 && event.application_id == target_window_application &&
-			       event.window_id == target_window;
-		}
-		return false;
-	}
-	static std::mutex activity_sources_mutex;
-	static std::unordered_set<activity_source *> activity_sources;
-	obs_hotkey_id reset_hotkey = OBS_INVALID_HOTKEY_ID;
-	obs_hotkey_id lap_hotkey = OBS_INVALID_HOTKEY_ID;
-	target_type target{target_type::all};
-	uint32_t target_display{};
-	bool target_rectangle_enabled{};
-	QRect target_rectangle;
-	uint64_t target_window{};
-	std::string target_application;
-	std::string target_window_application;
 	QImage image;
 	gs_texture_t *texture{};
 	int texture_width{}, texture_height{};
 };
-
-std::mutex activity_source::activity_sources_mutex;
-std::unordered_set<activity_source *> activity_source::activity_sources;

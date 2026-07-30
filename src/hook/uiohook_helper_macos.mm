@@ -10,7 +10,7 @@
 
 #include "uiohook_helper.hpp"
 
-#include "../input/input_data.hpp"
+#include "../input/input_broker.hpp"
 
 #include <ApplicationServices/ApplicationServices.h>
 #import <AppKit/AppKit.h>
@@ -53,96 +53,55 @@ namespace uiohook {
         return converted && number > 0 ? static_cast<uint64_t>(number) : 0;
     }
 
-    struct event_context_cache {
-        pid_t process_id {};
-        uint64_t last_window_refresh_ms {};
-        std::string application_id;
-        uint64_t window_id {};
-        uint32_t focused_display_id {};
-    };
-
-    static void refresh_window_context(event_context_cache &cache, uint64_t event_time)
+    input_context current_input_context()
     {
-        NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
-        if (!application) {
-            cache = {};
-            return;
-        }
-        const pid_t process_id = application.processIdentifier;
-        if (cache.process_id != process_id) {
-            cache = {};
-            cache.process_id = process_id;
+        input_context context {};
+        @autoreleasepool {
+            NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+            if (!application)
+                return context;
+            const pid_t process_id = application.processIdentifier;
             NSString *bundle_identifier = application.bundleIdentifier;
             if (bundle_identifier)
-                cache.application_id = bundle_identifier.UTF8String;
-        }
-        cache.last_window_refresh_ms = event_time;
-        cache.window_id = 0;
-        cache.focused_display_id = 0;
-        const uint64_t focused_window = focused_window_id(process_id);
-        CFArrayRef windows = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
-        if (!windows)
-            return;
-        for (NSDictionary *window in (__bridge NSArray *) windows) {
-            if ([window[(id) kCGWindowOwnerPID] intValue] != process_id || [window[(id) kCGWindowLayer] intValue] != 0)
-                continue;
-            const uint64_t window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
-            if (focused_window && window_id != focused_window)
-                continue;
-            cache.window_id = window_id;
-            CGRect bounds {};
-            if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
-                                                       &bounds)) {
-                CGDirectDisplayID display {};
-                uint32_t count {};
-                if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count)
-                    cache.focused_display_id = display;
+                context.application_id = bundle_identifier.UTF8String;
+            const uint64_t focused_window = focused_window_id(process_id);
+            CFArrayRef windows = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+            if (!windows)
+                return context;
+            for (NSDictionary *window in (__bridge NSArray *) windows) {
+                if ([window[(id) kCGWindowOwnerPID] intValue] != process_id ||
+                    [window[(id) kCGWindowLayer] intValue] != 0)
+                    continue;
+                const uint64_t window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                if (focused_window && window_id != focused_window)
+                    continue;
+                context.window_id = window_id;
+                CGRect bounds {};
+                if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
+                                                           &bounds)) {
+                    CGDirectDisplayID display {};
+                    uint32_t count {};
+                    if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count)
+                        context.focused_display_id = display;
+                }
+                break;
             }
-            break;
-        }
-        CFRelease(windows);
-    }
-
-    static input_data::trace_event event_context(const uiohook_event *event, event_context_cache &cache)
-    {
-        input_data::trace_event context {};
-        @autoreleasepool {
-            const bool force_refresh = event->type < EVENT_MOUSE_MOVED;
-            const bool refresh_due = cache.last_window_refresh_ms == 0 ||
-                                     event->time - cache.last_window_refresh_ms >= 250;
-            if (force_refresh || refresh_due)
-                refresh_window_context(cache, event->time);
-            context.application_id = cache.application_id;
-            context.window_id = cache.window_id;
-            context.focused_display_id = cache.focused_display_id;
-            if (event->type == EVENT_MOUSE_MOVED || event->type == EVENT_MOUSE_DRAGGED) {
-                CGDirectDisplayID display {};
-                uint32_t count {};
-                if (CGGetDisplaysWithPoint(CGPointMake(event->data.mouse.x, event->data.mouse.y), 1, &display,
-                                           &count) == kCGErrorSuccess &&
-                    count)
-                    context.pointer_display_id = display;
-            }
+            CFRelease(windows);
         }
         return context;
     }
 
+    uint32_t display_at(int x, int y)
+    {
+        CGDirectDisplayID display {};
+        uint32_t count {};
+        return CGGetDisplaysWithPoint(CGPointMake(x, y), 1, &display, &count) == kCGErrorSuccess && count ? display : 0;
+    }
+
     static void process_event(uiohook_event *event)
     {
-        static input_data thread_data;
-        static event_context_cache context_cache;
-        static constexpr uint64_t refresh_ms = 16;
-        static uint64_t last_time = 0;
-        const uint64_t diff = event->time - last_time;
-        const bool important = event->type < EVENT_MOUSE_MOVED;
-
-        thread_data.dispatch_uiohook_event(event, event_context(event, context_cache));
-        if (important || (diff >= refresh_ms && local_data::data.last_event < thread_data.last_event)) {
-            last_time = event->time;
-            std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
-            local_data::data.copy(&thread_data);
-        }
+        input_broker::push(event);
     }
 
     static pthread_t hook_thread;

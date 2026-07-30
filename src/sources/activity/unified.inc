@@ -3,6 +3,10 @@ public:
 	unified_source(obs_source_t *source, obs_data_t *settings) : source(source)
 	{
 		common_settings = obs_data_create();
+		{
+			std::lock_guard<std::mutex> lock(instances_mutex);
+			instances.insert(this);
+		}
 		copy_shared_settings(common_settings, settings);
 		for (auto &saved : mode_settings) {
 			saved = obs_data_create();
@@ -45,14 +49,14 @@ public:
 			source, "reset_input_activity", obs_module_text("Activity.ResetHotkey"),
 			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 				if (pressed)
-					static_cast<unified_source *>(data)->active()->reset_activity();
+					static_cast<unified_source *>(data)->reset_target_group();
 			},
 			this);
 		lap_hotkey = obs_hotkey_register_source(
 			source, "lap_input_activity", obs_module_text("Activity.LapHotkey"),
 			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 				if (pressed)
-					static_cast<unified_source *>(data)->active()->lap_activity();
+					static_cast<unified_source *>(data)->lap_target_group();
 			},
 			this);
 		export_hotkey = obs_hotkey_register_source(
@@ -67,6 +71,10 @@ public:
 	}
 	~unified_source()
 	{
+		{
+			std::lock_guard<std::mutex> lock(instances_mutex);
+			instances.erase(this);
+		}
 		obs_hotkey_unregister(reset_hotkey);
 		obs_hotkey_unregister(lap_hotkey);
 		obs_hotkey_unregister(export_hotkey);
@@ -105,6 +113,22 @@ public:
 	void set_properties_visibility(obs_properties_t *properties) const;
 
 private:
+	void reset_target_group() const
+	{
+		std::lock_guard<std::mutex> lock(instances_mutex);
+		const auto &target = active()->input_target();
+		for (auto *instance : instances)
+			if (instance->active()->input_target() == target)
+				instance->active()->reset_activity();
+	}
+	void lap_target_group() const
+	{
+		std::lock_guard<std::mutex> lock(instances_mutex);
+		const auto &target = active()->input_target();
+		for (auto *instance : instances)
+			if (instance->active()->input_target() == target)
+				instance->active()->lap_activity();
+	}
 	enum class source_mode { live_keys, mouse_activity, input_intensity, input_statistics };
 	static size_t mode_index(source_mode value) { return static_cast<size_t>(value); }
 	static void copy_shared_settings(obs_data_t *destination, obs_data_t *source)
@@ -217,7 +241,12 @@ private:
 	std::array<obs_data_t *, 4> mode_settings{};
 	obs_data_t *common_settings{};
 	bool configured{};
+	static std::mutex instances_mutex;
+	static std::unordered_set<unified_source *> instances;
 };
+
+std::mutex unified_source::instances_mutex;
+std::unordered_set<unified_source *> unified_source::instances;
 
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
 bool intensity_metric_count_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
