@@ -26,6 +26,33 @@ namespace uiohook {
     uint64_t last_scroll_time = 0;
     bool state = false;
 
+    static uint64_t focused_window_id(pid_t pid)
+    {
+        AXUIElementRef application = AXUIElementCreateApplication(pid);
+        if (!application)
+            return 0;
+
+        CFTypeRef focused_window = nullptr;
+        const AXError focused_window_result =
+            AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute, &focused_window);
+        CFRelease(application);
+        if (focused_window_result != kAXErrorSuccess || !focused_window)
+            return 0;
+
+        CFTypeRef window_number = nullptr;
+        const AXError window_number_result = AXUIElementCopyAttributeValue(static_cast<AXUIElementRef>(focused_window),
+                                                                           CFSTR("AXWindowNumber"), &window_number);
+        CFRelease(focused_window);
+        if (window_number_result != kAXErrorSuccess || !window_number)
+            return 0;
+
+        int64_t number {};
+        const bool converted = CFGetTypeID(window_number) == CFNumberGetTypeID() &&
+                               CFNumberGetValue(static_cast<CFNumberRef>(window_number), kCFNumberSInt64Type, &number);
+        CFRelease(window_number);
+        return converted && number > 0 ? static_cast<uint64_t>(number) : 0;
+    }
+
     static input_data::trace_event event_context(const uiohook_event *event)
     {
         input_data::trace_event context {};
@@ -39,13 +66,17 @@ namespace uiohook {
                 context.application_id = bundle_identifier.UTF8String;
 
             const pid_t pid = application.processIdentifier;
+            const uint64_t focused_window = focused_window_id(pid);
             CFArrayRef windows = CGWindowListCopyWindowInfo(
                 kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
             if (windows) {
                 for (NSDictionary *window in (__bridge NSArray *) windows) {
                     if ([window[(id) kCGWindowOwnerPID] intValue] != pid || [window[(id) kCGWindowLayer] intValue] != 0)
                         continue;
-                    context.window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                    const uint64_t window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                    if (focused_window && window_id != focused_window)
+                        continue;
+                    context.window_id = window_id;
                     CGRect bounds {};
                     if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
                                                                &bounds)) {

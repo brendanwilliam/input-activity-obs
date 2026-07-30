@@ -1619,8 +1619,14 @@ public:
 	void on_snapshot(const input_data::button_map<uint16_t> &keyboard,
 			 const input_data::button_map<uint16_t> &mouse) override
 	{
-		held_keys = keyboard;
-		held_buttons = mouse;
+		for (auto &[code, held] : held_keys) {
+			const auto pressed = keyboard.find(code);
+			held = pressed != keyboard.end() && pressed->second;
+		}
+		for (auto &[code, held] : held_buttons) {
+			const auto pressed = mouse.find(code);
+			held = pressed != mouse.end() && pressed->second;
+		}
 	}
 
 	void tick(float seconds) override
