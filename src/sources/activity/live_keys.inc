@@ -188,12 +188,14 @@ public:
 		if (live_title_height) {
 			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, live_title_top, width - padding * 2, live_title_height),
-				  Qt::AlignRight | Qt::AlignVCenter, live_title, text_color);
+				  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, live_title,
+				  text_color);
 		}
 		if (show_most_used && invert_layout && chart_title_height) {
 			painter.setFont(font(title_size));
 			draw_text(painter, QRect(padding, chart_top, width - padding * 2, chart_title_height),
-				  Qt::AlignRight | Qt::AlignVCenter, most_used_title, text_color);
+				  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, most_used_title,
+				  text_color);
 		}
 		const int start = std::max(0, static_cast<int>(keys.size()) - maximum);
 		const int available_span = width - padding * 2;
@@ -248,7 +250,8 @@ public:
 				painter.setFont(font(title_size));
 				draw_text(painter,
 					  QRect(padding, chart_group_top, width - padding * 2, chart_title_height),
-					  Qt::AlignRight | Qt::AlignVCenter, most_used_title, text_color);
+					  (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
+					  most_used_title, text_color);
 			}
 			draw_most_used_chart(painter, QRect(padding, chart_group_top + chart_title_height,
 							    std::max(1, width - padding * 2), chart_height));
@@ -261,8 +264,13 @@ private:
 			    bool alphanumeric) const
 	{
 		const qreal text_height = QFontMetrics(font(subtitle_size)).height();
-		if (!alphanumeric && draw_modifier_indicator(painter, bounds, code, text_color, text_height))
-			return;
+		if (!alphanumeric) {
+			const int icon_span = std::max(1, static_cast<int>(std::ceil(text_height / 0.7)));
+			const QRect icon_bounds(right_aligned ? bounds.right() - icon_span + 1 : bounds.left(),
+						bounds.top(), icon_span, bounds.height());
+			if (draw_modifier_indicator(painter, icon_bounds, code, text_color, text_height))
+				return;
+		}
 		const QString indicator = alphanumeric ? label : key_indicator(code);
 		draw_text(painter, bounds, Qt::AlignVCenter | (right_aligned ? Qt::AlignRight : Qt::AlignLeft),
 			  indicator.isEmpty() ? label : indicator, text_color);

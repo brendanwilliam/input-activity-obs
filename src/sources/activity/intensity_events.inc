@@ -204,8 +204,8 @@ public:
 			const QRect value_label_rect(row_rect.left(), chart_rect.bottom() + 1, row_rect.width(),
 						     value_label_height + 1);
 			painter.setFont(label_font);
-			draw_text(painter, label_rect, Qt::AlignRight | Qt::AlignTop, row_label(rows[row_index]),
-				  text_color);
+			draw_text(painter, label_rect, (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignTop,
+				  row_label(rows[row_index]), text_color);
 			painter.setFont(value_font);
 			draw_box_plot(painter, chart_rect, value_label_rect, row_index);
 		}
