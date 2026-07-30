@@ -112,3 +112,81 @@ bool is_alphanumeric_key(const input_data::trace_event &event)
 	       (event.code >= VC_A && event.code <= VC_Z) || (event.code >= VC_0 && event.code <= VC_9) ||
 	       (event.code >= VC_KP_0 && event.code <= VC_KP_9);
 }
+
+QString key_indicator(uint16_t code)
+{
+	if (code >= VC_F1 && code <= VC_F20)
+		return QString(QChar(0x2460 + code - VC_F1));
+	if (code >= VC_F21 && code <= VC_F24)
+		return QString(QChar(0x3251 + code - VC_F21));
+	if (code >= VC_KP_0 && code <= VC_KP_9)
+		return QString::number(code - VC_KP_0);
+
+	switch (code) {
+	case VC_SHIFT_L:
+	case VC_SHIFT_R:
+		return "⇧";
+	case VC_CONTROL_L:
+	case VC_CONTROL_R:
+		return "⌃";
+	case VC_ALT_L:
+	case VC_ALT_R:
+		return "⌥";
+	case VC_META_L:
+	case VC_META_R:
+		return "⌘";
+	case VC_SPACE:
+		return "␣";
+	case VC_ENTER:
+	case VC_KP_ENTER:
+		return "↵";
+	case VC_ESCAPE:
+		return "⎋";
+	case VC_BACKSPACE:
+		return "⌫";
+	case VC_TAB:
+		return "⇥";
+	case VC_CAPS_LOCK:
+		return "⇪";
+	case VC_UP:
+		return "↑";
+	case VC_DOWN:
+		return "↓";
+	case VC_LEFT:
+		return "←";
+	case VC_RIGHT:
+		return "→";
+	case VC_HOME:
+		return "↖";
+	case VC_END:
+		return "↘";
+	case VC_PAGE_UP:
+		return "⇞";
+	case VC_PAGE_DOWN:
+		return "⇟";
+	case VC_INSERT:
+		return "▣";
+	case VC_DELETE:
+		return "⌦";
+	case VC_PRINT_SCREEN:
+		return "▧";
+	case VC_SCROLL_LOCK:
+		return "◉";
+	case VC_PAUSE:
+		return "⏸";
+	case VC_NUM_LOCK:
+		return "⇭";
+	case VC_KP_DIVIDE:
+		return "÷";
+	case VC_KP_MULTIPLY:
+		return "×";
+	case VC_KP_SUBTRACT:
+		return "−";
+	case VC_KP_ADD:
+		return "+";
+	case VC_KP_DECIMAL:
+		return ".";
+	default:
+		return {};
+	}
+}

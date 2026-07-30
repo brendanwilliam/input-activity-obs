@@ -220,8 +220,11 @@ public:
 					 totals_above ? row.top() - vertical_gap - total_metrics.descent()
 						      : row.bottom() + 1 + vertical_gap + total_metrics.ascent()),
 				  count, text);
-			painter.setFont(font(key.alphanumeric ? key_font_size : special_key_font_size));
-			draw_text(painter, row, Qt::AlignCenter, key.label, text);
+			const QString indicator = key.alphanumeric ? key.label : key_indicator(key.code);
+			painter.setFont(font(key_font_size));
+			const QString rendered_label = indicator.isEmpty() ? (key.label.size() > 1 ? "?" : key.label)
+									   : indicator;
+			draw_text(painter, row, Qt::AlignCenter, rendered_label, text);
 		}
 		if (show_most_used) {
 			const int chart_group_top = chart_first ? chart_top : live_top + live_height + group_spacing;
