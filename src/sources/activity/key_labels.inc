@@ -115,7 +115,9 @@ bool is_alphanumeric_key(const input_data::trace_event &event)
 
 QString key_indicator(uint16_t code)
 {
-	if (code >= VC_F1 && code <= VC_F20)
+	if (code >= VC_F1 && code <= VC_F12)
+		return QString("F%1").arg(code - VC_F1 + 1);
+	if (code >= VC_F13 && code <= VC_F20)
 		return QString(QChar(0x2460 + code - VC_F1));
 	if (code >= VC_F21 && code <= VC_F24)
 		return QString(QChar(0x3251 + code - VC_F21));
@@ -209,6 +211,11 @@ bool draw_modifier_indicator(QPainter &painter, const QRect &bounds, uint16_t co
 
 	QPainterPath path;
 	switch (code) {
+	case VC_BACK_QUOTE:
+		path.moveTo(icon.left() + icon.width() / 3, icon.top() + icon.height() / 5);
+		path.lineTo(icon.right() - icon.width() / 3, icon.top() + icon.height() / 2);
+		draw_path(path);
+		return true;
 	case VC_SHIFT_L:
 	case VC_SHIFT_R:
 		path.moveTo(center.x(), icon.top());
