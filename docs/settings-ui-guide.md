@@ -12,10 +12,10 @@ hidden controls must retain valid saved values.
 
 ## Canonical hierarchy
 
-1. **General** is first. Its nested sections are **Input target**, **Layout & sizing**,
-   **Typography**, and **Colors & appearance**. **Show advanced settings** follows the sections,
+1. **General Settings** is first. Its nested sections are **Input target**, **Color theme**,
+   **Layout & sizing**, and **Typography**. **Show advanced settings** follows the sections,
    and **Mode** is General's final control.
-2. Exactly one normal outer mode group follows General: **Live Keys**, **Mouse Activity**,
+2. **Mode Settings** follows General. Exactly one normal mode group is visible: **Live Keys**, **Mouse Activity**,
    **Input Intensity**, or **Input Statistics**. Hide the other outer groups when Mode changes.
 3. Mode sections are:
    - Live Keys: **Content**, **Layout & spacing**, **Typography**, **Colors & appearance**,
@@ -27,7 +27,7 @@ hidden controls must retain valid saved values.
    - Input Statistics: **Content**, **Colors & appearance**, **Layout & spacing**,
      **Typography**, **Behavior & data**.
 
-Primary target controls, primary sizing, Content/Metrics controls, and primary colors stay visible
+Primary target controls, shared color theme, primary sizing, Content/Metrics controls stay visible
 by default. The persisted shared UI-only **Show advanced settings** control reveals detailed
 layout, typography, behavior/data, and export/action controls. It must not alter rendering, input
 capture, saved mode settings, or hidden controls' values.
