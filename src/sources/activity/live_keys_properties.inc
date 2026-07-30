@@ -3,8 +3,8 @@ bool live_keys_options_changed(obs_properties_t *props, obs_property_t *, obs_da
 	const bool chart = obs_data_get_bool(settings, "live_keys.show_most_used");
 	const bool live_title = obs_data_get_bool(settings, "live_keys.show_live_title");
 	const bool chart_title = chart && obs_data_get_bool(settings, "live_keys.show_most_used_title");
-	for (const char *name : {"live_keys.top_n", "live_keys.invert_layout", "live_keys.most_used_element_spacing",
-				 "live_keys.group_spacing", "live_keys.show_most_used_title"})
+	for (const char *name : {"live_keys.top_n", "live_keys.most_used_element_spacing", "live_keys.group_spacing",
+				 "live_keys.show_most_used_title"})
 		obs_property_set_visible(obs_properties_get(props, name), chart);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.live_title"), live_title);
 	obs_property_set_visible(obs_properties_get(props, "live_keys.most_used_title"), chart_title);
@@ -15,7 +15,7 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 {
 	auto *p = obs_properties_create();
 	if (include_common)
-		add_common_properties(p);
+		add_common_properties(p, true, true);
 	auto *content = add_group(p, "input_activity.live_keys.content", obs_module_text("Preferences.Content"));
 	obs_properties_add_int(content, "live_keys.maximum", obs_module_text("LiveKeys.Maximum"), 1, 64, 1);
 	obs_properties_add_int(content, "live_keys.row_height", obs_module_text("LiveKeys.RowHeight"), 24, 2160, 1);
@@ -27,7 +27,6 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 		obs_properties_add_bool(content, "live_keys.show_most_used", obs_module_text("LiveKeys.ShowMostUsed"));
 	obs_property_set_modified_callback(show_most_used, live_keys_options_changed);
 	auto *layout = add_group(p, "input_activity.live_keys.layout", obs_module_text("Preferences.Layout"));
-	obs_properties_add_bool(layout, "live_keys.invert_layout", obs_module_text("LiveKeys.InvertLayout"));
 	obs_properties_add_int_slider(layout, "live_keys.horizontal_spacing",
 				      obs_module_text("LiveKeys.HorizontalSpacing"), 0, 200, 1);
 	obs_properties_add_int_slider(layout, "live_keys.vertical_spacing", obs_module_text("LiveKeys.VerticalSpacing"),

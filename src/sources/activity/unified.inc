@@ -8,6 +8,27 @@ public:
 			saved = obs_data_create();
 			obs_data_apply(saved, settings);
 		}
+		if (!obs_data_has_user_value(settings, "activity.width") &&
+		    !obs_data_has_user_value(settings, "activity.height")) {
+			const auto set_dimensions = [this](source_mode mode, int width, int height) {
+				auto *saved = mode_settings[mode_index(mode)];
+				obs_data_set_int(saved, "activity.width", width);
+				obs_data_set_int(saved, "activity.height", height);
+			};
+			set_dimensions(source_mode::live_keys, 240, 640);
+			set_dimensions(source_mode::mouse_activity, 720, 560);
+			set_dimensions(source_mode::input_statistics, 480, 240);
+			const std::string selected = obs_data_get_string(settings, "input_activity.mode");
+			const source_mode selected_mode = selected == "mouse_activity" ? source_mode::mouse_activity
+							  : selected == "input_statistics"
+								  ? source_mode::input_statistics
+							  : selected == "input_intensity" ? source_mode::input_intensity
+											  : source_mode::live_keys;
+			obs_data_set_int(settings, "activity.width",
+					 obs_data_get_int(mode_settings[mode_index(selected_mode)], "activity.width"));
+			obs_data_set_int(settings, "activity.height",
+					 obs_data_get_int(mode_settings[mode_index(selected_mode)], "activity.height"));
+		}
 		obs_data_set_string(mode_settings[mode_index(source_mode::live_keys)], "activity.title", "Live Keys");
 		obs_data_set_bool(mode_settings[mode_index(source_mode::live_keys)], "activity.show_title", false);
 		obs_data_set_string(mode_settings[mode_index(source_mode::mouse_activity)], "activity.title",
@@ -88,9 +109,7 @@ private:
 	static size_t mode_index(source_mode value) { return static_cast<size_t>(value); }
 	static void copy_shared_settings(obs_data_t *destination, obs_data_t *source)
 	{
-		const char *const integer_keys[] = {"activity.width",
-						    "activity.height",
-						    "activity.padding",
+		const char *const integer_keys[] = {"activity.padding",
 						    "activity.font_size",
 						    "activity.text_color",
 						    "activity.background_color",

@@ -210,7 +210,9 @@ public:
 		const int key_height = std::max(1, cell_height - total_height - vertical_gap);
 		const uint64_t now = os_gettime_ns();
 		for (int index = start; index < static_cast<int>(keys.size()); ++index) {
-			const int position = right_aligned ? maximum - 1 - (index - start) : index - start;
+			// Keep press chronology reading toward the selected alignment edge: the
+			// newest key occupies the rightmost cell for right-aligned layouts.
+			const int position = index - start;
 			const int x = padding + position * (key_width + horizontal_gap);
 			const int y = live_top;
 			const QRect row(x, totals_above ? y + total_height + vertical_gap : y, key_width, key_height);
@@ -286,13 +288,13 @@ private:
 			keys.push_back({code, key_labels.count(code) ? key_labels.at(code) : key_name(event),
 					is_alphanumeric_key(event), 0, count});
 		}
-		std::sort(keys.begin(), keys.end(), [this](const active_key &left, const active_key &right) {
-			return left.press_count != right.press_count ? invert_layout
-									       ? left.press_count < right.press_count
-									       : left.press_count > right.press_count
+		std::sort(keys.begin(), keys.end(), [](const active_key &left, const active_key &right) {
+			return left.press_count != right.press_count ? left.press_count > right.press_count
 								     : left.code < right.code;
 		});
 		keys.resize(std::min(keys.size(), static_cast<size_t>(most_used_maximum)));
+		if (invert_layout)
+			std::reverse(keys.begin(), keys.end());
 		if (keys.empty())
 			return;
 		const uint64_t highest =

@@ -1,5 +1,5 @@
 
-void add_common_properties(obs_properties_t *props, bool allow_height = true)
+void add_common_properties(obs_properties_t *props, bool allow_height = true, bool include_live_keys_layout = false)
 {
 	auto *target = add_group(props, "input_activity.general.target", obs_module_text("Preferences.InputTarget"));
 	auto *target_type = obs_properties_add_list(target, "activity.target.type", obs_module_text("Activity.Target"),
@@ -54,6 +54,8 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 						  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(alignment, obs_module_text("Activity.Alignment.Left"), "left");
 	obs_property_list_add_string(alignment, obs_module_text("Activity.Alignment.Right"), "right");
+	if (include_live_keys_layout)
+		obs_properties_add_bool(layout, "live_keys.invert_layout", obs_module_text("LiveKeys.InvertLayout"));
 	auto *typography =
 		add_group(props, "input_activity.general.typography", obs_module_text("Preferences.Typography"));
 	obs_properties_add_font(typography, "activity.font", obs_module_text("Activity.Font"));
@@ -277,6 +279,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "live_keys.pressed_color", 0xff4444ef);
 		} else if constexpr (std::is_same_v<T, mouse_activity_source>) {
+			obs_data_set_default_int(settings, "activity.width", 720);
+			obs_data_set_default_int(settings, "activity.height", 560);
 			obs_data_set_default_string(settings, "activity.title", "Mouse Activity");
 			obs_data_set_default_string(settings, "mouse_activity.left_label", "L");
 			obs_data_set_default_string(settings, "mouse_activity.right_label", "R");
@@ -313,6 +317,8 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "mouse_activity.region.right", 1919);
 			obs_data_set_default_int(settings, "mouse_activity.region.bottom", 1079);
 		} else if constexpr (std::is_same_v<T, statistics_source>) {
+			obs_data_set_default_int(settings, "activity.width", 480);
+			obs_data_set_default_int(settings, "activity.height", 240);
 			obs_data_set_default_string(settings, "activity.title", "Input Statistics");
 			obs_data_set_default_bool(settings, "statistics.show_keys", true);
 			obs_data_set_default_bool(settings, "statistics.show_clicks", true);
