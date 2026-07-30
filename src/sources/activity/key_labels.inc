@@ -193,10 +193,12 @@ QString key_indicator(uint16_t code)
 	}
 }
 
-bool draw_modifier_indicator(QPainter &painter, const QRect &bounds, uint16_t code, const QColor &color)
+bool draw_modifier_indicator(QPainter &painter, const QRect &bounds, uint16_t code, const QColor &color,
+			     qreal input_text_height)
 {
-	const QRectF icon =
-		bounds.adjusted(bounds.width() / 4, bounds.height() / 4, -bounds.width() / 4, -bounds.height() / 4);
+	const qreal icon_size = std::min({input_text_height, bounds.width() * 0.7, bounds.height() * 0.7});
+	const QRectF icon(bounds.center().x() - icon_size / 2, bounds.center().y() - icon_size / 2, icon_size,
+			  icon_size);
 	const QPointF center = icon.center();
 	const qreal stroke_width = std::max<qreal>(2.0, icon.height() / 10.0);
 	const auto draw_path = [&](const QPainterPath &path, bool filled = false) {

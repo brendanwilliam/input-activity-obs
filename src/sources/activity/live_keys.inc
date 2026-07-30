@@ -220,7 +220,9 @@ public:
 					 totals_above ? row.top() - vertical_gap - total_metrics.descent()
 						      : row.bottom() + 1 + vertical_gap + total_metrics.ascent()),
 				  count, text);
-			if (!key.alphanumeric && draw_modifier_indicator(painter, row, key.code, text))
+			const qreal input_text_height = QFontMetrics(font(key_font_size)).height();
+			if (!key.alphanumeric &&
+			    draw_modifier_indicator(painter, row, key.code, text, input_text_height))
 				continue;
 			const QString indicator = key.alphanumeric ? key.label : key_indicator(key.code);
 			painter.setFont(font(key_font_size));
