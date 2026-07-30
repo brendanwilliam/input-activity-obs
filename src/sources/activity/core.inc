@@ -158,7 +158,7 @@ public:
 	virtual void tick(float) { consume_events(); }
 	void draw(gs_effect_t *effect)
 	{
-		image = QImage(width, height, QImage::Format_RGBA8888);
+		image = QImage(width, height, QImage::Format_RGBA8888_Premultiplied);
 		image.fill(background_color);
 		QPainter painter(&image);
 		painter.setRenderHint(QPainter::Antialiasing);
