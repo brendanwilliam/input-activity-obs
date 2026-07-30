@@ -1580,6 +1580,7 @@ public:
 		const bool data_changed = configured && (new_window != window_seconds || new_rows != rows);
 		window_seconds = new_window;
 		rows = new_rows;
+		horizontal_layout = std::string(obs_data_get_string(settings, "input_intensity.layout")) == "row";
 		theme_color = new_theme_color;
 		pressed_color = new_pressed_color;
 		if (data_changed)
@@ -1665,22 +1666,27 @@ public:
 
 		const QRect bounds(padding, padding, std::max(1, width - padding * 2),
 				   std::max(1, height - padding * 2));
+		const int available_span = horizontal_layout ? bounds.width() : bounds.height();
 		const int gap = std::min(element_spacing,
-					 std::max(0, (bounds.height() - static_cast<int>(active_rows.size())) /
+					 std::max(0, (available_span - static_cast<int>(active_rows.size())) /
 							     std::max(1, static_cast<int>(active_rows.size()) - 1)));
 		const int total_spacing = gap * std::max(0, static_cast<int>(active_rows.size()) - 1);
-		const int row_height =
-			std::max(1, (bounds.height() - total_spacing) / static_cast<int>(active_rows.size()));
+		const int item_span =
+			std::max(1, (available_span - total_spacing) / static_cast<int>(active_rows.size()));
 		QFont row_font = font();
-		row_font.setPixelSize(std::clamp(row_height / 3, 9, font_size));
+		row_font.setPixelSize(std::clamp(std::min(bounds.height(), item_span) / 3, 9, font_size));
 		painter.setFont(row_font);
 		const int text_height = QFontMetrics(row_font).lineSpacing() + 4;
 
 		for (size_t visible_index = 0; visible_index < active_rows.size(); ++visible_index) {
 			const size_t row_index = active_rows[visible_index];
-			const QRect row_rect(bounds.left(),
-					     bounds.top() + static_cast<int>(visible_index) * (row_height + gap),
-					     bounds.width(), row_height);
+			const QRect row_rect =
+				horizontal_layout
+					? QRect(bounds.left() + static_cast<int>(visible_index) * (item_span + gap),
+						bounds.top(), item_span, bounds.height())
+					: QRect(bounds.left(),
+						bounds.top() + static_cast<int>(visible_index) * (item_span + gap),
+						bounds.width(), item_span);
 			const int label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
 			const int value_label_height = std::max(1, std::min(row_rect.height() / 3, text_height));
 			const QRect label_rect(row_rect.left(), row_rect.top() + 1, row_rect.width(), label_height - 1);
@@ -1886,6 +1892,7 @@ private:
 	static constexpr uint64_t second_ns = 1000ULL * 1000 * 1000;
 	int window_seconds{30};
 	std::array<intensity_row, intensity_max_fields> rows{};
+	bool horizontal_layout{};
 	std::deque<sample> samples;
 	sample current{};
 	std::unordered_map<uint16_t, bool> held_keys, held_buttons;
@@ -2276,6 +2283,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "statistics.pressed_color", 0xff4444ef);
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
+			obs_data_set_default_string(settings, "input_intensity.layout", "column");
 			obs_data_set_default_string(settings, "input_intensity.velocity_unit", "pixels");
 			obs_data_set_default_int(settings, "input_intensity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
@@ -2383,6 +2391,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "activity.title", "Input Intensity");
 			obs_data_set_default_int(settings, "input_intensity.window", 30);
 			obs_data_set_default_int(settings, "input_intensity.element_spacing", 10);
+			obs_data_set_default_string(settings, "input_intensity.layout", "column");
 			obs_data_set_default_string(settings, "input_intensity.velocity_unit", "pixels");
 			obs_data_set_default_int(settings, "input_intensity.mouse_dpi", 800);
 			obs_data_set_default_int(settings, "input_intensity.color", 0xffeb6325);
@@ -2662,6 +2671,10 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	obs_properties_add_int_slider(p, "input_intensity.window", obs_module_text("InputIntensity.Window"), 1, 60, 1);
 	obs_properties_add_int_slider(p, "input_intensity.element_spacing", obs_module_text("Activity.ElementSpacing"),
 				      0, 200, 1);
+	auto *layout = obs_properties_add_list(p, "input_intensity.layout", obs_module_text("InputIntensity.Layout"),
+					       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout, obs_module_text("InputIntensity.Layout.Column"), "column");
+	obs_property_list_add_string(layout, obs_module_text("InputIntensity.Layout.Row"), "row");
 	obs_properties_add_color_alpha(p, "input_intensity.theme_color", obs_module_text("InputIntensity.ThemeColor"));
 	obs_properties_add_color_alpha(p, "input_intensity.pressed_color",
 				       obs_module_text("InputIntensity.PressedColor"));
