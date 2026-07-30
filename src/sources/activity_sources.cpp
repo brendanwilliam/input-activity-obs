@@ -496,6 +496,27 @@ public:
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.total_font_size")));
 		most_used_font_size =
 			std::max(8, static_cast<int>(obs_data_get_int(settings, "live_keys.most_used_font_size")));
+		blacklist = QString::fromUtf8(obs_data_get_string(settings, "live_keys.blacklist"))
+				    .trimmed()
+				    .toLower()
+				    .split(',', Qt::SkipEmptyParts);
+		for (QString &key : blacklist)
+			key = key.trimmed();
+		for (auto it = ordered.begin(); it != ordered.end();) {
+			if (is_blacklisted(it->label)) {
+				press_counts.erase(it->code);
+				it = ordered.erase(it);
+			} else {
+				++it;
+			}
+		}
+		for (auto it = press_counts.begin(); it != press_counts.end();) {
+			const auto label = key_labels.find(it->first);
+			if (label != key_labels.end() && is_blacklisted(label->second))
+				it = press_counts.erase(it);
+			else
+				++it;
+		}
 		totals_above = std::string(obs_data_get_string(settings, "live_keys.total_position")) != "below";
 		fade_duration_ns =
 			static_cast<uint64_t>(std::max<int64_t>(0, obs_data_get_int(settings, "live_keys.fade_ms"))) *
@@ -514,7 +535,7 @@ public:
 	}
 	void on_event(const input_data::trace_event &event) override
 	{
-		if (event.type == EVENT_KEY_PRESSED && !held[event.code]) {
+		if (event.type == EVENT_KEY_PRESSED && !is_blacklisted(key_name(event)) && !held[event.code]) {
 			held[event.code] = true;
 			key_labels[event.code] = key_name(event);
 			ordered.erase(std::remove_if(ordered.begin(), ordered.end(),
@@ -642,6 +663,7 @@ public:
 	}
 
 private:
+	bool is_blacklisted(const QString &label) const { return blacklist.contains(label.trimmed().toLower()); }
 	void draw_most_used_chart(QPainter &painter, const QRect &bounds) const
 	{
 		std::vector<active_key> keys;
@@ -736,6 +758,7 @@ private:
 	bool show_live_title{true}, show_most_used_title{true}, right_aligned{};
 	Qt::Alignment chart_alignment{Qt::AlignLeft};
 	QString live_title{"Live Keys"}, most_used_title{"Most Used Keys"};
+	QStringList blacklist;
 };
 
 class mouse_activity_source final : public activity_source {
@@ -2166,6 +2189,9 @@ private:
 };
 
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
+bool intensity_metric_count_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
+bool intensity_behavior_options_changed(void *behavior_data, obs_properties_t *, obs_property_t *,
+					obs_data_t *settings);
 
 void set_advanced_properties_visibility(obs_properties_t *properties, bool show_advanced)
 {
@@ -2188,6 +2214,19 @@ void unified_source::set_properties_visibility(obs_properties_t *properties) con
 	const bool show_advanced = obs_data_get_bool(settings, "input_activity.show_advanced_settings");
 	obs_properties_apply_settings(properties, settings);
 	target_type_changed(properties, nullptr, settings);
+	auto *intensity_group = obs_properties_get(properties, "input_activity.input_intensity");
+	auto *intensity_contents = intensity_group ? obs_property_group_content(intensity_group) : nullptr;
+	auto *intensity_metrics =
+		intensity_contents ? obs_properties_get(intensity_contents, "input_activity.input_intensity.metrics")
+				   : nullptr;
+	if (intensity_metrics)
+		intensity_metric_count_changed(obs_property_group_content(intensity_metrics), nullptr, settings);
+	auto *intensity_behavior =
+		intensity_contents ? obs_properties_get(intensity_contents, "input_activity.input_intensity.behavior")
+				   : nullptr;
+	intensity_behavior_options_changed(intensity_behavior ? obs_property_group_content(intensity_behavior)
+							      : nullptr,
+					   nullptr, nullptr, settings);
 	obs_data_release(settings);
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.live_keys"), selected == "live_keys");
 	obs_property_set_visible(obs_properties_get(properties, "input_activity.mouse_activity"),
@@ -2416,6 +2455,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.most_used_font_size", 24);
 			obs_data_set_default_int(settings, "live_keys.fade_ms", 2000);
 			obs_data_set_default_string(settings, "live_keys.fade_curve", "ease_out");
+			obs_data_set_default_string(settings, "live_keys.blacklist", "");
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "live_keys.pressed_color", 0xff4444ef);
 			obs_data_set_default_string(settings, "mouse_activity.left_label", "L");
@@ -2501,8 +2541,9 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_int(settings, "live_keys.key_font_size", 36);
 			obs_data_set_default_int(settings, "live_keys.special_key_font_size", 28);
 			obs_data_set_default_int(settings, "live_keys.total_font_size", 24);
-			obs_data_set_default_int(settings, "live_keys.fade_ms", 300);
-			obs_data_set_default_string(settings, "live_keys.fade_curve", "linear");
+			obs_data_set_default_int(settings, "live_keys.fade_ms", 2000);
+			obs_data_set_default_string(settings, "live_keys.fade_curve", "ease_out");
+			obs_data_set_default_string(settings, "live_keys.blacklist", "");
 			obs_data_set_default_int(settings, "live_keys.color", 0xffeb6325);
 			obs_data_set_default_int(settings, "live_keys.pressed_color", 0xff4444ef);
 		} else if constexpr (std::is_same_v<T, mouse_activity_source>) {
@@ -2660,6 +2701,8 @@ obs_properties_t *keys_properties_impl(void *, bool include_common)
 	obs_properties_add_int(typography, "live_keys.most_used_font_size",
 			       obs_module_text("LiveKeys.MostUsedFontSize"), 8, 256, 1);
 	auto *behavior = add_group(p, "input_activity.live_keys.behavior", obs_module_text("Preferences.Behavior"));
+	obs_properties_add_text(behavior, "live_keys.blacklist", obs_module_text("LiveKeys.Blacklist"),
+				OBS_TEXT_DEFAULT);
 	obs_properties_add_int_slider(behavior, "live_keys.fade_ms", obs_module_text("LiveKeys.FadeDuration"), 0, 5000,
 				      10);
 	auto *fade_curve = obs_properties_add_list(behavior, "live_keys.fade_curve",
@@ -2919,6 +2962,42 @@ bool intensity_metric_count_changed(obs_properties_t *props, obs_property_t *, o
 	return true;
 }
 
+bool intensity_behavior_options_changed(void *behavior_data, obs_properties_t *, obs_property_t *, obs_data_t *settings)
+{
+	auto *behavior = static_cast<obs_properties_t *>(behavior_data);
+	if (!behavior)
+		return true;
+	const int count = std::clamp(static_cast<int>(obs_data_get_int(settings, "input_intensity.metric_count")), 1,
+				     static_cast<int>(intensity_max_fields));
+	bool velocity_enabled{};
+	for (size_t index = 0; index < intensity_max_fields; ++index) {
+		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
+		const bool active = index < static_cast<size_t>(count) &&
+				    obs_data_get_bool(settings, (prefix + "enabled").c_str());
+		const std::string metric = obs_data_get_string(settings, (prefix + "metric").c_str());
+		const bool keyboard = active && metric == "keyboard";
+		const bool key = active && metric == "key";
+		const bool button = active && metric == "button";
+		velocity_enabled = velocity_enabled || (active && metric == "velocity");
+		obs_property_set_visible(obs_properties_get(behavior, (prefix + "key_scope").c_str()), keyboard);
+		obs_property_set_visible(obs_properties_get(behavior, (prefix + "key_list").c_str()),
+					 keyboard && std::string(obs_data_get_string(
+							     settings, (prefix + "key_scope").c_str())) == "list");
+		obs_property_set_visible(obs_properties_get(behavior, (prefix + "key").c_str()), key);
+		obs_property_set_visible(obs_properties_get(behavior, (prefix + "button").c_str()), button);
+	}
+	obs_property_set_visible(obs_properties_get(behavior, "input_intensity.velocity_unit"), velocity_enabled);
+	obs_property_set_visible(obs_properties_get(behavior, "input_intensity.mouse_dpi"), velocity_enabled);
+	return true;
+}
+
+bool intensity_metric_count_behavior_changed(void *behavior_data, obs_properties_t *props, obs_property_t *property,
+					     obs_data_t *settings)
+{
+	intensity_metric_count_changed(props, property, settings);
+	return intensity_behavior_options_changed(behavior_data, props, property, settings);
+}
+
 obs_properties_t *intensity_properties_impl(void *, bool include_common, const char *title_prefix = nullptr)
 {
 	auto *p = obs_properties_create();
@@ -2931,7 +3010,6 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	auto *metric_count = obs_properties_add_int_slider(metrics, "input_intensity.metric_count",
 							   obs_module_text("InputIntensity.MetricCount"), 1,
 							   intensity_max_fields, 1);
-	obs_property_set_modified_callback(metric_count, intensity_metric_count_changed);
 	for (size_t index = 0; index < intensity_max_fields; ++index) {
 		const std::string prefix = "input_intensity.row" + std::to_string(index) + ".";
 		const QByteArray row_label =
@@ -2959,6 +3037,7 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 	obs_property_list_add_string(layout_type, obs_module_text("InputIntensity.Layout.Row"), "row");
 	auto *behavior =
 		add_group(p, "input_activity.input_intensity.behavior", obs_module_text("Preferences.Behavior"));
+	obs_property_set_modified_callback2(metric_count, intensity_metric_count_behavior_changed, behavior);
 	auto *velocity_unit = obs_properties_add_list(behavior, "input_intensity.velocity_unit",
 						      obs_module_text("InputIntensity.VelocityUnit"),
 						      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -2977,6 +3056,7 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Letters"), "letters");
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.Numbers"), "numbers");
 		obs_property_list_add_string(key_scope, obs_module_text("InputIntensity.KeyScope.List"), "list");
+		obs_property_set_modified_callback2(key_scope, intensity_behavior_options_changed, behavior);
 		obs_properties_add_text(behavior, (prefix + "key_list").c_str(),
 					obs_module_text("InputIntensity.KeyList"), OBS_TEXT_DEFAULT);
 		auto *key = obs_properties_add_list(behavior, (prefix + "key").c_str(),
@@ -2993,6 +3073,10 @@ obs_properties_t *intensity_properties_impl(void *, bool include_common, const c
 							 .toUtf8();
 			obs_property_list_add_int(button, label.constData(), code);
 		}
+		obs_property_set_modified_callback2(obs_properties_get(metrics, (prefix + "enabled").c_str()),
+						    intensity_behavior_options_changed, behavior);
+		obs_property_set_modified_callback2(obs_properties_get(metrics, (prefix + "metric").c_str()),
+						    intensity_behavior_options_changed, behavior);
 	}
 	return p;
 }
