@@ -4,6 +4,11 @@
 
 Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from `main`. Target `main` through a pull request for all changes. Never push directly to `main` or bypass required checks.
 
+For a coordinated group of multiple tasks implemented on the same day, use a dated integration branch named
+`chore/updates-YYYY-MM-DD`, created from current `main`. Commit the related work to that branch and open one
+pull request to `main` after the group is ready. Use a normal task-specific branch for isolated work; do not
+use an update branch to avoid required checks.
+
 Use Conventional Commit subjects such as `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `build:`, and `ci:`. Give non-trivial changes an explanatory body. Treat the pull request as the durable, human-facing change record.
 
 Keep global input capture privacy-safe: preserve the actionable Accessibility warning and never log keystroke contents. Keep OBS source IDs stable.
