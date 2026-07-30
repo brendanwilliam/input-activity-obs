@@ -826,7 +826,6 @@ public:
 		map_clicks = new_map_clicks;
 		display = new_display;
 		tracking_bounds = new_tracking_bounds;
-		update_dimensions();
 		show_border = obs_data_get_bool(settings, "mouse_activity.show_border");
 		show_center_mark = obs_data_get_bool(settings, "mouse_activity.show_center_mark");
 		if (hex_radius != previous_hex_radius)
@@ -945,24 +944,22 @@ private:
 		build_hex_lattice();
 		last_motion.reset();
 	}
-	void update_dimensions()
-	{
-		if (tracking_bounds.isEmpty())
-			return;
-		height = std::max(1, heatmap_height() + padding * 2 + summary_height() + title_content_offset());
-	}
 	QRect heatmap_rect() const
 	{
-		return {padding, padding + (summary_above_heatmap ? summary_height() : 0),
-			std::max(1, width - padding * 2), heatmap_height()};
-	}
-	int heatmap_height() const
-	{
 		if (tracking_bounds.isEmpty())
-			return 1;
-		return std::max(1, static_cast<int>(std::lround(std::max(1, width - padding * 2) *
-								static_cast<double>(tracking_bounds.height()) /
-								tracking_bounds.width())));
+			return {padding, padding, 1, 1};
+		const int available_width = std::max(1, width - padding * 2);
+		const int available_height =
+			std::max(1, height - title_content_offset() - padding * 2 - summary_height());
+		const double aspect_ratio = static_cast<double>(tracking_bounds.width()) / tracking_bounds.height();
+		const int plot_width = std::max(
+			1, std::min(available_width, static_cast<int>(std::lround(available_height * aspect_ratio))));
+		const int plot_height = std::max(1, std::min(available_height,
+							     static_cast<int>(std::lround(plot_width / aspect_ratio))));
+		const int x = padding + (available_width - plot_width) / 2;
+		const int vertical_space = available_height - plot_height;
+		const int y = padding + (summary_above_heatmap ? summary_height() : 0) + vertical_space / 2;
+		return {x, y, plot_width, plot_height};
 	}
 	int information_line_height() const { return QFontMetrics(font()).lineSpacing(); }
 	int summary_height() const { return show_distance || show_clicks ? information_line_height() * 2 : 0; }
@@ -2716,7 +2713,7 @@ obs_properties_t *mouse_properties_impl(void *data, bool include_common, const c
 {
 	auto *p = obs_properties_create();
 	if (include_common)
-		add_common_properties(p, false);
+		add_common_properties(p);
 	auto *content = add_group(p, "input_activity.mouse_activity.content", obs_module_text("Preferences.Content"));
 	add_mode_title_properties(content, title_prefix);
 	obs_properties_add_text(content, "mouse_activity.left_label", obs_module_text("MouseActivity.LeftLabel"),
