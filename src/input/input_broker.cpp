@@ -146,7 +146,7 @@ private:
 			if (!matches(key, raw, context, context_changed, pointer_display))
 				continue;
 			input_data::trace_event event{};
-			event.sequence = raw.sequence;
+			event.sequence = ++group.latest_sequence;
 			event.time_ns = raw.time_ns;
 			event.type = raw.type;
 			event.code = raw.code;
@@ -160,7 +160,6 @@ private:
 			group.events.push_back(std::move(event));
 			if (group.events.size() > routed_capacity)
 				group.events.pop_front();
-			group.latest_sequence = raw.sequence;
 		}
 	}
 
