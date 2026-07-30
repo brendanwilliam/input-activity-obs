@@ -33,10 +33,8 @@ runs:
       run: |
         : Install Dependencies 🛍️
         echo ::group::Install Dependencies
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-        echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
-        echo "/home/linuxbrew/.linuxbrew/opt/clang-format@19/bin" >> $GITHUB_PATH
-        brew install --quiet zsh
+        sudo apt-get update
+        sudo apt-get install --yes clang-format-19 zsh
         echo ::endgroup::
 
     - name: Run clang-format 🐉
@@ -49,10 +47,6 @@ runs:
       run: |
         : Run clang-format 🐉
         if (( ${+RUNNER_DEBUG} )) setopt XTRACE
-
-        print ::group::Install clang-format-19
-        brew install --quiet obsproject/tools/clang-format@19
-        print ::endgroup::
 
         print ::group::Run clang-format-19
         local -a changes=(${(s:,:)CHANGED_FILES//[\[\]\'\"]/})
