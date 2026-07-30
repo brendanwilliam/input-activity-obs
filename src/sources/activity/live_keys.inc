@@ -263,12 +263,12 @@ private:
 	void draw_chart_key(QPainter &painter, const QRect &bounds, uint16_t code, const QString &label,
 			    bool alphanumeric) const
 	{
-		const qreal text_height = QFontMetrics(font(subtitle_size)).height();
 		if (!alphanumeric) {
-			const int icon_span = std::max(1, static_cast<int>(std::ceil(text_height / 0.7)));
+			const qreal icon_size = subtitle_size;
+			const int icon_span = std::max(1, static_cast<int>(std::ceil(icon_size / 0.7)));
 			const QRect icon_bounds(right_aligned ? bounds.right() - icon_span + 1 : bounds.left(),
 						bounds.top(), icon_span, bounds.height());
-			if (draw_modifier_indicator(painter, icon_bounds, code, text_color, text_height))
+			if (draw_modifier_indicator(painter, icon_bounds, code, text_color, icon_size))
 				return;
 		}
 		const QString indicator = alphanumeric ? label : key_indicator(code);
