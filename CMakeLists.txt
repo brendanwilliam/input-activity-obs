@@ -55,6 +55,20 @@ target_sources(
     src/input/keycodes.h
     src/sources/activity_sources.hpp
     src/sources/activity_sources.cpp
+    src/sources/activity/core.inc
+    src/sources/activity/key_labels.inc
+    src/sources/activity/live_keys.inc
+    src/sources/activity/mouse_events.inc
+    src/sources/activity/mouse_render.inc
+    src/sources/activity/statistics.inc
+    src/sources/activity/intensity_events.inc
+    src/sources/activity/intensity_render.inc
+    src/sources/activity/unified.inc
+    src/sources/activity/common_properties.inc
+    src/sources/activity/live_keys_properties.inc
+    src/sources/activity/mouse_properties.inc
+    src/sources/activity/intensity_properties.inc
+    src/sources/activity/unified_properties.inc
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

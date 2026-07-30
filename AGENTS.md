@@ -22,6 +22,14 @@ Keep global input capture privacy-safe: preserve the actionable Accessibility wa
 - `cmake/`: packaging and platform configuration; never edit `build_macos/`.
 - `deps/libuiohook/`: bundled dependency; change only when intentionally updating it.
 
+## Code organization
+
+Keep new and materially refactored implementation modules under 400 lines. When a file approaches
+that limit, split it by a stable responsibility (shared state, one OBS source type, rendering, or
+properties) rather than by arbitrary line ranges. Put cross-mode setting keys, shared rendering
+helpers, and migrations in one owned module; do not duplicate them across mode files. Use
+`skills/check-code-size` before handing off a refactor or adding a substantial implementation file.
+
 ## Validation
 
 Format edited C, C++, and Objective-C++ files with clang-format 19. Format CMake and YAML with gersemi. Run the CI-equivalent configuration on macOS:
@@ -73,6 +81,7 @@ reopen OBS after installation; do not control OBS unless explicitly asked.
 - [`skills/release-macos-plugin`](skills/release-macos-plugin/SKILL.md): prepare and validate a signed/notarized release.
 - [`skills/refresh-obs-docs-reference`](skills/refresh-obs-docs-reference/SKILL.md): audit the full OBS documentation site and refresh the local navigation reference.
 - [`skills/use-obs-docs-reference`](skills/use-obs-docs-reference/SKILL.md): locate and verify OBS API documentation during development or review.
+- [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce activity-source module-size and ownership rules.
 
 Install these into a local Codex skills directory with `./scripts/install-repository-skills.sh`.
 
