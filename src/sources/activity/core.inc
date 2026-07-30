@@ -215,10 +215,12 @@ public:
 		std::vector<input_data::trace_event> events;
 		input_data::button_map<uint16_t> keyboard;
 		input_data::button_map<uint16_t> mouse;
-		std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
-		local_data::data.events_after(cursor, events);
-		keyboard = local_data::data.keyboard;
-		mouse = local_data::data.mouse;
+		{
+			std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
+			local_data::data.events_after(cursor, events);
+			keyboard = local_data::data.keyboard;
+			mouse = local_data::data.mouse;
+		}
 		for (const auto &event : events)
 			if (matches(event))
 				on_event(event);
