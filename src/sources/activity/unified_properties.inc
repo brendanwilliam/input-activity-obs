@@ -21,18 +21,18 @@ bool advanced_settings_changed(obs_properties_t *props, obs_property_t *, obs_da
 obs_properties_t *unified_properties(void *data)
 {
 	auto *p = obs_properties_create();
-	auto *general = add_group(p, "input_activity.general", obs_module_text("Preferences.General"));
-	add_common_properties(general);
-	auto *advanced = obs_properties_add_bool(general, "input_activity.show_advanced_settings",
-						 obs_module_text("Preferences.ShowAdvanced"));
-	obs_property_set_modified_callback(advanced, advanced_settings_changed);
-	auto *mode = obs_properties_add_list(general, "input_activity.mode", obs_module_text("InputActivity.Mode"),
+	auto *mode = obs_properties_add_list(p, "input_activity.mode", obs_module_text("InputActivity.Mode"),
 					     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(mode, obs_module_text("LiveKeys"), "live_keys");
 	obs_property_list_add_string(mode, obs_module_text("MouseActivity"), "mouse_activity");
 	obs_property_list_add_string(mode, obs_module_text("InputIntensity"), "input_intensity");
 	obs_property_list_add_string(mode, obs_module_text("InputStatistics"), "input_statistics");
 	obs_property_set_modified_callback(mode, unified_mode_changed);
+	auto *general = add_group(p, "input_activity.general", obs_module_text("Preferences.General"));
+	add_common_properties(general);
+	auto *advanced = obs_properties_add_bool(general, "input_activity.show_advanced_settings",
+						 obs_module_text("Preferences.ShowAdvanced"));
+	obs_property_set_modified_callback(advanced, advanced_settings_changed);
 	add_common_properties(p);
 	auto *unified = static_cast<unified_source *>(data);
 	auto *live_group = obs_properties_add_group(p, "input_activity.live_keys", obs_module_text("LiveKeys"),
