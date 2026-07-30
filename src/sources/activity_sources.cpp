@@ -193,8 +193,7 @@ public:
 		for (const auto &event : events)
 			if (matches(event))
 				on_event(event);
-		if (events.empty() || matches(events.back()))
-			on_snapshot(keyboard, mouse);
+		on_snapshot(keyboard, mouse);
 	}
 	virtual void on_event(const input_data::trace_event &) {}
 	virtual void on_snapshot(const input_data::button_map<uint16_t> &, const input_data::button_map<uint16_t> &) {}
@@ -515,16 +514,6 @@ public:
 					++it;
 			} else {
 				++it;
-			}
-		}
-		for (const auto &[code, pressed] : keyboard) {
-			if (pressed && !held[code]) {
-				held[code] = true;
-				input_data::trace_event event{};
-				event.code = code;
-				key_labels.try_emplace(code, key_name(event));
-				ordered.push_back(
-					{code, key_labels[code], is_alphanumeric_key(event), 0, press_counts[code]});
 			}
 		}
 	}
