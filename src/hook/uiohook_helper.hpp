@@ -12,6 +12,8 @@ namespace uiohook {
 struct target_display {
 	uint32_t id{};
 	std::string label;
+	int width{};
+	int height{};
 };
 struct target_application {
 	std::string id;

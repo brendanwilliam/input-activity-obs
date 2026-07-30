@@ -288,9 +288,12 @@ namespace uiohook {
         result.reserve(count);
         for (uint32_t index = 0; index < count; ++index) {
             const CGRect bounds = CGDisplayBounds(displays[index]);
-            result.push_back({displays[index], "Display " + std::to_string(index + 1) + " (" +
-                                                   std::to_string(static_cast<int>(bounds.size.width)) + "x" +
-                                                   std::to_string(static_cast<int>(bounds.size.height)) + ")"});
+            const int width = static_cast<int>(bounds.size.width);
+            const int height = static_cast<int>(bounds.size.height);
+            result.push_back({displays[index],
+                              "Display " + std::to_string(index + 1) + " (" + std::to_string(width) + "x" +
+                                  std::to_string(height) + ")",
+                              width, height});
         }
         return result;
     }

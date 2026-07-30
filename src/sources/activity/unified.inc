@@ -250,8 +250,35 @@ void unified_source::set_properties_visibility(obs_properties_t *properties) con
 	set_advanced_properties_visibility(properties, show_advanced);
 }
 
+void set_default_display_rectangle(obs_data_t *settings)
+{
+	if (std::string(obs_data_get_string(settings, "activity.target.type")) != "display" ||
+	    !obs_data_get_bool(settings, "activity.target.display_rectangle"))
+		return;
+
+	for (const char *name : {"activity.target.rectangle.left", "activity.target.rectangle.top",
+				 "activity.target.rectangle.right", "activity.target.rectangle.bottom"}) {
+		if (obs_data_has_user_value(settings, name))
+			return;
+	}
+
+	const uint32_t selected_display = static_cast<uint32_t>(obs_data_get_int(settings, "activity.target.display"));
+	for (const auto &display : uiohook::target_displays()) {
+		if (display.id != selected_display || display.width <= 0 || display.height <= 0)
+			continue;
+
+		const bool ultrawide = display.width == 3440 && display.height == 1440;
+		obs_data_set_int(settings, "activity.target.rectangle.left", ultrawide ? 880 : 0);
+		obs_data_set_int(settings, "activity.target.rectangle.top", 0);
+		obs_data_set_int(settings, "activity.target.rectangle.right", ultrawide ? 3440 : display.width - 1);
+		obs_data_set_int(settings, "activity.target.rectangle.bottom", ultrawide ? 1440 : display.height - 1);
+		return;
+	}
+}
+
 bool target_type_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
+	set_default_display_rectangle(settings);
 	const std::string target_type = obs_data_get_string(settings, "activity.target.type");
 	obs_property_set_visible(obs_properties_get(props, "activity.target.display"), target_type == "display");
 	obs_property_set_visible(obs_properties_get(props, "activity.target.application"),

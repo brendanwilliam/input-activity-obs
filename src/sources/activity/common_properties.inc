@@ -14,6 +14,7 @@ void add_common_properties(obs_properties_t *props, bool allow_height = true)
 						       OBS_COMBO_FORMAT_INT);
 	for (const auto &display : uiohook::target_displays())
 		obs_property_list_add_int(target_display, display.label.c_str(), display.id);
+	obs_property_set_modified_callback(target_display, target_type_changed);
 	auto *target_application = obs_properties_add_list(target, "activity.target.application",
 							   obs_module_text("Activity.Target.Application"),
 							   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -170,7 +171,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 			obs_data_set_default_string(settings, "input_intensity.title", "Input Intensity");
 			obs_data_set_default_bool(settings, "statistics.show_title", true);
 			obs_data_set_default_string(settings, "statistics.title", "Input Statistics");
-			obs_data_set_default_int(settings, "live_keys.maximum", 8);
+			obs_data_set_default_int(settings, "live_keys.maximum", 4);
 			obs_data_set_default_int(settings, "live_keys.top_n", 8);
 			obs_data_set_default_int(settings, "live_keys.row_height", 96);
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
@@ -258,7 +259,7 @@ template<typename T> void register_source(const char *id, obs_properties_t *(*pr
 		if constexpr (std::is_same_v<T, live_keys_source>) {
 			obs_data_set_default_string(settings, "activity.title", "Live Keys");
 			obs_data_set_default_bool(settings, "activity.show_title", false);
-			obs_data_set_default_int(settings, "live_keys.maximum", 8);
+			obs_data_set_default_int(settings, "live_keys.maximum", 4);
 			obs_data_set_default_int(settings, "live_keys.top_n", 8);
 			obs_data_set_default_int(settings, "live_keys.row_height", 96);
 			obs_data_set_default_string(settings, "live_keys.top_n_alignment", "left");
