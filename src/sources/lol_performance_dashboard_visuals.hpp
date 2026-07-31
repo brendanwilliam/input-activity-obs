@@ -22,10 +22,17 @@ struct lol_dashboard_theme {
 	QColor background;
 };
 
+struct lol_dashboard_heatmap {
+	QString gradient{"spectrum"};
+	QColor low{235, 99, 37};
+	QColor middle{250, 204, 21};
+	QColor high{239, 68, 68};
+};
+
 class lol_dashboard_visuals {
 public:
-	void configure(const lol_dashboard_theme &theme, int rolling_window_seconds, const QRect &game_frame,
-		       const QRect &heatmap_bounds);
+	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
+		       int rolling_window_seconds, const QRect &game_frame, const QRect &heatmap_bounds);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary, const QRect &keys,
@@ -49,11 +56,13 @@ private:
 	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds) const;
+	QColor heat_color(int band) const;
 	QString distance_label() const;
 	QString key_label(uint16_t code) const;
 	size_t nearest_hex(const QPointF &point) const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
+	lol_dashboard_heatmap heatmap_;
 	QRect game_frame_{0, 0, 1920, 1080}, heatmap_bounds_;
 	std::vector<hex_bin> hex_bins_;
 	std::optional<QPointF> last_heat_point_;

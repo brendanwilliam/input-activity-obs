@@ -52,6 +52,10 @@ public:
 		theme_ = {obs_color(uint32_t(obs_data_get_int(settings, "activity.inactive_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.active_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.background_color")))};
+		heatmap_ = {QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.heatmap_gradient")),
+			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_low"))),
+			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_middle"))),
+			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high")))};
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
@@ -63,7 +67,7 @@ public:
 		if (!layout_ || !visible_)
 			return;
 		const auto panels = panel_rectangles();
-		visuals_.configure(theme_, window_, frame_, panels.heatmap);
+		visuals_.configure(theme_, heatmap_, window_, frame_, panels.heatmap);
 		std::vector<input_data::trace_event> events;
 		input_data::button_map<uint16_t> keyboard, mouse;
 		input_broker::consume(target(), cursor_, discard_backlog_, events, keyboard, mouse);
@@ -101,6 +105,7 @@ public:
 
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
 	uint32_t height() const { return layout_ ? uint32_t(layout_->game.height) : 1; }
+	obs_source_t *source() const { return source_; }
 	bool uses_advanced_positioning() const { return advanced_positioning_; }
 	void reload()
 	{
@@ -172,23 +177,16 @@ private:
 			minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 				     : league_safe_area::rect{0.0, player.top, player.left, 1.0};
 		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -20);
-		const int summary_width = std::max(64, mouse_bounds.width() / 4);
-		const QRect summary = minimap_left ? QRect(mouse_bounds.left(), mouse_bounds.top(), summary_width,
-							   mouse_bounds.height())
-						   : QRect(mouse_bounds.right() - summary_width + 1, mouse_bounds.top(),
-							   summary_width, mouse_bounds.height());
-		QRect heat_space = mouse_bounds;
-		if (minimap_left)
-			heat_space.setLeft(summary.right() + 21);
-		else
-			heat_space.setRight(summary.left() - 21);
+		const int summary_width = std::clamp(mouse_bounds.width() / 5, 120, 180);
 		const double game_aspect = double(width()) / std::max(1u, height());
-		const int heat_height =
-			std::min(heat_space.height(), int(std::lround(heat_space.width() / game_aspect)));
-		const int heat_width = std::min(heat_space.width(), int(std::lround(heat_height * game_aspect)));
-		const QRect heatmap(minimap_left ? heat_space.right() - heat_width + 1 : heat_space.left(),
-				    heat_space.top() + (heat_space.height() - heat_height) / 2, heat_width,
+		const int heat_width = std::min(mouse_bounds.width() - summary_width - 20,
+						int(std::lround(mouse_bounds.height() * game_aspect)));
+		const int heat_height = std::min(mouse_bounds.height(), int(std::lround(heat_width / game_aspect)));
+		const QRect heatmap(minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(),
+				    mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, heat_width,
 				    heat_height);
+		const QRect summary(minimap_left ? heatmap.left() - summary_width - 20 : heatmap.right() + 21,
+				    mouse_bounds.top(), summary_width, mouse_bounds.height());
 		const league_safe_area::rect header{top_left.right, 0.0, top_right.left,
 						    std::max(top_right.bottom, 0.12)};
 		return {scaled(header).adjusted(20, 0, -20, 0), heatmap, summary,
@@ -201,6 +199,7 @@ private:
 	int window_{60};
 	bool advanced_positioning_{}, visible_{};
 	lol_dashboard_theme theme_;
+	lol_dashboard_heatmap heatmap_;
 	std::optional<league_safe_area::model> layout_;
 	lol_dashboard_visuals visuals_;
 	uint64_t cursor_{};
@@ -223,6 +222,14 @@ bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs
 {
 	obs_property_set_visible(obs_properties_get(props, "lol_dashboard.frame"),
 				 obs_data_get_bool(settings, "lol_dashboard.advanced_positioning"));
+	return true;
+}
+bool heatmap_gradient_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const bool custom = std::string(obs_data_get_string(settings, "lol_dashboard.heatmap_gradient")) == "custom";
+	for (const char *name :
+	     {"lol_dashboard.gradient_low", "lol_dashboard.gradient_middle", "lol_dashboard.gradient_high"})
+		obs_property_set_visible(obs_properties_get(props, name), custom);
 	return true;
 }
 obs_properties_t *properties(void *data)
@@ -257,6 +264,30 @@ obs_properties_t *properties(void *data)
 				       obs_module_text("Activity.ActiveColor"));
 	obs_properties_add_color_alpha(theme_properties, "activity.background_color",
 				       obs_module_text("Activity.BackgroundColor"));
+	auto *heatmap = obs_properties_add_group(properties, "lol_dashboard.heatmap",
+						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_GROUP_NORMAL,
+						 obs_properties_create());
+	auto *heatmap_properties = obs_property_group_content(heatmap);
+	auto *gradient = obs_properties_add_list(heatmap_properties, "lol_dashboard.heatmap_gradient",
+						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_COMBO_TYPE_LIST,
+						 OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Spectrum"), "spectrum");
+	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Lime"), "lime");
+	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Ocean"), "ocean");
+	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.MatchTheme"), "theme");
+	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Custom"), "custom");
+	obs_property_set_modified_callback(gradient, heatmap_gradient_changed);
+	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_low",
+				       obs_module_text("MouseActivity.CustomGradientLow"));
+	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_middle",
+				       obs_module_text("MouseActivity.CustomGradientMiddle"));
+	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_high",
+				       obs_module_text("MouseActivity.CustomGradientHigh"));
+	if (data) {
+		auto *settings = obs_source_get_settings(static_cast<dashboard_source *>(data)->source());
+		heatmap_gradient_changed(heatmap_properties, nullptr, settings);
+		obs_data_release(settings);
+	}
 	obs_property_set_visible(frame, data && static_cast<dashboard_source *>(data)->uses_advanced_positioning());
 	return properties;
 }
@@ -299,6 +330,10 @@ void register_lol_performance_dashboard_source()
 		obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
 		obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
 		obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
+		obs_data_set_default_string(settings, "lol_dashboard.heatmap_gradient", "spectrum");
+		obs_data_set_default_int(settings, "lol_dashboard.gradient_low", 0xffeb6325);
+		obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
+		obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
 	};
 	obs_register_source(&info);
 }
