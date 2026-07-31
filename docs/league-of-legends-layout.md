@@ -47,6 +47,7 @@ Read only these fields from the `[General]` and `[HUD]` sections of
 | Field | Use |
 | --- | --- |
 | `Width`, `Height`, `WindowMode` | Identify the configured game frame and select calibration data. |
+| `PracticeToolScale` | Scale the persistent Practice Tool HUD in the top-left corner. |
 | `MinimapScale` | Size the lower-corner minimap exclusion. |
 | `FlipMiniMap` | Mirror the minimap exclusion from right to left. |
 | `ChatScale`, `ShowTeamFramesOnLeft` | Validate the selected `game.cfg`; the annotated target does not reserve a fixed chat or team-frame area. |
@@ -84,7 +85,7 @@ rectangles and subtracts it from the full game frame.
 | --- | --- | --- | --- |
 | Player HUD | Bottom center | None | A fixed, tightly calibrated rectangle. |
 | Minimap | Bottom right by default | `MinimapScale`, `FlipMiniMap` | Interpolate its measured size from `MinimapScale`; mirror horizontally when flipped. |
-| Top-left reserve | Top left | None | Fixed reserve from the annotated game-frame capture. |
+| Top-left reserve | Top left | `PracticeToolScale` | Interpolate the measured Practice Tool HUD bounds from scale 0 to 100. |
 | Enemy info and death recap | Top right | None | Fixed reserve from the annotated game-frame capture. |
 
 All values are normalized to the game frame and were measured from the
@@ -94,7 +95,7 @@ linearly between their endpoints; the lower-corner anchor does not move.
 | Region | Normalized calibrated bounds or endpoints |
 | --- | --- |
 | Player HUD | `[0.277, 0.866, 0.660, 1.000)` |
-| Top-left reserve | `[0.000, 0.000, 0.134, 0.107)` |
+| Top-left reserve | At scale `0`: `[0.000, 0.000, 0.107, 0.077)`; at `1`: `[0.000, 0.000, 0.156, 0.118)` |
 | Enemy info and death recap | `[0.796, 0.000, 1.000, 0.058)` |
 | Minimap, `0…3` | width `0.120…0.208`, height `0.200…0.383`, lower right; mirror for `FlipMiniMap=1` |
 
