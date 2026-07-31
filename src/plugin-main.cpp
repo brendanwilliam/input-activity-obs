@@ -16,6 +16,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 bool obs_module_load(void)
 {
 	sources::register_activity_sources();
+	sources::register_league_safe_area_source();
 	uiohook::start();
 	blog(LOG_INFO, "[input-activity] loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;
