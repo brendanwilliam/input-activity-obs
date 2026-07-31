@@ -30,6 +30,8 @@ struct lol_dashboard_heatmap {
 };
 
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
+void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
+				      const QString &text);
 
 class lol_dashboard_visuals {
 public:

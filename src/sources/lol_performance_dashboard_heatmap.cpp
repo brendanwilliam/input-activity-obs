@@ -1,8 +1,19 @@
 #include "lol_performance_dashboard_visuals.hpp"
 
+#include <QPainter>
 #include <cmath>
 
 namespace sources {
+
+void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
+				      const QString &text)
+{
+	const QPen pen = painter.pen();
+	painter.setPen(Qt::black);
+	painter.drawText(bounds.translated(2, 2), alignment, text);
+	painter.setPen(pen);
+	painter.drawText(bounds, alignment, text);
+}
 
 void lol_dashboard_visuals::reset()
 {

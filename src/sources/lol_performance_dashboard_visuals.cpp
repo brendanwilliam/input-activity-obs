@@ -30,7 +30,6 @@ void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lo
 	if (heatmap_bounds != heatmap_bounds_)
 		resize_heatmap(heatmap_bounds);
 }
-
 void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 {
 	heatmap_bounds_ = bounds;
@@ -46,7 +45,6 @@ void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 					      bounds.top() + hex_radius + row * 1.5 * hex_radius}});
 	}
 }
-
 void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &events,
 				    const input_data::button_map<uint16_t> &keyboard,
 				    const input_data::button_map<uint16_t> &)
@@ -68,7 +66,6 @@ void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &
 		}
 	}
 }
-
 void lol_dashboard_visuals::advance(uint64_t now)
 {
 	if (!bucket_start_)
@@ -81,7 +78,6 @@ void lol_dashboard_visuals::advance(uint64_t now)
 		bucket_start_ += second_ns;
 	}
 }
-
 void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 {
 	advance(event.time_ns);
@@ -238,21 +234,23 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
 	const int half = bounds.height() / 2;
 	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
-	painter.drawText(QRect(bounds.left(), bounds.top(), bounds.width(), half / 2), alignment,
-			 obs_module_text("MouseActivity.Distance"));
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top(), bounds.width(), half / 2),
+					 alignment, obs_module_text("MouseActivity.Distance"));
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	painter.drawText(QRect(bounds.left(), bounds.top() + half / 2, bounds.width(), half / 2), alignment,
-			 distance_label());
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(bounds.left(), bounds.top() + half / 2, bounds.width(), half / 2),
+					 alignment, distance_label());
 	painter.setPen(Qt::white);
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
-	painter.drawText(QRect(bounds.left(), bounds.top() + half, bounds.width(), half / 2), alignment,
-			 obs_module_text("MouseActivity.Clicks"));
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top() + half, bounds.width(), half / 2),
+					 alignment, obs_module_text("MouseActivity.Clicks"));
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	painter.drawText(QRect(bounds.left(), bounds.top() + half + half / 2, bounds.width(),
-			       bounds.height() - half - half / 2),
-			 alignment, QString::number(total_clicks_));
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(bounds.left(), bounds.top() + half + half / 2, bounds.width(),
+					       bounds.height() - half - half / 2),
+					 alignment, QString::number(total_clicks_));
 }
 
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
@@ -267,8 +265,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	const int active_title_height = title_size + dashboard_padding / 2;
 	const int active_top = content.top();
 	const Qt::Alignment edge = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
-	painter.drawText(QRect(content.left(), active_top, content.width(), active_title_height),
-			 edge | Qt::AlignVCenter, obs_module_text("LiveKeys"));
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(content.left(), active_top, content.width(), active_title_height),
+					 edge | Qt::AlignVCenter, obs_module_text("LiveKeys"));
 	const int visible = std::min(4, int(active_keys_.size()));
 	const int gap = 10;
 	const int key_width = std::max(1, (content.width() - (visible - 1) * gap) / 4);
@@ -286,10 +285,10 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		painter.drawRoundedRect(key_rect, 6, 6);
 		painter.setPen(Qt::white);
 		painter.setFont(QFont("Silom", subtitle_size));
-		painter.drawText(QRect(x, active_row.top(), key_width, count_height),
-				 Qt::AlignHCenter | Qt::AlignVCenter, QString::number(key.count));
+		lol_dashboard_draw_shadowed_text(painter, QRect(x, active_row.top(), key_width, count_height),
+						 Qt::AlignHCenter | Qt::AlignVCenter, QString::number(key.count));
 		painter.setFont(QFont("Silom", text_size, QFont::Bold));
-		painter.drawText(key_rect, Qt::AlignCenter, key.label);
+		lol_dashboard_draw_shadowed_text(painter, key_rect, Qt::AlignCenter, key.label);
 	}
 	std::vector<active_key> keys;
 	for (const auto &[code, count] : press_counts_)
@@ -305,8 +304,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	const int chart_title_height = title_size + dashboard_padding / 2;
 	painter.setFont(QFont("Silom", title_size, QFont::Bold));
 	const int chart_top = active_top + active_title_height + active_row_height + dashboard_padding;
-	painter.drawText(QRect(content.left(), chart_top, content.width(), chart_title_height), edge | Qt::AlignVCenter,
-			 obs_module_text("LoLPerformanceDashboard.MostUsedKeys"));
+	lol_dashboard_draw_shadowed_text(painter, QRect(content.left(), chart_top, content.width(), chart_title_height),
+					 edge | Qt::AlignVCenter,
+					 obs_module_text("LoLPerformanceDashboard.MostUsedKeys"));
 	const QRect chart(content.left(), chart_top + chart_title_height, content.width(),
 			  std::max(1, content.bottom() - chart_top - chart_title_height + 1));
 	const int row_height = std::max(1, chart.height() / 8);
@@ -326,10 +326,12 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 				       chart.width() / 3, text_height);
 		const QRect count_rect(right_aligned ? bar_rect.left() : bar_rect.right() - chart.width() / 3 + 1, y,
 				       chart.width() / 3, text_height);
-		painter.drawText(label_rect, (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
-				 keys[index].label);
-		painter.drawText(count_rect, (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,
-				 QString::number(keys[index].count));
+		lol_dashboard_draw_shadowed_text(painter, label_rect,
+						 (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
+						 keys[index].label);
+		lol_dashboard_draw_shadowed_text(painter, count_rect,
+						 (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,
+						 QString::number(keys[index].count));
 	}
 }
 
@@ -362,18 +364,23 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.drawLine(x(current), y - 13, x(current), y + 13);
 		painter.setPen(Qt::white);
 		painter.setFont(QFont("Silom", subtitle_size));
-		painter.drawText(QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size), Qt::AlignLeft,
-				 QString::number(min, 'f', min < 10 ? 1 : 0));
-		painter.drawText(QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size), Qt::AlignRight,
-				 QString::number(max, 'f', max < 10 ? 1 : 0));
+		lol_dashboard_draw_shadowed_text(painter,
+						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
+						 Qt::AlignLeft, QString::number(min, 'f', min < 10 ? 1 : 0));
+		lol_dashboard_draw_shadowed_text(painter,
+						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
+						 Qt::AlignRight, QString::number(max, 'f', max < 10 ? 1 : 0));
 		painter.setFont(QFont("Silom", title_size, QFont::Bold));
-		painter.drawText(QRect(card.left(), y + 14 + subtitle_size, card.width(), title_size), Qt::AlignHCenter,
-				 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
-							: "LoLPerformanceDashboard.MouseVelocity"));
+		lol_dashboard_draw_shadowed_text(painter,
+						 QRect(card.left(), y + 14 + subtitle_size, card.width(), title_size),
+						 Qt::AlignHCenter,
+						 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
+									: "LoLPerformanceDashboard.MouseVelocity"));
 		painter.setFont(QFont("Silom", text_size, QFont::Bold));
 		painter.setPen(theme_.active);
-		painter.drawText(QRect(card.left(), y + 14 + subtitle_size + title_size, card.width(), text_size),
-				 Qt::AlignHCenter, QString::number(current, 'f', current < 10 ? 1 : 0));
+		lol_dashboard_draw_shadowed_text(
+			painter, QRect(card.left(), y + 14 + subtitle_size + title_size, card.width(), text_size),
+			Qt::AlignHCenter, QString::number(current, 'f', current < 10 ? 1 : 0));
 	}
 }
 
