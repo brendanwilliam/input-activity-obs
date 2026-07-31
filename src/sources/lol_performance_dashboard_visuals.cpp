@@ -13,6 +13,10 @@ namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
 constexpr qreal hex_radius = 10.0;
+constexpr int dashboard_padding = 20;
+constexpr int title_size = 22;
+constexpr int subtitle_size = 18;
+constexpr int text_size = 30;
 
 QColor heat_color(int band)
 {
@@ -213,41 +217,60 @@ void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds)
 
 void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
+	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
-	painter.setFont(QFont("Silom", std::max(11, bounds.width() / 12), QFont::Bold));
+	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
 	const int half = bounds.height() / 2;
-	const auto alignment = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
-	painter.drawText(QRect(bounds.left(), bounds.top(), bounds.width(), half / 2), alignment | Qt::AlignVCenter,
+	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
+	painter.drawText(QRect(bounds.left(), bounds.top(), bounds.width(), half / 2), alignment,
 			 obs_module_text("MouseActivity.Distance"));
-	painter.drawText(QRect(bounds.left(), bounds.top() + half / 2, bounds.width(), half / 2),
-			 alignment | Qt::AlignVCenter, distance_label());
-	painter.drawText(QRect(bounds.left(), bounds.top() + half, bounds.width(), half / 2),
-			 alignment | Qt::AlignVCenter, obs_module_text("MouseActivity.Clicks"));
+	painter.setFont(QFont("Silom", text_size, QFont::Bold));
+	painter.drawText(QRect(bounds.left(), bounds.top() + half / 2, bounds.width(), half / 2), alignment,
+			 distance_label());
+	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
+	painter.drawText(QRect(bounds.left(), bounds.top() + half, bounds.width(), half / 2), alignment,
+			 obs_module_text("MouseActivity.Clicks"));
+	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.drawText(QRect(bounds.left(), bounds.top() + half + half / 2, bounds.width(),
 			       bounds.height() - half - half / 2),
-			 alignment | Qt::AlignVCenter, QString::number(total_clicks_));
+			 alignment, QString::number(total_clicks_));
 }
 
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
+	const QRect content =
+		bounds.adjusted(dashboard_padding, dashboard_padding, -dashboard_padding, -dashboard_padding);
+	if (content.width() < 4 || content.height() < 4)
+		return;
 	painter.setPen(Qt::white);
-	painter.setFont(QFont("Silom", std::max(11, bounds.width() / 12), QFont::Bold));
-	const int pad = 6, title = 18, row = std::max(32, bounds.height() / 5);
-	painter.drawText(bounds.adjusted(pad, 0, -pad, 0),
-			 (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignTop, obs_module_text("LiveKeys"));
+	painter.setFont(QFont("Silom", title_size, QFont::Bold));
+	constexpr int active_row_height = 96;
+	const int active_title_height = title_size + dashboard_padding / 2;
+	const int active_top = std::max(content.top(), content.bottom() - active_title_height - active_row_height + 1);
+	const Qt::Alignment edge = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
+	painter.drawText(QRect(content.left(), active_top, content.width(), active_title_height),
+			 edge | Qt::AlignVCenter, obs_module_text("LiveKeys"));
 	const int visible = std::min(4, int(active_keys_.size()));
+	const int gap = 10;
+	const int key_width = std::max(1, (content.width() - (visible - 1) * gap) / 4);
+	const int count_height = subtitle_size;
+	const QRect active_row(content.left(), active_top + active_title_height, content.width(), active_row_height);
 	for (int index = 0; index < visible; ++index) {
 		const auto &key = active_keys_[active_keys_.size() - visible + index];
-		const int width = std::max(1, (bounds.width() - pad * 2 - (visible - 1) * 4) / 4);
-		const int x = right_aligned
-				      ? bounds.right() - pad - (visible - index) * width - (visible - index - 1) * 4 + 1
-				      : bounds.left() + pad + index * (width + 4);
+		const int x = right_aligned ? active_row.right() - (visible - index) * key_width -
+						      (visible - index - 1) * gap + 1
+					    : active_row.left() + index * (key_width + gap);
 		QColor fill = held_.count(key.code) && held_.at(key.code) ? theme_.active : theme_.inactive;
 		painter.setBrush(fill);
 		painter.setPen(Qt::NoPen);
-		painter.drawRoundedRect(QRect(x, bounds.top() + title, width, row - 12), 5, 5);
+		const QRect key_rect(x, active_row.top() + count_height, key_width, active_row.height() - count_height);
+		painter.drawRoundedRect(key_rect, 6, 6);
 		painter.setPen(Qt::white);
-		painter.drawText(QRect(x, bounds.top() + title, width, row - 12), Qt::AlignCenter, key.label);
+		painter.setFont(QFont("Silom", subtitle_size));
+		painter.drawText(QRect(x, active_row.top(), key_width, count_height),
+				 Qt::AlignHCenter | Qt::AlignVCenter, QString::number(key.count));
+		painter.setFont(QFont("Silom", text_size, QFont::Bold));
+		painter.drawText(key_rect, Qt::AlignCenter, key.label);
 	}
 	std::vector<active_key> keys;
 	for (const auto &[code, count] : press_counts_)
@@ -260,17 +283,25 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		keys.empty() ? 1 : std::max_element(keys.begin(), keys.end(), [](const auto &a, const auto &b) {
 					   return a.count < b.count;
 				   })->count;
+	const int chart_title_height = title_size + dashboard_padding / 2;
+	painter.setFont(QFont("Silom", title_size, QFont::Bold));
+	painter.drawText(QRect(content.left(), content.top(), content.width(), chart_title_height),
+			 edge | Qt::AlignVCenter, obs_module_text("LoLPerformanceDashboard.MostUsedKeys"));
+	const QRect chart(content.left(), content.top() + chart_title_height, content.width(),
+			  std::max(1, active_top - content.top() - chart_title_height - dashboard_padding));
+	const int row_height = std::max(1, chart.height() / 8);
 	for (int index = 0; index < int(keys.size()); ++index) {
-		const int y = bounds.bottom() - (index + 1) * std::max(16, (bounds.height() - row) / 8) + 1;
-		const int bar = std::max(1, int((bounds.width() - pad * 2) * keys[index].count / max));
-		const QRect bar_rect(right_aligned ? bounds.right() - pad - bar + 1 : bounds.left() + pad, y + 11, bar,
+		const int y = chart.bottom() - (index + 1) * row_height + 1;
+		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
+		const QRect bar_rect(right_aligned ? chart.right() - bar + 1 : chart.left(), y + row_height - 7, bar,
 				     6);
 		painter.setBrush(theme_.inactive);
 		painter.setPen(Qt::NoPen);
 		painter.drawRoundedRect(bar_rect, 3, 3);
 		painter.setPen(Qt::white);
-		painter.drawText(QRect(bounds.left() + pad, y, bounds.width() - pad * 2, 11),
-				 (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
+		painter.setFont(QFont("Silom", subtitle_size));
+		painter.drawText(QRect(chart.left(), y, chart.width(), std::max(1, row_height - 7)),
+				 edge | Qt::AlignVCenter,
 				 QString("%1  %2").arg(keys[index].label).arg(keys[index].count));
 	}
 }
@@ -278,8 +309,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds) const
 {
 	for (int metric = 0; metric < 2; ++metric) {
-		const QRect card(bounds.left() + metric * bounds.width() / 2, bounds.top(), bounds.width() / 2,
-				 bounds.height());
+		const QRect card(bounds.left() + metric * bounds.width() / 2 + dashboard_padding / 2,
+				 bounds.top() + dashboard_padding / 2, bounds.width() / 2 - dashboard_padding,
+				 bounds.height() - dashboard_padding);
 		std::vector<double> values;
 		for (const auto &sample : samples_)
 			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
@@ -293,10 +325,14 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		const double q1 = values[(values.size() - 1) / 4], median = values[(values.size() - 1) / 2],
 			     q3 = values[(values.size() - 1) * 3 / 4];
 		painter.setPen(Qt::white);
-		painter.setFont(QFont("Silom", std::max(10, card.height() / 6), QFont::Bold));
+		painter.setFont(QFont("Silom", title_size, QFont::Bold));
 		painter.drawText(card.adjusted(6, 0, -6, 0), Qt::AlignTop | Qt::AlignHCenter,
 				 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
 							: "LoLPerformanceDashboard.MouseVelocity"));
+		painter.setFont(QFont("Silom", text_size, QFont::Bold));
+		painter.setPen(theme_.active);
+		painter.drawText(card.adjusted(6, title_size + 2, -6, 0), Qt::AlignTop | Qt::AlignHCenter,
+				 QString::number(current, 'f', current < 10 ? 1 : 0));
 		const int y = card.center().y();
 		painter.drawLine(x(min), y, x(max), y);
 		painter.setBrush(theme_.inactive);
@@ -305,7 +341,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.setPen(QPen(theme_.active, 3));
 		painter.drawLine(x(current), y - 13, x(current), y + 13);
 		painter.setPen(Qt::white);
-		painter.setFont(QFont("Silom", std::max(9, card.height() / 8)));
+		painter.setFont(QFont("Silom", subtitle_size));
 		painter.drawText(card.adjusted(6, 0, -6, -2), Qt::AlignBottom | Qt::AlignLeft,
 				 QString::number(min, 'f', min < 10 ? 1 : 0));
 		painter.drawText(card.adjusted(6, 0, -6, -2), Qt::AlignBottom | Qt::AlignRight,

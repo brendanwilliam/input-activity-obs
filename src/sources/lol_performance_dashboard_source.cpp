@@ -171,7 +171,7 @@ private:
 		const league_safe_area::rect mouse =
 			minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 				     : league_safe_area::rect{0.0, player.top, player.left, 1.0};
-		QRect mouse_bounds = scaled(mouse);
+		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -20);
 		const int summary_width = std::max(64, mouse_bounds.width() / 4);
 		const QRect summary = minimap_left ? QRect(mouse_bounds.left(), mouse_bounds.top(), summary_width,
 							   mouse_bounds.height())
@@ -179,9 +179,9 @@ private:
 							   summary_width, mouse_bounds.height());
 		QRect heat_space = mouse_bounds;
 		if (minimap_left)
-			heat_space.setLeft(summary.right() + 1);
+			heat_space.setLeft(summary.right() + 21);
 		else
-			heat_space.setRight(summary.left() - 1);
+			heat_space.setRight(summary.left() - 21);
 		const double game_aspect = double(width()) / std::max(1u, height());
 		const int heat_height =
 			std::min(heat_space.height(), int(std::lround(heat_space.width() / game_aspect)));
@@ -189,8 +189,10 @@ private:
 		const QRect heatmap(minimap_left ? heat_space.right() - heat_width + 1 : heat_space.left(),
 				    heat_space.top() + (heat_space.height() - heat_height) / 2, heat_width,
 				    heat_height);
-		return {scaled({top_left.right, 0.0, top_right.left, top_right.bottom}), heatmap, summary, scaled(key),
-			!minimap_left};
+		const league_safe_area::rect header{top_left.right, 0.0, top_right.left,
+						    std::max(top_right.bottom, 0.12)};
+		return {scaled(header).adjusted(20, 0, -20, 0), heatmap, summary,
+			scaled(key).adjusted(20, 20, -20, -20), !minimap_left};
 	}
 
 	obs_source_t *source_{};
