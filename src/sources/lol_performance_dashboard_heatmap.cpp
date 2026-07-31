@@ -26,6 +26,7 @@ void lol_dashboard_visuals::reset()
 	press_counts_.clear();
 	active_keys_.clear();
 	samples_.clear();
+	session_samples_.clear();
 	current_.fill(0.0);
 	bucket_start_ = total_clicks_ = 0;
 	distance_ = 0.0;

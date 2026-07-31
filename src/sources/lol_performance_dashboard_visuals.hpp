@@ -77,6 +77,7 @@ private:
 	std::unordered_map<uint16_t, uint64_t> press_counts_;
 	std::vector<active_key> active_keys_;
 	std::deque<std::array<double, 2>> samples_;
+	std::vector<std::array<double, 2>> session_samples_;
 	std::array<double, 2> current_{};
 	uint64_t bucket_start_{}, total_clicks_{};
 	double distance_{};

@@ -72,6 +72,7 @@ void lol_dashboard_visuals::advance(uint64_t now)
 		bucket_start_ = now;
 	while (now - bucket_start_ >= second_ns) {
 		samples_.push_back(current_);
+		session_samples_.push_back(current_);
 		if (samples_.size() > size_t(window_))
 			samples_.pop_front();
 		current_.fill(0.0);
@@ -222,7 +223,6 @@ void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds)
 		painter.drawPolygon(hexagon);
 	}
 }
-
 void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
 	Q_UNUSED(right_aligned);
@@ -249,7 +249,6 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 		painter, QRect(bounds.left(), clicks_top + label_height, bounds.width(), group_height - label_height),
 		alignment, QString::number(total_clicks_));
 }
-
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
 	const QRect content =
@@ -340,10 +339,11 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		const QRect card(bounds.left() + metric * (card_width + intensity_spacing), bounds.top(), card_width,
 				 bounds.height());
 		std::vector<double> values;
+		for (const auto &sample : session_samples_)
+			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
 		std::array<double, 2> total = current_;
 		for (const auto &sample : samples_) {
 			total[metric] += sample[metric];
-			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
 		}
 		const double current = metric == 0 ? total[0] / window_ / 2800.0 * 2.54 : total[1] * 60.0 / window_;
 		values.push_back(current);

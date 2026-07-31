@@ -14,6 +14,7 @@
 #include <array>
 #include <memory>
 #include <obs-module.h>
+#include <obs-hotkey.h>
 
 extern "C" {
 #include <graphics/graphics.h>
@@ -31,9 +32,21 @@ QColor obs_color(uint32_t value)
 
 class dashboard_source {
 public:
-	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source) { update(settings); }
+	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source)
+	{
+		reset_hotkey_ = obs_hotkey_register_source(
+			source_, "reset_lol_performance_dashboard",
+			obs_module_text("LoLPerformanceDashboard.ResetHotkey"),
+			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
+				if (pressed)
+					static_cast<dashboard_source *>(data)->reset_statistics();
+			},
+			this);
+		update(settings);
+	}
 	~dashboard_source()
 	{
+		obs_hotkey_unregister(reset_hotkey_);
 		if (texture_) {
 			obs_enter_graphics();
 			gs_texture_destroy(texture_);
@@ -207,6 +220,7 @@ private:
 	bool discard_backlog_{};
 	gs_texture_t *texture_{};
 	int texture_width_{}, texture_height_{};
+	obs_hotkey_id reset_hotkey_{OBS_INVALID_HOTKEY_ID};
 };
 
 bool auto_detect_clicked(obs_properties_t *, obs_property_t *, void *data)
