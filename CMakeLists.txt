@@ -61,6 +61,7 @@ target_sources(
     src/sources/league_safe_area_layout.cpp
     src/sources/league_safe_area_source.hpp
     src/sources/league_safe_area_source.cpp
+    src/sources/lol_performance_dashboard_source.cpp
     src/sources/activity/core.inc
     src/sources/activity/key_labels.inc
     src/sources/activity/live_keys.inc
