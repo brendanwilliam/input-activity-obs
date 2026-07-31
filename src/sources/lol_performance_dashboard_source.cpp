@@ -55,7 +55,8 @@ public:
 		heatmap_ = {QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.heatmap_gradient")),
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_low"))),
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_middle"))),
-			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high")))};
+			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high"))),
+			    qreal(std::clamp(int(obs_data_get_int(settings, "lol_dashboard.hex_size")), 2, 100))};
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
@@ -182,9 +183,10 @@ private:
 		const int summary_width = std::max(1, mouse_bounds.width() / 4 - 20);
 		const double game_aspect = double(width()) / std::max(1u, height());
 		const int heat_height = std::max(1, int(std::lround(heat_width / game_aspect)));
+		const int heat_top = std::clamp(mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, 0,
+						std::max(0, int(height()) - heat_height));
 		const QRect heatmap(minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(),
-				    mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, heat_width,
-				    heat_height);
+				    heat_top, heat_width, heat_height);
 		const QRect summary(minimap_left ? heatmap.left() - summary_width - 20 : heatmap.right() + 21,
 				    mouse_bounds.top(), summary_width, mouse_bounds.height());
 		const league_safe_area::rect header{top_left.right, 0.0, top_right.left,
@@ -290,6 +292,8 @@ obs_properties_t *properties(void *data)
 				       obs_module_text("MouseActivity.CustomGradientMiddle"));
 	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_high",
 				       obs_module_text("MouseActivity.CustomGradientHigh"));
+	obs_properties_add_int_slider(heatmap_properties, "lol_dashboard.hex_size",
+				      obs_module_text("MouseActivity.HexSize"), 2, 100, 1);
 	if (data) {
 		auto *settings = obs_source_get_settings(static_cast<dashboard_source *>(data)->source());
 		heatmap_gradient_changed(heatmap_properties, nullptr, settings);
@@ -341,6 +345,7 @@ void register_lol_performance_dashboard_source()
 		obs_data_set_default_int(settings, "lol_dashboard.gradient_low", 0xffeb6325);
 		obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
 		obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
+		obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
 	};
 	obs_register_source(&info);
 }

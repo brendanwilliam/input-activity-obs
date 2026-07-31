@@ -23,8 +23,8 @@ constexpr double minimap_min_height = 0.196;
 constexpr double minimap_max_height = 0.385;
 constexpr double team_frames_min_width = 0.100;
 constexpr double team_frames_max_width = 0.210;
-constexpr double team_frames_min_height = 0.052;
-constexpr double team_frames_max_height = 0.110;
+constexpr double team_frames_min_height = 0.104;
+constexpr double team_frames_max_height = 0.220;
 constexpr double team_frames_min_gap = 0.006;
 constexpr double team_frames_max_gap = 0.013;
 

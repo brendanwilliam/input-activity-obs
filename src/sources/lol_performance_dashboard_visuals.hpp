@@ -27,6 +27,7 @@ struct lol_dashboard_heatmap {
 	QColor low{235, 99, 37};
 	QColor middle{250, 204, 21};
 	QColor high{239, 68, 68};
+	qreal radius{10.0};
 };
 
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);

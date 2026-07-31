@@ -12,22 +12,21 @@ namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
-constexpr qreal hex_radius = 10.0;
 constexpr int dashboard_padding = 20;
 constexpr int title_size = 22;
 constexpr int subtitle_size = 18;
 constexpr int text_size = 30;
-
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
 				      int rolling_window_seconds, const QRect &game_frame, const QRect &heatmap_bounds)
 {
 	theme_ = theme;
+	const bool hex_size_changed = heatmap_.radius != heatmap.radius;
 	heatmap_ = heatmap;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
-	if (heatmap_bounds != heatmap_bounds_)
+	if (heatmap_bounds != heatmap_bounds_ || hex_size_changed)
 		resize_heatmap(heatmap_bounds);
 }
 void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
@@ -35,6 +34,7 @@ void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 	heatmap_bounds_ = bounds;
 	hex_bins_.clear();
 	last_heat_point_.reset();
+	const qreal hex_radius = heatmap_.radius;
 	const qreal hex_width = std::sqrt(3.0) * hex_radius;
 	const int columns = std::max(1, int(std::ceil(bounds.width() / hex_width)) + 1);
 	const int rows = std::max(1, int(std::ceil(bounds.height() / (1.5 * hex_radius))) + 1);
@@ -196,23 +196,23 @@ QString lol_dashboard_visuals::distance_label() const
 void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds) const
 {
 	painter.setClipRect(bounds);
+	const qreal hex_radius = heatmap_.radius;
 	std::vector<uint64_t> values;
 	for (const auto &bin : hex_bins_)
 		if (bin.value)
 			values.push_back(bin.value);
-	if (values.empty())
-		return;
 	std::sort(values.begin(), values.end());
-	const uint64_t q1 = values[(values.size() - 1) / 4], q2 = values[(values.size() - 1) / 2],
-		       q3 = values[(values.size() - 1) * 3 / 4];
+	const uint64_t q1 = values.empty() ? 0 : values[(values.size() - 1) / 4];
+	const uint64_t q2 = values.empty() ? 0 : values[(values.size() - 1) / 2];
+	const uint64_t q3 = values.empty() ? 0 : values[(values.size() - 1) * 3 / 4];
 	for (const auto &bin : hex_bins_) {
-		if (!bin.value)
-			continue;
 		const int band = bin.value <= q1 ? 0 : bin.value <= q2 ? 1 : bin.value <= q3 ? 2 : 3;
-		QColor fill = lol_dashboard_heatmap_color(heatmap_, theme_, band);
-		fill.setAlpha(150);
+		QColor fill = bin.value ? lol_dashboard_heatmap_color(heatmap_, theme_, band) : QColor(Qt::black);
+		fill.setAlpha(bin.value ? 150 : 38);
 		painter.setBrush(fill);
-		painter.setPen(QPen(lol_dashboard_heatmap_color(heatmap_, theme_, band), 0.75));
+		painter.setPen(Qt::NoPen);
+		if (bin.value)
+			painter.setPen(QPen(lol_dashboard_heatmap_color(heatmap_, theme_, band), 0.75));
 		QPolygonF hexagon;
 		for (int corner = 0; corner < 6; ++corner) {
 			const qreal angle = (30.0 + corner * 60.0) * M_PI / 180.0;
