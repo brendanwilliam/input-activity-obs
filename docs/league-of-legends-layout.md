@@ -1,18 +1,21 @@
 # League of Legends HUD layout
 
-This document defines the configuration-driven placement contract for issue
+This document defines the configuration-driven overlay contract for issue
 [#30](https://github.com/brendanwilliam/input-activity-obs/issues/30). It is
-the implementation authority for a managed OBS layout that keeps Input
-Activity visualizations out of League of Legends' persistent HUD.
+the implementation authority for the **League Safe Area** OBS source, which
+shows where an Input Activity visualization can be placed without covering
+League of Legends' persistent HUD.
 
 The calibration images and their settings are in
 [`references/league-of-legends/hud`](../references/league-of-legends/hud/).
 
 ## Scope
 
-The layout engine only avoids persistent HUD. It does not reserve space for
-temporary gameplay content such as the shop, expanded scoreboard, quest
-prompts, death recap, or floating combat text.
+The source only avoids persistent HUD. It does not reserve space for temporary
+gameplay content such as the shop, expanded scoreboard, quest prompts, death
+recap, or floating combat text. It never creates, moves, or otherwise manages
+OBS scene items: align its game-frame-sized canvas manually with the League
+capture.
 
 `GlobalScale` is intentionally excluded. It does not move or resize the
 persistent UI regions used for placement.
@@ -52,7 +55,22 @@ Read only these fields from the `[General]` and `[HUD]` sections of
 Do not read, persist, or log key bindings from `input.ini` as part of this
 feature. They do not determine HUD geometry.
 
-## Exclusion regions
+## Safe-area source
+
+The registered source ID is `input-activity-league-safe-area`; the existing
+`input-activity` source ID is unchanged. It starts transparent at `1×1` until
+it accepts a selected `game.cfg`, then its dimensions are exactly `Width ×
+Height` from that file. In particular, a right-aligned 2560×1440 League window
+on a 3440×1440 desktop produces a 2560×1440 source.
+
+Its properties store only the selected `game.cfg` path. The status text and
+**Reload now** action do not save game settings. The source watches that file
+and its parent directory, polls its modification time and size every 500 ms,
+and debounces reloads by 250 ms. Invalid, incomplete, or temporarily missing
+writes keep the last valid overlay visible and report the condition in status.
+No game configuration contents or input bindings are logged.
+
+## Exclusion regions and calibration
 
 Represent each exclusion as a normalized half-open rectangle
 `[left, top, right, bottom)`. The layout engine creates the union of these
@@ -67,25 +85,27 @@ rectangles and subtracts it from the full game frame.
 | Scoreboard margin | Top center | None | A fixed conservative margin for the persistent score display. |
 | Toolbar margin | Left edge | None | A fixed conservative margin for the persistent left toolbar. |
 
+All values are normalized to the game frame and were measured from the
+committed reference captures. Chat and minimap dimensions interpolate linearly
+between their endpoints; their lower-corner anchors do not move.
+
+| Region | Normalized calibrated bounds or endpoints |
+| --- | --- |
+| Player HUD | `[0.315, 0.755, 0.685, 1.000)` |
+| Scoreboard margin | `[0.385, 0.000, 0.615, 0.075)` |
+| Toolbar margin | `[0.000, 0.180, 0.052, 0.700)` |
+| Team frames, right | `[0.875, 0.165, 0.985, 0.655)`; horizontally mirrored on the left |
+| Chat, `0…100` | width `0.180…0.345`, height `0.155…0.355`, lower left |
+| Minimap, `0…3` | width `0.140…0.275`, height `0.250…0.485`, lower right; mirror for `FlipMiniMap=1` |
+
 When `FlipMiniMap=1`, the minimap moves to the lower-left and can overlap the
 chat exclusion. This is expected: take the union of the two rectangles rather
 than selecting one over the other.
 
-## Placement and refresh
-
-1. Build the exclusions from the current configuration.
-2. Subtract them from the game frame and rank the remaining rectangles by
-   whether they can contain the requested source size, then by usable area.
-3. Place only Input Activity scene items explicitly marked as managed by this
-   layout feature. Never move an unrelated user item.
-4. Store a fingerprint of all layout inputs and the game-frame bounds.
-5. When the fingerprint changes, recompute the proposal. Present an Apply
-   Layout action by default; an eventual automatic refresh may update only
-   unchanged managed items.
-
-The source must retain a manual placement escape hatch. A generated layout is
-an initial placement and a refreshable recommendation, not an ownership claim
-over the user's scene.
+The source takes the deterministic union of all exclusions and subtracts it
+from the full game frame using normalized half-open rectangles. It renders only
+the resulting safe rectangles as translucent green over a transparent canvas;
+it does not fill excluded regions, render labels, or change scene positioning.
 
 ## Calibration and tests
 
@@ -97,7 +117,8 @@ and add them to a versioned calibration table. Tests should cover:
 - both minimap sides through horizontal mirroring;
 - team frames on both sides;
 - the union of chat and a left-side minimap; and
-- a 16:9 game frame embedded in a wider desktop capture.
+- an invalid update retaining the previous valid model; and
+- a 2560×1440 game frame embedded in a wider desktop capture.
 
 Use the same normalized values for a 16:9 or ultrawide game frame. New game
 patches or materially changed HUD artwork require new captures and a review

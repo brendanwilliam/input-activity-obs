@@ -57,6 +57,10 @@ target_sources(
     src/input/keycodes.h
     src/sources/activity_sources.hpp
     src/sources/activity_sources.cpp
+    src/sources/league_safe_area_layout.hpp
+    src/sources/league_safe_area_layout.cpp
+    src/sources/league_safe_area_source.hpp
+    src/sources/league_safe_area_source.cpp
     src/sources/activity/core.inc
     src/sources/activity/key_labels.inc
     src/sources/activity/live_keys.inc
@@ -74,3 +78,15 @@ target_sources(
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(
+    league-safe-area-layout-test
+    tests/league_safe_area_layout_test.cpp
+    src/sources/league_safe_area_layout.cpp
+  )
+  target_include_directories(league-safe-area-layout-test PRIVATE src)
+  target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
+  add_test(NAME league-safe-area-layout COMMAND league-safe-area-layout-test)
+endif()

@@ -1,0 +1,57 @@
+#include "sources/league_safe_area_layout.hpp"
+
+#include <cmath>
+#include <string>
+
+using namespace league_safe_area;
+
+namespace {
+std::string config_text(double minimap, int chat, int flip, int team, int width = 2560, int height = 1440)
+{
+	return "[General]\nWidth=" + std::to_string(width) + "\nHeight=" + std::to_string(height) +
+	       "\nWindowMode=2\n[HUD]\nMinimapScale=" + std::to_string(minimap) +
+	       "\nFlipMiniMap=" + std::to_string(flip) + "\nChatScale=" + std::to_string(chat) +
+	       "\nShowTeamFramesOnLeft=" + std::to_string(team) + "\n";
+}
+
+bool require(bool value)
+{
+	return value;
+}
+} // namespace
+
+int main()
+{
+	auto minimum = parse_game_config(config_text(0, 0, 0, 0));
+	auto maximum = parse_game_config(config_text(3, 100, 0, 0));
+	if (!require(minimum.value && maximum.value))
+		return 1;
+	auto min_model = make_model(*minimum.value);
+	auto max_model = make_model(*maximum.value);
+	if (!require(max_model.exclusions[1].left < min_model.exclusions[1].left) ||
+	    !require(max_model.exclusions[2].right > min_model.exclusions[2].right))
+		return 1;
+	auto flipped = parse_game_config(config_text(3, 100, 1, 1));
+	if (!require(static_cast<bool>(flipped.value)))
+		return 1;
+	auto flipped_model = make_model(*flipped.value);
+	if (!require(flipped_model.exclusions[1].left == 0.0) ||
+	    !require(std::abs(flipped_model.exclusions[3].left - 0.015) < 0.000001) ||
+	    !require(flipped_model.exclusions[2].left == 0.0))
+		return 1;
+	for (const auto &safe : flipped_model.safe_regions) {
+		if (!require(!contains(flipped_model.exclusions[1], safe)) ||
+		    !require(!contains(flipped_model.exclusions[2], safe)))
+			return 1;
+	}
+	auto invalid = parse_game_config("[General]\nWidth=2560\n");
+	if (!require(!invalid.value))
+		return 1;
+	auto retained = min_model;
+	if (invalid.value)
+		retained = make_model(*invalid.value);
+	if (!require(retained.game.width == 2560 && retained.game.height == 1440))
+		return 1;
+	auto embedded_game = parse_game_config(config_text(1.5, 27, 0, 0, 2560, 1440));
+	return require(embedded_game.value && make_model(*embedded_game.value).game.width == 2560) ? 0 : 1;
+}
