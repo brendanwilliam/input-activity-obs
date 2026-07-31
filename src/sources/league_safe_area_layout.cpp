@@ -8,18 +8,15 @@
 
 namespace league_safe_area {
 namespace {
-constexpr rect player_hud{0.315, 0.755, 0.685, 1.0};
-constexpr rect score_margin{0.385, 0.0, 0.615, 0.075};
-constexpr rect toolbar_margin{0.0, 0.18, 0.052, 0.70};
-constexpr rect team_frames_right{0.875, 0.165, 0.985, 0.655};
-constexpr double chat_min_width = 0.180;
-constexpr double chat_max_width = 0.345;
-constexpr double chat_min_height = 0.155;
-constexpr double chat_max_height = 0.355;
-constexpr double minimap_min_width = 0.140;
-constexpr double minimap_max_width = 0.275;
-constexpr double minimap_min_height = 0.250;
-constexpr double minimap_max_height = 0.485;
+// Measured from the 2560x1440 annotated game-frame capture. The top-right
+// reserve includes enemy information and the death-recap area.
+constexpr rect player_hud{0.277, 0.818, 0.660, 1.0};
+constexpr rect top_left_reserve{0.0, 0.0, 0.156, 0.118};
+constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
+constexpr double minimap_min_width = 0.120;
+constexpr double minimap_max_width = 0.208;
+constexpr double minimap_min_height = 0.200;
+constexpr double minimap_max_height = 0.383;
 
 std::string trim(std::string value)
 {
@@ -51,11 +48,6 @@ std::optional<double> decimal(const std::string &value)
 rect mirrored(rect value)
 {
 	return {1.0 - value.right, value.top, 1.0 - value.left, value.bottom};
-}
-
-rect lower_left(double width, double height)
-{
-	return {0.0, 1.0 - height, width, 1.0};
 }
 
 rect lower_right(double width, double height)
@@ -147,16 +139,12 @@ parse_result parse_game_config(std::string_view contents)
 
 model make_model(const config &game)
 {
-	const double chat = static_cast<double>(game.chat_scale) / 100.0;
 	const double minimap = game.minimap_scale / 3.0;
-	const rect chat_rect = lower_left(interpolate(chat_min_width, chat_max_width, chat),
-					  interpolate(chat_min_height, chat_max_height, chat));
 	const rect minimap_rect = lower_right(interpolate(minimap_min_width, minimap_max_width, minimap),
 					      interpolate(minimap_min_height, minimap_max_height, minimap));
 	model result{game,
-		     {player_hud, game.flip_minimap ? mirrored(minimap_rect) : minimap_rect, chat_rect,
-		      game.team_frames_left ? mirrored(team_frames_right) : team_frames_right, score_margin,
-		      toolbar_margin},
+		     {player_hud, game.flip_minimap ? mirrored(minimap_rect) : minimap_rect, top_left_reserve,
+		      top_right_reserve},
 		     {{0.0, 0.0, 1.0, 1.0}}};
 	for (const rect &exclusion : result.exclusions)
 		result.safe_regions = subtract(result.safe_regions, exclusion);

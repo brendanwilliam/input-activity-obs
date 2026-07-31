@@ -29,19 +29,21 @@ int main()
 	auto min_model = make_model(*minimum.value);
 	auto max_model = make_model(*maximum.value);
 	if (!require(max_model.exclusions[1].left < min_model.exclusions[1].left) ||
-	    !require(max_model.exclusions[2].right > min_model.exclusions[2].right))
+	    !require(std::abs(max_model.exclusions[0].left - 0.277) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[0].top - 0.818) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[2].right - 0.156) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001))
 		return 1;
 	auto flipped = parse_game_config(config_text(3, 100, 1, 1));
 	if (!require(static_cast<bool>(flipped.value)))
 		return 1;
 	auto flipped_model = make_model(*flipped.value);
 	if (!require(flipped_model.exclusions[1].left == 0.0) ||
-	    !require(std::abs(flipped_model.exclusions[3].left - 0.015) < 0.000001) ||
-	    !require(flipped_model.exclusions[2].left == 0.0))
+	    !require(std::abs(flipped_model.exclusions[1].right - 0.208) < 0.000001))
 		return 1;
 	for (const auto &safe : flipped_model.safe_regions) {
 		if (!require(!contains(flipped_model.exclusions[1], safe)) ||
-		    !require(!contains(flipped_model.exclusions[2], safe)))
+		    !require(!contains(flipped_model.exclusions[3], safe)))
 			return 1;
 	}
 	auto invalid = parse_game_config("[General]\nWidth=2560\n");

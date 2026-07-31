@@ -49,8 +49,7 @@ Read only these fields from the `[General]` and `[HUD]` sections of
 | `Width`, `Height`, `WindowMode` | Identify the configured game frame and select calibration data. |
 | `MinimapScale` | Size the lower-corner minimap exclusion. |
 | `FlipMiniMap` | Mirror the minimap exclusion from right to left. |
-| `ChatScale` | Size the lower-left chat exclusion. |
-| `ShowTeamFramesOnLeft` | Place the team-frame exclusion on the left; otherwise place it on the right. |
+| `ChatScale`, `ShowTeamFramesOnLeft` | Validate the selected `game.cfg`; the annotated target does not reserve a fixed chat or team-frame area. |
 
 Do not read, persist, or log key bindings from `input.ini` as part of this
 feature. They do not determine HUD geometry.
@@ -83,29 +82,24 @@ rectangles and subtracts it from the full game frame.
 
 | Region | Anchor | Inputs | Rule |
 | --- | --- | --- | --- |
-| Player HUD | Bottom center | None | A fixed, calibrated rectangle. Do not scale it with `GlobalScale`. |
-| Minimap | Bottom right by default | `MinimapScale`, `FlipMiniMap` | Interpolate its calibrated size from `MinimapScale`; mirror horizontally when flipped. Reserve associated persistent minimap controls as part of the same rectangle. |
-| Chat | Bottom left | `ChatScale` | Interpolate its calibrated size from `ChatScale`. Use the expanded-chat envelope from the references. |
-| Team frames | Left or right | `ShowTeamFramesOnLeft` | Use the calibrated vertical frame strip, mirrored to the selected side. |
-| Scoreboard margin | Top center | None | A fixed conservative margin for the persistent score display. |
-| Toolbar margin | Left edge | None | A fixed conservative margin for the persistent left toolbar. |
+| Player HUD | Bottom center | None | A fixed, tightly calibrated rectangle. |
+| Minimap | Bottom right by default | `MinimapScale`, `FlipMiniMap` | Interpolate its measured size from `MinimapScale`; mirror horizontally when flipped. |
+| Top-left reserve | Top left | None | Fixed reserve from the annotated game-frame capture. |
+| Enemy info and death recap | Top right | None | Fixed reserve from the annotated game-frame capture. |
 
 All values are normalized to the game frame and were measured from the
-committed reference captures. Chat and minimap dimensions interpolate linearly
-between their endpoints; their lower-corner anchors do not move.
+annotated 2560×1440 game-frame capture. Minimap dimensions interpolate
+linearly between their endpoints; the lower-corner anchor does not move.
 
 | Region | Normalized calibrated bounds or endpoints |
 | --- | --- |
-| Player HUD | `[0.315, 0.755, 0.685, 1.000)` |
-| Scoreboard margin | `[0.385, 0.000, 0.615, 0.075)` |
-| Toolbar margin | `[0.000, 0.180, 0.052, 0.700)` |
-| Team frames, right | `[0.875, 0.165, 0.985, 0.655)`; horizontally mirrored on the left |
-| Chat, `0…100` | width `0.180…0.345`, height `0.155…0.355`, lower left |
-| Minimap, `0…3` | width `0.140…0.275`, height `0.250…0.485`, lower right; mirror for `FlipMiniMap=1` |
+| Player HUD | `[0.277, 0.818, 0.660, 1.000)` |
+| Top-left reserve | `[0.000, 0.000, 0.156, 0.118)` |
+| Enemy info and death recap | `[0.796, 0.000, 1.000, 0.058)` |
+| Minimap, `0…3` | width `0.120…0.208`, height `0.200…0.383`, lower right; mirror for `FlipMiniMap=1` |
 
-When `FlipMiniMap=1`, the minimap moves to the lower-left and can overlap the
-chat exclusion. This is expected: take the union of the two rectangles rather
-than selecting one over the other.
+When `FlipMiniMap=1`, the minimap moves to the lower-left. The source takes the
+union of all exclusions, including any overlap with the fixed reserves.
 
 The source takes the deterministic union of all exclusions and subtracts it
 from the full game frame using normalized half-open rectangles. It renders only
@@ -117,11 +111,9 @@ it does not fill excluded regions, render labels, or change scene positioning.
 Before implementation, measure the persistent bounds in the reference images
 and add them to a versioned calibration table. Tests should cover:
 
-- chat minimum and maximum;
 - minimap minimum and maximum;
 - both minimap sides through horizontal mirroring;
-- team frames on both sides;
-- the union of chat and a left-side minimap; and
+- the top-left and top-right measured reserves;
 - an invalid update retaining the previous valid model; and
 - a 2560×1440 game frame embedded in a wider desktop capture.
 
