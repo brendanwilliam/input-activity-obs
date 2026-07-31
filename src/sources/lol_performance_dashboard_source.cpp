@@ -183,8 +183,7 @@ private:
 		const int summary_width = std::max(1, mouse_bounds.width() / 4 - 20);
 		const double game_aspect = double(width()) / std::max(1u, height());
 		const int heat_height = std::max(1, int(std::lround(heat_width / game_aspect)));
-		const int heat_top = std::clamp(mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, 0,
-						std::max(0, int(height()) - heat_height));
+		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
 		const QRect heatmap(minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(),
 				    heat_top, heat_width, heat_height);
 		const QRect summary(minimap_left ? heatmap.left() - summary_width - 20 : heatmap.right() + 21,
