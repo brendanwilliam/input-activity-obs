@@ -178,7 +178,7 @@ private:
 		const league_safe_area::rect mouse =
 			minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 				     : league_safe_area::rect{0.0, player.top, player.left, 1.0};
-		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -20);
+		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -40);
 		const int heat_width = mouse_bounds.width() / 2;
 		const int summary_width = std::max(1, mouse_bounds.width() / 4 - 20);
 		const double game_aspect = double(width()) / std::max(1u, height());
