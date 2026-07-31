@@ -30,8 +30,8 @@ int main()
 	auto max_model = make_model(*maximum.value);
 	if (!require(max_model.exclusions[1].left < min_model.exclusions[1].left) ||
 	    !require(std::abs(max_model.exclusions[0].left - 0.277) < 0.000001) ||
-	    !require(std::abs(max_model.exclusions[0].top - 0.818) < 0.000001) ||
-	    !require(std::abs(max_model.exclusions[2].right - 0.156) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[0].top - 0.866) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[2].right - 0.134) < 0.000001) ||
 	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001))
 		return 1;
 	auto flipped = parse_game_config(config_text(3, 100, 1, 1));

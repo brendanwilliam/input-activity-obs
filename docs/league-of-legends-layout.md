@@ -93,8 +93,8 @@ linearly between their endpoints; the lower-corner anchor does not move.
 
 | Region | Normalized calibrated bounds or endpoints |
 | --- | --- |
-| Player HUD | `[0.277, 0.818, 0.660, 1.000)` |
-| Top-left reserve | `[0.000, 0.000, 0.156, 0.118)` |
+| Player HUD | `[0.277, 0.866, 0.660, 1.000)` |
+| Top-left reserve | `[0.000, 0.000, 0.134, 0.107)` |
 | Enemy info and death recap | `[0.796, 0.000, 1.000, 0.058)` |
 | Minimap, `0…3` | width `0.120…0.208`, height `0.200…0.383`, lower right; mirror for `FlipMiniMap=1` |
 
