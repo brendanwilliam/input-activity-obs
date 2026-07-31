@@ -22,6 +22,7 @@
 #include <atomic>
 #include <mutex>
 #include <array>
+#include <cstddef>
 #include <deque>
 #include <string>
 #include <vector>
@@ -70,7 +71,7 @@ struct input_data {
 	/* used for the mouse motion event */
 	mouse_event_data last_mouse_movement{};
 
-	/* Mutex needs to be locked */
+	/* Mutex needs to be locked. Copies only trace records not already present locally. */
 	void copy(const input_data *other);
 
 	void dispatch_uiohook_event(const uiohook_event *event, trace_event context);
