@@ -16,7 +16,7 @@ constexpr double top_left_hud_min_width = 0.125;
 constexpr double top_left_hud_max_width = 0.192;
 constexpr double top_left_hud_min_height = 0.080;
 constexpr double top_left_hud_max_height = 0.118;
-constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
+constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.040};
 constexpr double minimap_min_width = 0.108;
 constexpr double minimap_max_width = 0.216;
 constexpr double minimap_min_height = 0.196;
