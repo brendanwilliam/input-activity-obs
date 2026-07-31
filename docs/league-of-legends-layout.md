@@ -99,7 +99,7 @@ linearly between their endpoints; the lower-corner anchor does not move.
 
 | Region | Normalized calibrated bounds or endpoints |
 | --- | --- |
-| Player HUD, `GlobalScale=0` | `[0.277, 0.858, 0.660, 1.000)` |
+| Player HUD, `GlobalScale=0` | `[0.290, 0.880, 0.650, 1.000)` |
 | Player HUD, `GlobalScale=1` | `[0.183, 0.820, 0.729, 1.000)` |
 | Top-left reserve, `GlobalScale=0` | `[0.000, 0.000, 0.125, 0.080)` |
 | Top-left reserve, `GlobalScale=1` | `[0.000, 0.000, 0.192, 0.118)` |
