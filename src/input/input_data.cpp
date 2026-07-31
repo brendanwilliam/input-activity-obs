@@ -34,8 +34,24 @@ void input_data::copy(const input_data *other)
 	last_wheel_event_time = other->last_wheel_event_time;
 	last_wheel_event = other->last_wheel_event;
 	last_event_type.store(other->last_event_type);
+	if (other->trace.empty()) {
+		trace_sequence = other->trace_sequence;
+		return;
+	}
+	const uint64_t oldest = other->trace.front().sequence;
+	if (trace_sequence + 1 < oldest) {
+		trace.clear();
+		trace_sequence = oldest - 1;
+	}
+	const size_t first_new = trace_sequence < oldest ? 0
+							 : std::min(other->trace.size(),
+								    static_cast<size_t>(trace_sequence - oldest + 1));
+	for (size_t index = first_new; index < other->trace.size(); ++index) {
+		trace.push_back(other->trace[index]);
+		if (trace.size() > trace_capacity)
+			trace.pop_front();
+	}
 	trace_sequence = other->trace_sequence;
-	trace = other->trace;
 }
 
 void input_data::dispatch_uiohook_event(const uiohook_event *event, trace_event context)
@@ -80,9 +96,7 @@ void input_data::events_after(uint64_t &cursor, std::vector<trace_event> &out) c
 	const uint64_t oldest = trace.front().sequence;
 	if (cursor + 1 < oldest)
 		cursor = oldest - 1;
-	for (const auto &event : trace) {
-		if (event.sequence > cursor)
-			out.push_back(event);
-	}
+	const size_t first_new = static_cast<size_t>(cursor - oldest + 1);
+	out.assign(trace.begin() + static_cast<std::ptrdiff_t>(first_new), trace.end());
 	cursor = trace.back().sequence;
 }

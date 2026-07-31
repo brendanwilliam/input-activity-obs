@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refresh OBS Documentation Reference"
+  short_description: "Audit OBS docs and update the local API navigation guide"
+  default_prompt: "Use $refresh-obs-docs-reference to audit the official OBS documentation and refresh this repository's reference."

@@ -33,9 +33,10 @@ runs:
       run: |
         : Install Dependencies 🛍️
         echo ::group::Install Dependencies
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-        echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
-        brew install --quiet zsh
+        sudo apt-get update --quiet
+        sudo apt-get install --yes --quiet zsh python3-pip
+        python3 -m pip install --user --break-system-packages gersemi==0.21.0
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
         echo ::endgroup::
 
     - name: Run gersemi 🎛️
@@ -49,9 +50,11 @@ runs:
         : Run gersemi 🎛️
         if (( ${+RUNNER_DEBUG} )) setopt XTRACE
 
-        print ::group::Install gersemi
-        brew install --quiet obsproject/tools/gersemi
-        print ::endgroup::
+        if [[ "${RUNNER_OS}" == "macOS" ]]; then
+          print ::group::Install gersemi
+          brew install --quiet obsproject/tools/gersemi
+          print ::endgroup::
+        fi
 
         print ::group::Run gersemi
         local -a changes=(${(s:,:)CHANGED_FILES//[\[\]\'\"]/})
