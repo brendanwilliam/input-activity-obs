@@ -179,10 +179,13 @@ private:
 				     : league_safe_area::rect{0.0, player.top, player.left, 1.0};
 		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -20);
 		const int heat_width = mouse_bounds.width() / 2;
-		const int summary_width = mouse_bounds.width() / 4;
+		const int summary_width = std::max(1, mouse_bounds.width() / 4 - 20);
+		const double game_aspect = double(width()) / std::max(1u, height());
+		const int heat_height = std::max(1, int(std::lround(heat_width / game_aspect)));
 		const QRect heatmap(minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(),
-				    mouse_bounds.top(), heat_width, mouse_bounds.height());
-		const QRect summary(minimap_left ? mouse_bounds.left() + summary_width : heatmap.right() + 1,
+				    mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, heat_width,
+				    heat_height);
+		const QRect summary(minimap_left ? heatmap.left() - summary_width - 20 : heatmap.right() + 21,
 				    mouse_bounds.top(), summary_width, mouse_bounds.height());
 		const league_safe_area::rect header{top_left.right, 0.0, top_right.left,
 						    std::max(top_right.bottom, 0.12)};

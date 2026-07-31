@@ -120,7 +120,6 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 	last_motion_ = event;
 	last_heat_point_ = point;
 }
-
 size_t lol_dashboard_visuals::nearest_hex(const QPointF &point) const
 {
 	size_t result{};
@@ -134,7 +133,6 @@ size_t lol_dashboard_visuals::nearest_hex(const QPointF &point) const
 	}
 	return result;
 }
-
 QString lol_dashboard_visuals::key_label(uint16_t code) const
 {
 	if (code >= VC_A && code <= VC_Z)
@@ -185,7 +183,6 @@ QString lol_dashboard_visuals::key_label(uint16_t code) const
 		return "?";
 	}
 }
-
 QString lol_dashboard_visuals::distance_label() const
 {
 	double value = distance_ / 2800.0 * 2.54;
@@ -196,7 +193,6 @@ QString lol_dashboard_visuals::distance_label() const
 	}
 	return QString("%1 %2").arg(value, 0, 'f', value < 10.0 ? 2 : 1).arg(unit);
 }
-
 void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds) const
 {
 	painter.setClipRect(bounds);
@@ -232,25 +228,26 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
-	const int half = bounds.height() / 2;
+	const int group_height = std::max(1, (bounds.height() - 10) / 2);
+	const int label_height = group_height / 2;
+	const int clicks_top = bounds.top() + group_height + 10;
 	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top(), bounds.width(), half / 2),
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top(), bounds.width(), label_height),
 					 alignment, obs_module_text("MouseActivity.Distance"));
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(painter,
-					 QRect(bounds.left(), bounds.top() + half / 2, bounds.width(), half / 2),
-					 alignment, distance_label());
+	lol_dashboard_draw_shadowed_text(
+		painter, QRect(bounds.left(), bounds.top() + label_height, bounds.width(), group_height - label_height),
+		alignment, distance_label());
 	painter.setPen(Qt::white);
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top() + half, bounds.width(), half / 2),
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), clicks_top, bounds.width(), label_height),
 					 alignment, obs_module_text("MouseActivity.Clicks"));
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(painter,
-					 QRect(bounds.left(), bounds.top() + half + half / 2, bounds.width(),
-					       bounds.height() - half - half / 2),
-					 alignment, QString::number(total_clicks_));
+	lol_dashboard_draw_shadowed_text(
+		painter, QRect(bounds.left(), clicks_top + label_height, bounds.width(), group_height - label_height),
+		alignment, QString::number(total_clicks_));
 }
 
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
@@ -343,9 +340,12 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		const QRect card(bounds.left() + metric * (card_width + intensity_spacing), bounds.top(), card_width,
 				 bounds.height());
 		std::vector<double> values;
-		for (const auto &sample : samples_)
+		std::array<double, 2> total = current_;
+		for (const auto &sample : samples_) {
+			total[metric] += sample[metric];
 			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
-		const double current = metric == 0 ? current_[0] / 2800.0 * 2.54 : current_[1] * 60.0;
+		}
+		const double current = metric == 0 ? total[0] / window_ / 2800.0 * 2.54 : total[1] * 60.0 / window_;
 		values.push_back(current);
 		std::sort(values.begin(), values.end());
 		const double min = values.front(), max = values.back(), range = std::max(0.001, max - min);
