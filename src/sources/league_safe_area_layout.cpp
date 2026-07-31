@@ -12,10 +12,10 @@ namespace {
 // reserve includes enemy information and the death-recap area.
 constexpr rect player_hud_min{0.277, 0.866, 0.660, 1.0};
 constexpr rect player_hud_max{0.183, 0.820, 0.729, 1.0};
-constexpr double practice_tool_min_width = 0.107;
-constexpr double practice_tool_max_width = 0.156;
-constexpr double practice_tool_min_height = 0.077;
-constexpr double practice_tool_max_height = 0.118;
+constexpr double top_left_hud_min_width = 0.125;
+constexpr double top_left_hud_max_width = 0.192;
+constexpr double top_left_hud_min_height = 0.080;
+constexpr double top_left_hud_max_height = 0.118;
 constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
 constexpr double minimap_min_width = 0.108;
 constexpr double minimap_max_width = 0.216;
@@ -165,15 +165,15 @@ model make_model(const config &game)
 	const rect player_hud{interpolate(player_hud_min.left, player_hud_max.left, game.global_scale),
 			      interpolate(player_hud_min.top, player_hud_max.top, game.global_scale),
 			      interpolate(player_hud_min.right, player_hud_max.right, game.global_scale), 1.0};
-	const rect top_left_reserve{
-		0.0, 0.0, interpolate(practice_tool_min_width, practice_tool_max_width, game.practice_tool_scale),
-		interpolate(practice_tool_min_height, practice_tool_max_height, game.practice_tool_scale)};
+	const rect top_left_reserve{0.0, 0.0,
+				    interpolate(top_left_hud_min_width, top_left_hud_max_width, game.global_scale),
+				    interpolate(top_left_hud_min_height, top_left_hud_max_height, game.global_scale)};
 	const rect minimap_rect = lower_right(interpolate(minimap_min_width, minimap_max_width, minimap),
 					      interpolate(minimap_min_height, minimap_max_height, minimap));
-	const rect team_frames_rect =
-		above(minimap_rect, interpolate(team_frames_min_width, team_frames_max_width, game.global_scale),
-		      interpolate(team_frames_min_height, team_frames_max_height, game.global_scale),
-		      interpolate(team_frames_min_gap, team_frames_max_gap, game.global_scale));
+	const rect team_frames_rect = above(minimap_rect,
+					    interpolate(team_frames_min_width, team_frames_max_width, minimap),
+					    interpolate(team_frames_min_height, team_frames_max_height, minimap),
+					    interpolate(team_frames_min_gap, team_frames_max_gap, minimap));
 	model result{game,
 		     {player_hud, game.flip_minimap ? mirrored(minimap_rect) : minimap_rect, top_left_reserve,
 		      top_right_reserve, game.team_frames_left ? mirrored(team_frames_rect) : team_frames_rect},

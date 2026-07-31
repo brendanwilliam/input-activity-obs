@@ -34,7 +34,8 @@ int main()
 	    !require(max_model.exclusions[0].left < min_model.exclusions[0].left) ||
 	    !require(max_model.exclusions[0].top < min_model.exclusions[0].top) ||
 	    !require(max_model.exclusions[4].left < min_model.exclusions[4].left) ||
-	    !require(std::abs(max_model.exclusions[2].right - 0.107) < 0.000001) ||
+	    !require(std::abs(min_model.exclusions[2].right - 0.125) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[2].right - 0.192) < 0.000001) ||
 	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001))
 		return 1;
 	auto flipped = parse_game_config(config_text(1, 3, 100, 1, 1));
@@ -50,10 +51,12 @@ int main()
 		    !require(!contains(flipped_model.exclusions[3], safe)))
 			return 1;
 	}
-	auto larger_practice_hud = parse_game_config(
-		"[General]\nWidth=2560\nHeight=1440\nWindowMode=2\n[HUD]\nGlobalScale=0\nPracticeToolScale=1\nMinimapScale=1.23\nFlipMiniMap=0\nChatScale=27\nShowTeamFramesOnLeft=0\n");
-	if (!require(static_cast<bool>(larger_practice_hud.value)) ||
-	    !require(make_model(*larger_practice_hud.value).exclusions[2].right > min_model.exclusions[2].right))
+	auto mixed_scales = parse_game_config(config_text(0, 3, 27, 0, 0));
+	if (!require(static_cast<bool>(mixed_scales.value)))
+		return 1;
+	auto mixed_model = make_model(*mixed_scales.value);
+	if (!require(std::abs(mixed_model.exclusions[2].right - min_model.exclusions[2].right) < 0.000001) ||
+	    !require(std::abs(mixed_model.exclusions[4].left - max_model.exclusions[4].left) < 0.000001))
 		return 1;
 	auto invalid = parse_game_config("[General]\nWidth=2560\n");
 	if (!require(!invalid.value))
