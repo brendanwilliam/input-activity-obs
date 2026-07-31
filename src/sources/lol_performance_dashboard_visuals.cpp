@@ -31,31 +31,6 @@ void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lo
 		resize_heatmap(heatmap_bounds);
 }
 
-QColor lol_dashboard_visuals::heat_color(int band) const
-{
-	if (heatmap_.gradient == "theme")
-		return band < 2 ? theme_.inactive : theme_.active;
-	if (heatmap_.gradient == "custom") {
-		const qreal amount = band / 3.0;
-		const QColor &from = amount <= 0.5 ? heatmap_.low : heatmap_.middle;
-		const QColor &to = amount <= 0.5 ? heatmap_.middle : heatmap_.high;
-		const qreal segment = amount <= 0.5 ? amount * 2.0 : (amount - 0.5) * 2.0;
-		return {int(std::lround(from.red() + (to.red() - from.red()) * segment)),
-			int(std::lround(from.green() + (to.green() - from.green()) * segment)),
-			int(std::lround(from.blue() + (to.blue() - from.blue()) * segment))};
-	}
-	if (heatmap_.gradient == "lime") {
-		static const QColor colors[] = {{101, 163, 13}, {132, 204, 22}, {190, 242, 100}, {250, 204, 21}};
-		return colors[band];
-	}
-	if (heatmap_.gradient == "ocean") {
-		static const QColor colors[] = {{30, 64, 175}, {14, 116, 144}, {34, 197, 94}, {250, 204, 21}};
-		return colors[band];
-	}
-	static const QColor colors[] = {{59, 130, 246}, {6, 182, 212}, {250, 204, 21}, {239, 68, 68}};
-	return colors[band];
-}
-
 void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 {
 	heatmap_bounds_ = bounds;
@@ -190,6 +165,26 @@ QString lol_dashboard_visuals::key_label(uint16_t code) const
 		return "↵";
 	case VC_ESCAPE:
 		return "⎋";
+	case VC_MINUS:
+		return "-";
+	case VC_EQUALS:
+		return "=";
+	case VC_OPEN_BRACKET:
+		return "[";
+	case VC_CLOSE_BRACKET:
+		return "]";
+	case VC_SEMICOLON:
+		return ";";
+	case VC_QUOTE:
+		return "'";
+	case VC_COMMA:
+		return ",";
+	case VC_PERIOD:
+		return ".";
+	case VC_SLASH:
+		return "/";
+	case VC_BACK_QUOTE:
+		return "`";
 	default:
 		return "?";
 	}
@@ -222,10 +217,10 @@ void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds)
 		if (!bin.value)
 			continue;
 		const int band = bin.value <= q1 ? 0 : bin.value <= q2 ? 1 : bin.value <= q3 ? 2 : 3;
-		QColor fill = heat_color(band);
+		QColor fill = lol_dashboard_heatmap_color(heatmap_, theme_, band);
 		fill.setAlpha(150);
 		painter.setBrush(fill);
-		painter.setPen(QPen(heat_color(band), 0.75));
+		painter.setPen(QPen(lol_dashboard_heatmap_color(heatmap_, theme_, band), 0.75));
 		QPolygonF hexagon;
 		for (int corner = 0; corner < 6; ++corner) {
 			const qreal angle = (30.0 + corner * 60.0) * M_PI / 180.0;
@@ -317,7 +312,8 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	for (int index = 0; index < int(keys.size()); ++index) {
 		const int y = chart.bottom() - (index + 1) * row_height + 1;
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
-		const QRect bar_rect(right_aligned ? chart.right() - bar + 1 : chart.left(), y + row_height - 7, bar,
+		const int text_height = std::min(subtitle_size, std::max(1, row_height - 8));
+		const QRect bar_rect(right_aligned ? chart.right() - bar + 1 : chart.left(), y + text_height + 2, bar,
 				     6);
 		painter.setBrush(theme_.inactive);
 		painter.setPen(Qt::NoPen);
@@ -325,9 +321,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		painter.setPen(Qt::white);
 		painter.setFont(QFont("Silom", subtitle_size));
 		const QRect label_rect(right_aligned ? chart.right() - chart.width() / 3 + 1 : chart.left(), y,
-				       chart.width() / 3, std::max(1, row_height - 7));
+				       chart.width() / 3, text_height);
 		const QRect count_rect(right_aligned ? bar_rect.left() : bar_rect.right() - chart.width() / 3 + 1, y,
-				       chart.width() / 3, std::max(1, row_height - 7));
+				       chart.width() / 3, text_height);
 		painter.drawText(label_rect, (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
 				 keys[index].label);
 		painter.drawText(count_rect, (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,

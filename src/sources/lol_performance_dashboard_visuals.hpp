@@ -29,6 +29,8 @@ struct lol_dashboard_heatmap {
 	QColor high{239, 68, 68};
 };
 
+QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
+
 class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
@@ -56,7 +58,6 @@ private:
 	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds) const;
-	QColor heat_color(int band) const;
 	QString distance_label() const;
 	QString key_label(uint16_t code) const;
 	size_t nearest_hex(const QPointF &point) const;
