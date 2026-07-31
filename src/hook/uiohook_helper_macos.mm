@@ -305,7 +305,8 @@ namespace uiohook {
         @autoreleasepool {
             for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
                 const NSString *path = application.executableURL.path;
-                if ([path hasSuffix:@"Contents/LoL/Game/League Of Legends"])
+                if ([path hasSuffix:@"Contents/LoL/Game/League Of Legends"] ||
+                    [path hasSuffix:@"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"])
                     return true;
             }
         }
