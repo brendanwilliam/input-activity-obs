@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-31
 
 ### Added
 
@@ -34,9 +34,3 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Mouse Activity now places distance above the chart and coordinates below it, with shared left/right alignment and automatic metric or imperial distance scaling. Input Statistics no longer presents mouse distance totals.
 - Legacy individual OBS source registrations have been removed; create and configure `Input Activity` for every mode.
 - Build, formatting, and security automation now validate pull requests and pushes to `main`.
-
-## [1.0.0] - 2026-07-26
-
-### Added
-
-- Initial Input Activity macOS OBS plugin release.
