@@ -292,7 +292,6 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.count > b.count; });
 	if (keys.size() > 8)
 		keys.resize(8);
-	std::reverse(keys.begin(), keys.end());
 	const uint64_t max =
 		keys.empty() ? 1 : std::max_element(keys.begin(), keys.end(), [](const auto &a, const auto &b) {
 					   return a.count < b.count;
@@ -307,7 +306,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 			  std::max(1, content.bottom() - chart_top - chart_title_height + 1));
 	const int row_height = std::max(1, chart.height() / 8);
 	for (int index = 0; index < int(keys.size()); ++index) {
-		const int y = chart.bottom() - (index + 1) * row_height + 1;
+		const int y = chart.top() + index * row_height;
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
 		const int text_height = std::min(subtitle_size, std::max(1, row_height - 8));
 		const QRect bar_rect(right_aligned ? chart.right() - bar + 1 : chart.left(), y + text_height + 2, bar,
