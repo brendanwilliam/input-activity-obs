@@ -3,11 +3,17 @@
 #include "league_safe_area_layout.hpp"
 
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainter>
 #include <QString>
+#include <QStringList>
 #include <algorithm>
 #include <atomic>
 #include <fstream>
@@ -26,7 +32,7 @@ constexpr const char *path_key = "league_safe_area.game_cfg";
 
 class league_safe_area_source {
 public:
-	league_safe_area_source(obs_data_t *settings)
+	league_safe_area_source(obs_source_t *source, obs_data_t *settings) : source(source)
 	{
 		QObject::connect(&watcher, &QFileSystemWatcher::fileChanged,
 				 [this](const QString &) { request_reload(); });
@@ -125,6 +131,25 @@ public:
 		reload_requested = true;
 		debounce_seconds = 0.25F;
 	}
+	void auto_detect()
+	{
+		for (const QString &candidate : game_config_candidates()) {
+			std::ifstream file(candidate.toStdString());
+			if (!file)
+				continue;
+			const std::string contents((std::istreambuf_iterator<char>(file)),
+						   std::istreambuf_iterator<char>());
+			if (!league_safe_area::parse_game_config(contents).value)
+				continue;
+			obs_data_t *settings = obs_source_get_settings(source);
+			obs_data_set_string(settings, path_key, candidate.toUtf8().constData());
+			obs_source_update(source, settings);
+			obs_data_release(settings);
+			set_status("Detected League game.cfg");
+			return;
+		}
+		set_status("Could not find a valid League game.cfg; choose it manually");
+	}
 	QString current_status() const
 	{
 		std::lock_guard<std::mutex> lock(status_mutex);
@@ -135,6 +160,57 @@ public:
 	std::atomic_bool reload_requested{false};
 
 private:
+	static QStringList game_config_candidates()
+	{
+		QStringList candidates;
+#ifdef __APPLE__
+		candidates << "/Applications/League of Legends.app/Contents/LoL/Config/game.cfg"
+			   << QDir::homePath() + "/Applications/League of Legends.app/Contents/LoL/Config/game.cfg";
+#elif defined(_WIN32)
+		const auto add_install = [&candidates](const QString &root) {
+			if (!root.isEmpty())
+				candidates << QDir::fromNativeSeparators(root) +
+						      "/Riot Games/League of Legends/Config/game.cfg";
+		};
+		add_install(qEnvironmentVariable("SystemDrive", "C:"));
+		add_install(qEnvironmentVariable("ProgramFiles"));
+		add_install(qEnvironmentVariable("ProgramW6432"));
+		add_install(qEnvironmentVariable("ProgramFiles(x86)"));
+		for (const QString &metadata :
+		     {qEnvironmentVariable("ProgramData") + "/Riot Games/RiotClientInstalls.json",
+		      qEnvironmentVariable("LOCALAPPDATA") + "/Riot Games/RiotClientInstalls.json"}) {
+			QFile file(QDir::fromNativeSeparators(metadata));
+			if (!file.open(QIODevice::ReadOnly))
+				continue;
+			QStringList values;
+			collect_json_strings(QJsonDocument::fromJson(file.readAll()).object(), values);
+			for (const QString &value : values) {
+				const int game = value.indexOf("League of Legends", 0, Qt::CaseInsensitive);
+				if (game >= 0)
+					candidates << QDir::fromNativeSeparators(value.left(game + 17)) +
+							      "/Config/game.cfg";
+			}
+		}
+#endif
+		candidates.removeDuplicates();
+		return candidates;
+	}
+
+#ifdef _WIN32
+	static void collect_json_strings(const QJsonValue &value, QStringList &strings)
+	{
+		if (value.isString()) {
+			strings << value.toString();
+		} else if (value.isArray()) {
+			for (const QJsonValue &item : value.toArray())
+				collect_json_strings(item, strings);
+		} else if (value.isObject()) {
+			for (const QJsonValue &item : value.toObject())
+				collect_json_strings(item, strings);
+		}
+	}
+#endif
+
 	void reload()
 	{
 		reload_requested = false;
@@ -169,6 +245,7 @@ private:
 	}
 
 	QString path;
+	obs_source_t *source{};
 	std::pair<qint64, qint64> last_stamp{};
 	float poll_seconds{};
 	float debounce_seconds{};
@@ -187,11 +264,19 @@ bool reload_clicked(obs_properties_t *, obs_property_t *, void *data)
 	return true;
 }
 
+bool auto_detect_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	static_cast<league_safe_area_source *>(data)->auto_detect();
+	return true;
+}
+
 obs_properties_t *properties(void *data)
 {
 	auto *props = obs_properties_create();
 	obs_properties_add_path(props, path_key, obs_module_text("LeagueSafeArea.GameCfg"), OBS_PATH_FILE, "game.cfg",
 				nullptr);
+	obs_properties_add_button2(props, "league_safe_area.auto_detect", obs_module_text("LeagueSafeArea.AutoDetect"),
+				   auto_detect_clicked, data);
 	const QString status = data ? static_cast<league_safe_area_source *>(data)->current_status() : "";
 	obs_properties_add_text(props, "league_safe_area.status", status.toUtf8().constData(), OBS_TEXT_INFO);
 	obs_properties_add_button2(props, "league_safe_area.reload", obs_module_text("LeagueSafeArea.Reload"),
@@ -209,8 +294,8 @@ void register_league_safe_area_source()
 	info.get_name = [](void *) {
 		return obs_module_text("LeagueSafeArea");
 	};
-	info.create = [](obs_data_t *settings, obs_source_t *) {
-		return static_cast<void *>(new league_safe_area_source(settings));
+	info.create = [](obs_data_t *settings, obs_source_t *source) {
+		return static_cast<void *>(new league_safe_area_source(source, settings));
 	};
 	info.destroy = [](void *data) {
 		delete static_cast<league_safe_area_source *>(data);

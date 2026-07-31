@@ -63,12 +63,17 @@ it accepts a selected `game.cfg`, then its dimensions are exactly `Width ×
 Height` from that file. In particular, a right-aligned 2560×1440 League window
 on a 3440×1440 desktop produces a 2560×1440 source.
 
-Its properties store only the selected `game.cfg` path. The status text and
-**Reload now** action do not save game settings. The source watches that file
-and its parent directory, polls its modification time and size every 500 ms,
-and debounces reloads by 250 ms. Invalid, incomplete, or temporarily missing
-writes keep the last valid overlay visible and report the condition in status.
-No game configuration contents or input bindings are logged.
+Its properties store only the selected `game.cfg` path. **Auto-detect League
+game.cfg** searches standard macOS app-bundle locations and Windows Riot Games
+installation locations, including Riot Client metadata for custom-drive
+installs, then accepts only a candidate with valid required HUD settings. A
+manually selected path remains an override. The
+status text and **Reload now** action do not save game settings. The source
+watches that file and its parent directory, polls its modification time and
+size every 500 ms, and debounces reloads by 250 ms. Invalid, incomplete, or
+temporarily missing writes keep the last valid overlay visible and report the
+condition in status. No game configuration contents or input bindings are
+logged.
 
 ## Exclusion regions and calibration
 
