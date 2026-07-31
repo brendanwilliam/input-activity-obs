@@ -30,7 +30,8 @@ int main()
 		return 1;
 	auto min_model = make_model(*minimum.value);
 	auto max_model = make_model(*maximum.value);
-	if (!require(max_model.exclusions[1].left < min_model.exclusions[1].left) ||
+	if (!require(std::abs(min_model.exclusions[0].top - 0.858) < 0.000001) ||
+	    !require(max_model.exclusions[1].left < min_model.exclusions[1].left) ||
 	    !require(max_model.exclusions[0].left < min_model.exclusions[0].left) ||
 	    !require(max_model.exclusions[0].top < min_model.exclusions[0].top) ||
 	    !require(max_model.exclusions[4].left < min_model.exclusions[4].left) ||

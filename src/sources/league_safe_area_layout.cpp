@@ -10,7 +10,7 @@ namespace league_safe_area {
 namespace {
 // Measured from the 2560x1440 annotated game-frame capture. The top-right
 // reserve includes enemy information and the death-recap area.
-constexpr rect player_hud_min{0.277, 0.866, 0.660, 1.0};
+constexpr rect player_hud_min{0.277, 0.858, 0.660, 1.0};
 constexpr rect player_hud_max{0.183, 0.820, 0.729, 1.0};
 constexpr double top_left_hud_min_width = 0.125;
 constexpr double top_left_hud_max_width = 0.192;
