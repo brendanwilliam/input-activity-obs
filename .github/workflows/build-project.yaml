@@ -14,6 +14,13 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Restore macOS OBS dependencies
+        uses: actions/cache@v4
+        with:
+          path: .deps
+          key: macos-26-${{ runner.arch }}-obs-deps-${{ hashFiles('buildspec.json', 'cmake/macos/buildspec.cmake', 'cmake/common/buildspec_common.cmake') }}
+          restore-keys: |
+            macos-26-${{ runner.arch }}-obs-deps-
       - name: Configure
         run: cmake --preset macos-ci
       - name: Build

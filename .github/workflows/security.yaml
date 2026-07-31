@@ -20,6 +20,13 @@ jobs:
         with:
           languages: c-cpp
           queries: security-extended
+      - name: Restore macOS OBS dependencies
+        uses: actions/cache@v4
+        with:
+          path: .deps
+          key: macos-26-${{ runner.arch }}-obs-deps-${{ hashFiles('buildspec.json', 'cmake/macos/buildspec.cmake', 'cmake/common/buildspec_common.cmake') }}
+          restore-keys: |
+            macos-26-${{ runner.arch }}-obs-deps-
       - run: cmake --preset macos-ci
       - run: cmake --build --preset macos-ci
       - uses: github/codeql-action/analyze@v3
