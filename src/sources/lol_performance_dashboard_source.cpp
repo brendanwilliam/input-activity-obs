@@ -7,7 +7,9 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QPainter>
+#include <QDir>
 #include <QString>
+#include <QStringList>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -113,8 +115,39 @@ public:
 		if (parsed.value)
 			layout = league_safe_area::make_model(*parsed.value);
 	}
+	void auto_detect()
+	{
+		for (const QString &candidate : game_config_candidates()) {
+			QFile file(candidate);
+			if (!file.open(QIODevice::ReadOnly) ||
+			    !league_safe_area::parse_game_config(file.readAll().toStdString()).value)
+				continue;
+			obs_data_t *settings = obs_source_get_settings(source);
+			obs_data_set_string(settings, path_key, candidate.toUtf8().constData());
+			obs_source_update(source, settings);
+			obs_data_release(settings);
+			return;
+		}
+	}
 
 private:
+	static QStringList game_config_candidates()
+	{
+		QStringList candidates;
+#ifdef __APPLE__
+		candidates << "/Applications/League of Legends.app/Contents/LoL/Config/game.cfg"
+			   << QDir::homePath() + "/Applications/League of Legends.app/Contents/LoL/Config/game.cfg";
+#elif defined(_WIN32)
+		for (const QString &root :
+		     {qEnvironmentVariable("SystemDrive", "C:"), qEnvironmentVariable("ProgramFiles"),
+		      qEnvironmentVariable("ProgramW6432"), qEnvironmentVariable("ProgramFiles(x86)")})
+			if (!root.isEmpty())
+				candidates << QDir::fromNativeSeparators(root) +
+						      "/Riot Games/League of Legends/Config/game.cfg";
+#endif
+		candidates.removeDuplicates();
+		return candidates;
+	}
 	struct panels {
 		QRect header, heatmap, keys;
 	};
@@ -277,11 +310,18 @@ bool reload_clicked(obs_properties_t *, obs_property_t *, void *data)
 	static_cast<dashboard_source *>(data)->reload();
 	return true;
 }
+bool auto_detect_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	static_cast<dashboard_source *>(data)->auto_detect();
+	return true;
+}
 obs_properties_t *properties(void *data)
 {
 	auto *p = obs_properties_create();
 	obs_properties_add_path(p, path_key, obs_module_text("LeagueSafeArea.GameCfg"), OBS_PATH_FILE, "game.cfg",
 				nullptr);
+	obs_properties_add_button2(p, "lol_dashboard.auto_detect", obs_module_text("LeagueSafeArea.AutoDetect"),
+				   auto_detect_clicked, data);
 	obs_properties_add_button2(p, "lol_dashboard.reload", obs_module_text("LeagueSafeArea.Reload"), reload_clicked,
 				   data);
 	auto *frame = obs_properties_add_group(p, "lol_dashboard.frame",
