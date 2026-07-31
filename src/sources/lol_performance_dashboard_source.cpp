@@ -130,6 +130,7 @@ public:
 			return;
 		}
 	}
+	void reset_statistics() { visuals_.reset(); }
 
 private:
 	struct panels {
@@ -177,15 +178,11 @@ private:
 			minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 				     : league_safe_area::rect{0.0, player.top, player.left, 1.0};
 		QRect mouse_bounds = scaled(mouse).adjusted(20, 20, -20, -20);
-		const int summary_width = std::clamp(mouse_bounds.width() / 5, 120, 180);
-		const double game_aspect = double(width()) / std::max(1u, height());
-		const int heat_width = std::min(mouse_bounds.width() - summary_width - 20,
-						int(std::lround(mouse_bounds.height() * game_aspect)));
-		const int heat_height = std::min(mouse_bounds.height(), int(std::lround(heat_width / game_aspect)));
+		const int heat_width = mouse_bounds.width() / 2;
+		const int summary_width = mouse_bounds.width() / 4;
 		const QRect heatmap(minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(),
-				    mouse_bounds.top() + (mouse_bounds.height() - heat_height) / 2, heat_width,
-				    heat_height);
-		const QRect summary(minimap_left ? heatmap.left() - summary_width - 20 : heatmap.right() + 21,
+				    mouse_bounds.top(), heat_width, mouse_bounds.height());
+		const QRect summary(minimap_left ? mouse_bounds.left() + summary_width : heatmap.right() + 1,
 				    mouse_bounds.top(), summary_width, mouse_bounds.height());
 		const league_safe_area::rect header{top_left.right, 0.0, top_right.left,
 						    std::max(top_right.bottom, 0.12)};
@@ -218,6 +215,11 @@ bool reload_clicked(obs_properties_t *, obs_property_t *, void *data)
 	static_cast<dashboard_source *>(data)->reload();
 	return true;
 }
+bool reset_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	static_cast<dashboard_source *>(data)->reset_statistics();
+	return true;
+}
 bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	obs_property_set_visible(obs_properties_get(props, "lol_dashboard.frame"),
@@ -241,6 +243,8 @@ obs_properties_t *properties(void *data)
 				   obs_module_text("LeagueSafeArea.AutoDetect"), auto_detect_clicked, data);
 	obs_properties_add_button2(properties, "lol_dashboard.reload", obs_module_text("LeagueSafeArea.Reload"),
 				   reload_clicked, data);
+	obs_properties_add_button2(properties, "lol_dashboard.reset",
+				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
 	auto *advanced = obs_properties_add_bool(properties, "lol_dashboard.advanced_positioning",
 						 obs_module_text("LoLPerformanceDashboard.AdvancedPositioning"));
 	obs_property_set_modified_callback(advanced, advanced_positioning_changed);

@@ -4,6 +4,22 @@
 
 namespace sources {
 
+void lol_dashboard_visuals::reset()
+{
+	for (auto &bin : hex_bins_)
+		bin.value = 0;
+	last_heat_point_.reset();
+	last_distance_.reset();
+	last_motion_.reset();
+	held_.clear();
+	press_counts_.clear();
+	active_keys_.clear();
+	samples_.clear();
+	current_.fill(0.0);
+	bucket_start_ = total_clicks_ = 0;
+	distance_ = 0.0;
+}
+
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band)
 {
 	if (heatmap.gradient == "theme")

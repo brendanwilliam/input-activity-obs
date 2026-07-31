@@ -37,6 +37,7 @@ public:
 		       int rolling_window_seconds, const QRect &game_frame, const QRect &heatmap_bounds);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
+	void reset();
 	void draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary, const QRect &keys,
 		  bool right_aligned) const;
 

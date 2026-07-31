@@ -265,7 +265,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	painter.setFont(QFont("Silom", title_size, QFont::Bold));
 	constexpr int active_row_height = 80;
 	const int active_title_height = title_size + dashboard_padding / 2;
-	const int active_top = std::max(content.top(), content.bottom() - active_title_height - active_row_height + 1);
+	const int active_top = content.top();
 	const Qt::Alignment edge = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
 	painter.drawText(QRect(content.left(), active_top, content.width(), active_title_height),
 			 edge | Qt::AlignVCenter, obs_module_text("LiveKeys"));
@@ -304,18 +304,20 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 				   })->count;
 	const int chart_title_height = title_size + dashboard_padding / 2;
 	painter.setFont(QFont("Silom", title_size, QFont::Bold));
-	painter.drawText(QRect(content.left(), content.top(), content.width(), chart_title_height),
-			 edge | Qt::AlignVCenter, obs_module_text("LoLPerformanceDashboard.MostUsedKeys"));
-	const QRect chart(content.left(), content.top() + chart_title_height, content.width(),
-			  std::max(1, active_top - content.top() - chart_title_height - dashboard_padding));
+	const int chart_top = active_top + active_title_height + active_row_height + dashboard_padding;
+	painter.drawText(QRect(content.left(), chart_top, content.width(), chart_title_height), edge | Qt::AlignVCenter,
+			 obs_module_text("LoLPerformanceDashboard.MostUsedKeys"));
+	const QRect chart(content.left(), chart_top + chart_title_height, content.width(),
+			  std::max(1, content.bottom() - chart_top - chart_title_height + 1));
 	const int row_height = std::max(1, chart.height() / 8);
 	for (int index = 0; index < int(keys.size()); ++index) {
 		const int y = chart.bottom() - (index + 1) * row_height + 1;
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
 		const int text_height = std::min(subtitle_size, std::max(1, row_height - 8));
 		const QRect bar_rect(right_aligned ? chart.right() - bar + 1 : chart.left(), y + text_height + 2, bar,
-				     6);
-		painter.setBrush(theme_.inactive);
+				     12);
+		const auto pressed = held_.find(keys[index].code);
+		painter.setBrush(pressed != held_.end() && pressed->second ? theme_.active : theme_.inactive);
 		painter.setPen(Qt::NoPen);
 		painter.drawRoundedRect(bar_rect, 3, 3);
 		painter.setPen(Qt::white);
