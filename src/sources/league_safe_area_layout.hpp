@@ -17,7 +17,6 @@ struct config {
 	int width{};
 	int height{};
 	int window_mode{};
-	double global_scale{1.0};
 	double minimap_scale{};
 	bool flip_minimap{};
 	int chat_scale{};

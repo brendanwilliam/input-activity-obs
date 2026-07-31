@@ -9,7 +9,7 @@ namespace {
 std::string config_text(double minimap, int chat, int flip, int team, int width = 2560, int height = 1440)
 {
 	return "[General]\nWidth=" + std::to_string(width) + "\nHeight=" + std::to_string(height) +
-	       "\nWindowMode=2\n[HUD]\nGlobalScale=0.63\nMinimapScale=" + std::to_string(minimap) +
+	       "\nWindowMode=2\n[HUD]\nMinimapScale=" + std::to_string(minimap) +
 	       "\nFlipMiniMap=" + std::to_string(flip) + "\nChatScale=" + std::to_string(chat) +
 	       "\nShowTeamFramesOnLeft=" + std::to_string(team) + "\n";
 }
@@ -33,11 +33,6 @@ int main()
 	    !require(std::abs(max_model.exclusions[0].top - 0.866) < 0.000001) ||
 	    !require(std::abs(max_model.exclusions[2].right - 0.134) < 0.000001) ||
 	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001))
-		return 1;
-	auto smaller_hud = parse_game_config(
-		"[General]\nWidth=2560\nHeight=1440\nWindowMode=2\n[HUD]\nGlobalScale=0.5\nMinimapScale=1.23\nFlipMiniMap=0\nChatScale=27\nShowTeamFramesOnLeft=0\n");
-	if (!require(static_cast<bool>(smaller_hud.value)) ||
-	    !require(make_model(*smaller_hud.value).exclusions[2].right < max_model.exclusions[2].right))
 		return 1;
 	auto flipped = parse_game_config(config_text(3, 100, 1, 1));
 	if (!require(static_cast<bool>(flipped.value)))
