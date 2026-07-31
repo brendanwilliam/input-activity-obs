@@ -36,7 +36,7 @@ public:
 	{
 		reset_hotkey_ = obs_hotkey_register_source(
 			source_, "reset_lol_performance_dashboard",
-			obs_module_text("LoLPerformanceDashboard.ResetHotkey"),
+			obs_module_text("LoLPerformanceDashboard.ResetStatistics"),
 			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 				if (pressed)
 					static_cast<dashboard_source *>(data)->reset_statistics();
