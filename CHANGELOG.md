@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - A League Safe Area OBS source that reads `game.cfg` and renders placement-safe regions around persistent League HUD elements.
+- LoL Performance Dashboard overlays for League, including placement-aware input visualizations, session intensity statistics, configurable hexbins, automatic game detection, and dashboard reset controls.
 - A unified `Input Activity` OBS source with Live Keys, Mouse Activity, Input Intensity, and Input Statistics modes. Its shared appearance settings include a transparent-by-default background color.
 - Separate Live Keys sizing for alphanumeric and special-key labels.
 - A configurable Live Keys most-used bar chart alongside the live key row.

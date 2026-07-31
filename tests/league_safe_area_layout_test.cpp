@@ -39,7 +39,8 @@ int main()
 	    !require(max_model.exclusions[4].left < min_model.exclusions[4].left) ||
 	    !require(std::abs(min_model.exclusions[2].right - 0.125) < 0.000001) ||
 	    !require(std::abs(max_model.exclusions[2].right - 0.192) < 0.000001) ||
-	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001))
+	    !require(std::abs(max_model.exclusions[3].left - 0.796) < 0.000001) ||
+	    !require(std::abs(max_model.exclusions[4].bottom - max_model.exclusions[4].top - 0.220) < 0.000001))
 		return 1;
 	auto flipped = parse_game_config(config_text(1, 3, 100, 1, 1));
 	if (!require(static_cast<bool>(flipped.value)))

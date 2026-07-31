@@ -16,15 +16,15 @@ constexpr double top_left_hud_min_width = 0.125;
 constexpr double top_left_hud_max_width = 0.192;
 constexpr double top_left_hud_min_height = 0.080;
 constexpr double top_left_hud_max_height = 0.118;
-constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
+constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.040};
 constexpr double minimap_min_width = 0.108;
 constexpr double minimap_max_width = 0.216;
 constexpr double minimap_min_height = 0.196;
 constexpr double minimap_max_height = 0.385;
 constexpr double team_frames_min_width = 0.100;
 constexpr double team_frames_max_width = 0.210;
-constexpr double team_frames_min_height = 0.052;
-constexpr double team_frames_max_height = 0.110;
+constexpr double team_frames_min_height = 0.104;
+constexpr double team_frames_max_height = 0.220;
 constexpr double team_frames_min_gap = 0.006;
 constexpr double team_frames_max_gap = 0.013;
 
