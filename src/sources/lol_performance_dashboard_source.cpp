@@ -1,5 +1,6 @@
 #include "activity_sources.hpp"
 
+#include "../hook/uiohook_helper.hpp"
 #include "../input/input_broker.hpp"
 #include "league_safe_area_layout.hpp"
 
@@ -48,20 +49,21 @@ public:
 	void update(obs_data_t *settings)
 	{
 		path = QString::fromUtf8(obs_data_get_string(settings, path_key));
-		const int left = int(obs_data_get_int(settings, "lol_dashboard.frame_left"));
-		const int top = int(obs_data_get_int(settings, "lol_dashboard.frame_top"));
-		const int right = int(obs_data_get_int(settings, "lol_dashboard.frame_right"));
-		const int bottom = int(obs_data_get_int(settings, "lol_dashboard.frame_bottom"));
-		frame = {left, top, std::max(1, right - left + 1), std::max(1, bottom - top + 1)};
+		advanced_positioning = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
+		const int left = advanced_positioning ? int(obs_data_get_int(settings, "lol_dashboard.frame_left")) : 0;
+		const int top = advanced_positioning ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
 		window = std::clamp(int(obs_data_get_int(settings, "lol_dashboard.window")), 1, 60);
 		inactive = color(uint32_t(obs_data_get_int(settings, "activity.inactive_color")));
 		active = color(uint32_t(obs_data_get_int(settings, "activity.active_color")));
 		reload();
+		if (layout)
+			frame = {left, top, layout->game.width, layout->game.height};
 	}
 
 	void tick(float)
 	{
-		if (!layout)
+		visible = uiohook::league_game_is_running();
+		if (!layout || !visible)
 			return;
 		std::vector<input_data::trace_event> events;
 		input_data::button_map<uint16_t> keys, mouse;
@@ -76,7 +78,7 @@ public:
 
 	void draw(gs_effect_t *effect)
 	{
-		if (!layout)
+		if (!layout || !visible)
 			return;
 		const int width = layout->game.width, height = layout->game.height;
 		QImage image(width, height, QImage::Format_RGBA8888_Premultiplied);
@@ -106,6 +108,7 @@ public:
 
 	uint32_t width() const { return layout ? uint32_t(layout->game.width) : 1; }
 	uint32_t height() const { return layout ? uint32_t(layout->game.height) : 1; }
+	bool uses_advanced_positioning() const { return advanced_positioning; }
 	void reload()
 	{
 		QFile file(path);
@@ -292,6 +295,7 @@ private:
 	QString path;
 	QRect frame{0, 0, 1920, 1080};
 	int window{60};
+	bool advanced_positioning{}, visible{};
 	QColor inactive, active;
 	std::optional<league_safe_area::model> layout;
 	uint64_t cursor{}, bucket_start{};
@@ -315,6 +319,12 @@ bool auto_detect_clicked(obs_properties_t *, obs_property_t *, void *data)
 	static_cast<dashboard_source *>(data)->auto_detect();
 	return true;
 }
+bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const bool visible = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
+	obs_property_set_visible(obs_properties_get(props, "lol_dashboard.frame"), visible);
+	return true;
+}
 obs_properties_t *properties(void *data)
 {
 	auto *p = obs_properties_create();
@@ -324,18 +334,24 @@ obs_properties_t *properties(void *data)
 				   auto_detect_clicked, data);
 	obs_properties_add_button2(p, "lol_dashboard.reload", obs_module_text("LeagueSafeArea.Reload"), reload_clicked,
 				   data);
+	auto *advanced = obs_properties_add_bool(p, "lol_dashboard.advanced_positioning",
+						 obs_module_text("LoLPerformanceDashboard.AdvancedPositioning"));
+	obs_property_set_modified_callback(advanced, advanced_positioning_changed);
 	auto *frame = obs_properties_add_group(p, "lol_dashboard.frame",
 					       obs_module_text("LoLPerformanceDashboard.GameFrame"), OBS_GROUP_NORMAL,
 					       obs_properties_create());
 	auto *f = obs_property_group_content(frame);
-	for (const auto &[key, label] : std::array<std::pair<const char *, const char *>, 4>{
+	for (const auto &[key, label] : std::array<std::pair<const char *, const char *>, 2>{
 		     {{"lol_dashboard.frame_left", "LoLPerformanceDashboard.Left"},
-		      {"lol_dashboard.frame_top", "LoLPerformanceDashboard.Top"},
-		      {"lol_dashboard.frame_right", "LoLPerformanceDashboard.Right"},
-		      {"lol_dashboard.frame_bottom", "LoLPerformanceDashboard.Bottom"}}})
+		      {"lol_dashboard.frame_top", "LoLPerformanceDashboard.Top"}}})
 		obs_properties_add_int(f, key, obs_module_text(label), -32768, 32767, 1);
 	obs_properties_add_int_slider(p, "lol_dashboard.window", obs_module_text("LoLPerformanceDashboard.Window"), 1,
 				      60, 1);
+	if (data) {
+		obs_property_set_visible(frame, static_cast<dashboard_source *>(data)->uses_advanced_positioning());
+	} else {
+		obs_property_set_visible(frame, false);
+	}
 	return p;
 }
 } // namespace
@@ -372,8 +388,7 @@ void register_lol_performance_dashboard_source()
 	};
 	info.get_properties = properties;
 	info.get_defaults = [](obs_data_t *s) {
-		obs_data_set_default_int(s, "lol_dashboard.frame_right", 1919);
-		obs_data_set_default_int(s, "lol_dashboard.frame_bottom", 1079);
+		obs_data_set_default_bool(s, "lol_dashboard.advanced_positioning", false);
 		obs_data_set_default_int(s, "lol_dashboard.window", 60);
 		obs_data_set_default_int(s, "activity.inactive_color", 0xff425e62);
 		obs_data_set_default_int(s, "activity.active_color", 0xff83c1dd);

@@ -300,6 +300,18 @@ namespace uiohook {
         return result;
     }
 
+    bool league_game_is_running()
+    {
+        @autoreleasepool {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+                const NSString *path = application.executableURL.path;
+                if ([path hasSuffix:@"Contents/LoL/Game/League Of Legends"])
+                    return true;
+            }
+        }
+        return false;
+    }
+
     std::vector<target_window> target_windows()
     {
         std::vector<target_window> result;
