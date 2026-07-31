@@ -10,16 +10,23 @@ namespace league_safe_area {
 namespace {
 // Measured from the 2560x1440 annotated game-frame capture. The top-right
 // reserve includes enemy information and the death-recap area.
-constexpr rect player_hud{0.277, 0.866, 0.660, 1.0};
+constexpr rect player_hud_min{0.277, 0.866, 0.660, 1.0};
+constexpr rect player_hud_max{0.183, 0.820, 0.729, 1.0};
 constexpr double practice_tool_min_width = 0.107;
 constexpr double practice_tool_max_width = 0.156;
 constexpr double practice_tool_min_height = 0.077;
 constexpr double practice_tool_max_height = 0.118;
 constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
-constexpr double minimap_min_width = 0.120;
-constexpr double minimap_max_width = 0.208;
-constexpr double minimap_min_height = 0.200;
-constexpr double minimap_max_height = 0.383;
+constexpr double minimap_min_width = 0.108;
+constexpr double minimap_max_width = 0.216;
+constexpr double minimap_min_height = 0.196;
+constexpr double minimap_max_height = 0.385;
+constexpr double team_frames_min_width = 0.100;
+constexpr double team_frames_max_width = 0.210;
+constexpr double team_frames_min_height = 0.052;
+constexpr double team_frames_max_height = 0.110;
+constexpr double team_frames_min_gap = 0.006;
+constexpr double team_frames_max_gap = 0.013;
 
 std::string trim(std::string value)
 {
@@ -58,6 +65,11 @@ rect lower_right(double width, double height)
 	return {1.0 - width, 1.0 - height, 1.0, 1.0};
 }
 
+rect above(const rect &anchor, double width, double height, double gap)
+{
+	return {anchor.right - width, anchor.top - gap - height, anchor.right, anchor.top - gap};
+}
+
 bool overlaps(const rect &a, const rect &b)
 {
 	return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -94,7 +106,7 @@ double interpolate(double minimum, double maximum, double fraction)
 parse_result parse_game_config(std::string_view contents)
 {
 	std::optional<int> width, height, window_mode, chat_scale, flip_minimap, team_frames_left;
-	std::optional<double> practice_tool_scale, minimap_scale;
+	std::optional<double> global_scale, practice_tool_scale, minimap_scale;
 	std::istringstream input{std::string(contents)};
 	std::string line;
 	std::string section;
@@ -119,7 +131,9 @@ parse_result parse_game_config(std::string_view contents)
 			else if (key == "WindowMode")
 				window_mode = integer(value);
 		} else if (section == "HUD") {
-			if (key == "PracticeToolScale")
+			if (key == "GlobalScale")
+				global_scale = decimal(value);
+			else if (key == "PracticeToolScale")
 				practice_tool_scale = decimal(value);
 			else if (key == "MinimapScale")
 				minimap_scale = decimal(value);
@@ -131,14 +145,16 @@ parse_result parse_game_config(std::string_view contents)
 				team_frames_left = integer(value);
 		}
 	}
-	if (!width || !height || !window_mode || !minimap_scale || !flip_minimap || !chat_scale || !team_frames_left)
+	if (!width || !height || !window_mode || !global_scale || !minimap_scale || !flip_minimap || !chat_scale ||
+	    !team_frames_left)
 		return {{}, "Waiting for all required [General] and [HUD] settings"};
-	if ((practice_tool_scale && (*practice_tool_scale < 0.0 || *practice_tool_scale > 1.0)) || *width < 1 ||
+	if (*global_scale < 0.0 || *global_scale > 1.0 ||
+	    (practice_tool_scale && (*practice_tool_scale < 0.0 || *practice_tool_scale > 1.0)) || *width < 1 ||
 	    *width > 16384 || *height < 1 || *height > 16384 || *window_mode < 0 || *window_mode > 3 ||
 	    *minimap_scale < 0.0 || *minimap_scale > 3.0 || *chat_scale < 0 || *chat_scale > 100 ||
 	    (*flip_minimap != 0 && *flip_minimap != 1) || (*team_frames_left != 0 && *team_frames_left != 1))
 		return {{}, "game.cfg has out-of-range HUD settings"};
-	return {{config{*width, *height, *window_mode, practice_tool_scale.value_or(0.0), *minimap_scale,
+	return {{config{*width, *height, *window_mode, *global_scale, practice_tool_scale.value_or(0.0), *minimap_scale,
 			*flip_minimap == 1, *chat_scale, *team_frames_left == 1}},
 		{}};
 }
@@ -146,14 +162,21 @@ parse_result parse_game_config(std::string_view contents)
 model make_model(const config &game)
 {
 	const double minimap = game.minimap_scale / 3.0;
+	const rect player_hud{interpolate(player_hud_min.left, player_hud_max.left, game.global_scale),
+			      interpolate(player_hud_min.top, player_hud_max.top, game.global_scale),
+			      interpolate(player_hud_min.right, player_hud_max.right, game.global_scale), 1.0};
 	const rect top_left_reserve{
 		0.0, 0.0, interpolate(practice_tool_min_width, practice_tool_max_width, game.practice_tool_scale),
 		interpolate(practice_tool_min_height, practice_tool_max_height, game.practice_tool_scale)};
 	const rect minimap_rect = lower_right(interpolate(minimap_min_width, minimap_max_width, minimap),
 					      interpolate(minimap_min_height, minimap_max_height, minimap));
+	const rect team_frames_rect =
+		above(minimap_rect, interpolate(team_frames_min_width, team_frames_max_width, game.global_scale),
+		      interpolate(team_frames_min_height, team_frames_max_height, game.global_scale),
+		      interpolate(team_frames_min_gap, team_frames_max_gap, game.global_scale));
 	model result{game,
 		     {player_hud, game.flip_minimap ? mirrored(minimap_rect) : minimap_rect, top_left_reserve,
-		      top_right_reserve},
+		      top_right_reserve, game.team_frames_left ? mirrored(team_frames_rect) : team_frames_rect},
 		     {{0.0, 0.0, 1.0, 1.0}}};
 	for (const rect &exclusion : result.exclusions)
 		result.safe_regions = subtract(result.safe_regions, exclusion);

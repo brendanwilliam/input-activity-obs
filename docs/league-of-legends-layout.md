@@ -17,8 +17,10 @@ recap, or floating combat text. It never creates, moves, or otherwise manages
 OBS scene items: align its game-frame-sized canvas manually with the League
 capture.
 
-`GlobalScale` is intentionally excluded. It does not move or resize the
-persistent UI regions used for placement.
+`GlobalScale` is the persistent main-HUD scale. It controls the bottom-center
+player HUD and the team-frame row, based on matched 2560×1440 captures at its
+minimum (`0`) and maximum (`1`) values. It does not reserve temporary UI such
+as the shop, death recap, or global-ultimate display.
 
 ## Coordinate spaces
 
@@ -47,10 +49,12 @@ Read only these fields from the `[General]` and `[HUD]` sections of
 | Field | Use |
 | --- | --- |
 | `Width`, `Height`, `WindowMode` | Identify the configured game frame and select calibration data. |
+| `GlobalScale` | Scale the persistent bottom-center player HUD and team-frame row. |
 | `PracticeToolScale` | Scale the persistent Practice Tool HUD in the top-left corner. |
 | `MinimapScale` | Size the lower-corner minimap exclusion. |
 | `FlipMiniMap` | Mirror the minimap exclusion from right to left. |
-| `ChatScale`, `ShowTeamFramesOnLeft` | Validate the selected `game.cfg`; the annotated target does not reserve a fixed chat or team-frame area. |
+| `ChatScale` | Validate the selected `game.cfg`. |
+| `ShowTeamFramesOnLeft` | Mirror the team-frame row from the lower right to the lower left. |
 
 Do not read, persist, or log key bindings from `input.ini` as part of this
 feature. They do not determine HUD geometry.
@@ -83,8 +87,9 @@ rectangles and subtracts it from the full game frame.
 
 | Region | Anchor | Inputs | Rule |
 | --- | --- | --- | --- |
-| Player HUD | Bottom center | None | A fixed, tightly calibrated rectangle. |
+| Player HUD | Bottom center | `GlobalScale` | Interpolate the measured bounds from `0` to `1`. |
 | Minimap | Bottom right by default | `MinimapScale`, `FlipMiniMap` | Interpolate its measured size from `MinimapScale`; mirror horizontally when flipped. |
+| Team frames | Above minimap, right by default | `GlobalScale`, `ShowTeamFramesOnLeft` | Interpolate the measured row size and gap above the minimap; mirror horizontally when configured on the left. |
 | Top-left reserve | Top left | `PracticeToolScale` | Interpolate the measured Practice Tool HUD bounds from scale 0 to 100. |
 | Enemy info and death recap | Top right | None | Fixed reserve from the annotated game-frame capture. |
 
@@ -94,10 +99,12 @@ linearly between their endpoints; the lower-corner anchor does not move.
 
 | Region | Normalized calibrated bounds or endpoints |
 | --- | --- |
-| Player HUD | `[0.277, 0.866, 0.660, 1.000)` |
+| Player HUD, `GlobalScale=0` | `[0.277, 0.866, 0.660, 1.000)` |
+| Player HUD, `GlobalScale=1` | `[0.183, 0.820, 0.729, 1.000)` |
 | Top-left reserve | At scale `0`: `[0.000, 0.000, 0.107, 0.077)`; at `1`: `[0.000, 0.000, 0.156, 0.118)` |
 | Enemy info and death recap | `[0.796, 0.000, 1.000, 0.058)` |
-| Minimap, `0…3` | width `0.120…0.208`, height `0.200…0.383`, lower right; mirror for `FlipMiniMap=1` |
+| Minimap, `0…3` | width `0.108…0.216`, height `0.196…0.385`, lower right; mirror for `FlipMiniMap=1` |
+| Team frames, `GlobalScale=0…1` | width `0.100…0.210`, height `0.052…0.110`, with a `0.006…0.013` gap above the minimap; mirror for `ShowTeamFramesOnLeft=1` |
 
 When `FlipMiniMap=1`, the minimap moves to the lower-left. The source takes the
 union of all exclusions, including any overlap with the fixed reserves.
@@ -112,6 +119,7 @@ it does not fill excluded regions, render labels, or change scene positioning.
 Before implementation, measure the persistent bounds in the reference images
 and add them to a versioned calibration table. Tests should cover:
 
+- player HUD and team-frame minimum and maximum;
 - minimap minimum and maximum;
 - both minimap sides through horizontal mirroring;
 - the top-left and top-right measured reserves;
