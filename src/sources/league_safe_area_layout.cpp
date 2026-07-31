@@ -11,7 +11,8 @@ namespace {
 // Measured from the 2560x1440 annotated game-frame capture. The top-right
 // reserve includes enemy information and the death-recap area.
 constexpr rect player_hud{0.277, 0.866, 0.660, 1.0};
-constexpr rect top_left_reserve{0.0, 0.0, 0.134, 0.107};
+constexpr double top_left_width_at_full_scale = 0.134 / 0.630;
+constexpr double top_left_height_at_full_scale = 0.107 / 0.630;
 constexpr rect top_right_reserve{0.796, 0.0, 1.0, 0.058};
 constexpr double minimap_min_width = 0.120;
 constexpr double minimap_max_width = 0.208;
@@ -91,7 +92,7 @@ double interpolate(double minimum, double maximum, double fraction)
 parse_result parse_game_config(std::string_view contents)
 {
 	std::optional<int> width, height, window_mode, chat_scale, flip_minimap, team_frames_left;
-	std::optional<double> minimap_scale;
+	std::optional<double> global_scale, minimap_scale;
 	std::istringstream input{std::string(contents)};
 	std::string line;
 	std::string section;
@@ -116,7 +117,9 @@ parse_result parse_game_config(std::string_view contents)
 			else if (key == "WindowMode")
 				window_mode = integer(value);
 		} else if (section == "HUD") {
-			if (key == "MinimapScale")
+			if (key == "GlobalScale")
+				global_scale = decimal(value);
+			else if (key == "MinimapScale")
 				minimap_scale = decimal(value);
 			else if (key == "FlipMiniMap")
 				flip_minimap = integer(value);
@@ -128,18 +131,21 @@ parse_result parse_game_config(std::string_view contents)
 	}
 	if (!width || !height || !window_mode || !minimap_scale || !flip_minimap || !chat_scale || !team_frames_left)
 		return {{}, "Waiting for all required [General] and [HUD] settings"};
-	if (*width < 1 || *width > 16384 || *height < 1 || *height > 16384 || *window_mode < 0 || *window_mode > 3 ||
-	    *minimap_scale < 0.0 || *minimap_scale > 3.0 || *chat_scale < 0 || *chat_scale > 100 ||
+	if ((global_scale && (*global_scale < 0.1 || *global_scale > 2.0)) || *width < 1 || *width > 16384 ||
+	    *height < 1 || *height > 16384 || *window_mode < 0 || *window_mode > 3 || *minimap_scale < 0.0 ||
+	    *minimap_scale > 3.0 || *chat_scale < 0 || *chat_scale > 100 ||
 	    (*flip_minimap != 0 && *flip_minimap != 1) || (*team_frames_left != 0 && *team_frames_left != 1))
 		return {{}, "game.cfg has out-of-range HUD settings"};
-	return {{config{*width, *height, *window_mode, *minimap_scale, *flip_minimap == 1, *chat_scale,
-			*team_frames_left == 1}},
+	return {{config{*width, *height, *window_mode, global_scale.value_or(1.0), *minimap_scale, *flip_minimap == 1,
+			*chat_scale, *team_frames_left == 1}},
 		{}};
 }
 
 model make_model(const config &game)
 {
 	const double minimap = game.minimap_scale / 3.0;
+	const rect top_left_reserve{0.0, 0.0, top_left_width_at_full_scale * game.global_scale,
+				    top_left_height_at_full_scale * game.global_scale};
 	const rect minimap_rect = lower_right(interpolate(minimap_min_width, minimap_max_width, minimap),
 					      interpolate(minimap_min_height, minimap_max_height, minimap));
 	model result{game,
