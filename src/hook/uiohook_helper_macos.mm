@@ -304,7 +304,7 @@ namespace uiohook {
     {
         const NSString *path = application.executableURL.path;
         return [application.localizedName isEqualToString:@"League Of Legends"] ||
-               [path hasSuffix:@"Contents/LoL/Game/LeagueofLegends.app/Contents/MacOS/LeagueofLegends"];
+               [path hasSuffix:@"Contents/LoL/Game/LeagueOfLegends.app/Contents/MacOS/LeagueofLegends"];
     }
 
     bool league_game_is_running()
