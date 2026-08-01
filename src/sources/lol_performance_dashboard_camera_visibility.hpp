@@ -14,6 +14,7 @@ class lol_dashboard_camera_visibility {
 public:
 	~lol_dashboard_camera_visibility();
 	void sync(obs_source_t *dashboard, const std::string &camera_source_uuid);
+	void hide_linked_scene_items();
 	void activate();
 	void deactivate();
 	void hide(obs_sceneitem_t *item);

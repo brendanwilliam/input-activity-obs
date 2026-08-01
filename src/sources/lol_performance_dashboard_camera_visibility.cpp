@@ -66,6 +66,14 @@ void lol_dashboard_camera_visibility::activate()
 	}
 }
 
+void lol_dashboard_camera_visibility::hide_linked_scene_items()
+{
+	if (!camera_)
+		return;
+	visibility_context context{this, camera_};
+	obs_enum_scenes(hide_camera_scene, &context);
+}
+
 void lol_dashboard_camera_visibility::deactivate()
 {
 	if (source_active_) {
@@ -95,9 +103,8 @@ void lol_dashboard_camera_visibility::sync(obs_source_t *dashboard, const std::s
 			obs_source_release(camera);
 		return;
 	}
-	visibility_context context{this, camera};
-	obs_enum_scenes(hide_camera_scene, &context);
 	camera_ = camera;
+	hide_linked_scene_items();
 	activate();
 }
 

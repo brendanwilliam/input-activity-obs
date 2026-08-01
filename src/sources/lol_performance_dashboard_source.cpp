@@ -146,6 +146,7 @@ public:
 		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
 		game_visible_ = always_visible_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
+		camera_visibility_.hide_linked_scene_items();
 		league_capture_switcher::switch_captures(game_capture_source_, client_capture_source_,
 							 game_is_frontmost);
 		if (!layout_)
