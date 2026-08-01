@@ -146,12 +146,14 @@ public:
 		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
 		game_visible_ = always_visible_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
-		camera_visibility_.hide_linked_scene_items();
 		league_capture_switcher::switch_captures(game_capture_source_, client_capture_source_,
 							 game_is_frontmost);
 		if (!layout_)
 			return;
 		const auto panels = panel_rectangles();
+		if (camera_mode_visible_ && panels.camera_visible)
+			camera_visibility_.fit_to_panel(panels.camera_mask.left(), panels.camera_mask.top(),
+							panels.camera_mask.width(), panels.camera_mask.height());
 		visuals_.configure(theme_, heatmap_, window_, frame_, qrect(panels.heatmap));
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
@@ -200,8 +202,6 @@ public:
 		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture_);
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
-		if (camera_mode_visible_ && panels.camera_visible)
-			render_camera(qrect(panels.camera_mask), qrect(panels.camera));
 	}
 
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
@@ -232,8 +232,8 @@ public:
 		}
 	}
 	void reset_statistics() { visuals_.reset(); }
-	void activate() { camera_visibility_.activate(); }
-	void deactivate() { camera_visibility_.deactivate(); }
+	void activate() {}
+	void deactivate() {}
 	void auto_link_captures()
 	{
 		obs_data_t *settings = obs_source_get_settings(source_);
