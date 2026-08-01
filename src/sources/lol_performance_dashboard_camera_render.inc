@@ -29,7 +29,7 @@ lol_dashboard_panels dashboard_source::panel_rectangles() const
 		 use_custom_minimap_cover_ ? minimap_cover_alpha_padding_percent_ : 0, use_custom_minimap_cover_});
 }
 
-void dashboard_source::render_camera(gs_effect_t *effect, const QRect &mask, const QRect &bounds)
+void dashboard_source::render_camera(const QRect &mask, const QRect &bounds)
 {
 	obs_source_t *camera = obs_get_source_by_uuid(camera_source_uuid_.c_str());
 	if (!camera || camera == source_ || obs_source_get_type(camera) != OBS_SOURCE_TYPE_INPUT) {
@@ -71,12 +71,20 @@ void dashboard_source::render_camera(gs_effect_t *effect, const QRect &mask, con
 				source_coordinate(visible.bottom() + 1, bounds.top(), bounds.height(), camera_height);
 			const int source_width = std::max(1, source_right - source_left);
 			const int source_height = std::max(1, source_bottom - source_top);
-			gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture);
-			gs_matrix_push();
-			gs_matrix_translate3f(float(visible.x()), float(visible.y()), 0.0f);
-			gs_matrix_scale3f(float(visible.width()), float(visible.height()), 1.0f);
-			gs_draw_sprite_subregion(texture, 0, source_left, source_top, source_width, source_height);
-			gs_matrix_pop();
+			gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_blend_state_push();
+			gs_enable_blending(true);
+			gs_blend_function(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
+			while (gs_effect_loop(effect, "Draw")) {
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture);
+				gs_matrix_push();
+				gs_matrix_translate3f(float(visible.x()), float(visible.y()), 0.0f);
+				gs_matrix_scale3f(float(visible.width()), float(visible.height()), 1.0f);
+				gs_draw_sprite_subregion(texture, 0, source_left, source_top, source_width,
+							 source_height);
+				gs_matrix_pop();
+			}
+			gs_blend_state_pop();
 		}
 	}
 	obs_source_release(camera);

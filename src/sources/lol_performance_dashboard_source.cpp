@@ -201,7 +201,7 @@ public:
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
 		if (camera_mode_visible_ && panels.camera_visible)
-			render_camera(effect, qrect(panels.camera_mask), qrect(panels.camera));
+			render_camera(qrect(panels.camera_mask), qrect(panels.camera));
 	}
 
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
@@ -283,7 +283,7 @@ private:
 			bfree(default_path);
 		}
 	}
-	void render_camera(gs_effect_t *effect, const QRect &mask, const QRect &bounds);
+	void render_camera(const QRect &mask, const QRect &bounds);
 
 	obs_source_t *source_{};
 	QString path_;
