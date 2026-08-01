@@ -79,6 +79,8 @@ public:
 			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_x_percent"));
 		camera_translate_y_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
+		camera_background_color_ =
+			obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.camera_background_color")));
 		show_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.show_minimap_cover");
 		use_custom_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.use_custom_minimap_cover");
 		const QString custom_cover_path =
@@ -152,6 +154,8 @@ public:
 		QPainter painter(&image);
 		painter.setRenderHint(QPainter::Antialiasing);
 		const auto panels = panel_rectangles();
+		if (camera_mode_visible_ && panels.camera_visible)
+			painter.fillRect(qrect(panels.camera_mask), camera_background_color_);
 		if (game_visible_) {
 			visuals_.draw(painter, qrect(panels.header), qrect(panels.heatmap), qrect(panels.summary),
 				      qrect(panels.keys), panels.right_aligned);
@@ -326,6 +330,7 @@ private:
 		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
 		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{},
 		minimap_cover_alpha_padding_percent_{};
+	QColor camera_background_color_{26, 26, 26, 255};
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	QImage minimap_cover_;
@@ -380,37 +385,7 @@ void register_lol_performance_dashboard_source()
 		return static_cast<dashboard_source *>(data)->height();
 	};
 	info.get_properties = properties;
-	info.get_defaults = [](obs_data_t *settings) {
-		obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
-		obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
-		obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
-		obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
-		obs_data_set_default_int(settings, "lol_dashboard.window", 60);
-		obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
-		obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
-		obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 67);
-		obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
-		obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
-		obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);
-		obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);
-		obs_data_set_default_bool(settings, "lol_dashboard.show_minimap_cover", true);
-		obs_data_set_default_bool(settings, "lol_dashboard.use_custom_minimap_cover", false);
-		obs_data_set_default_string(settings, "lol_dashboard.minimap_cover_path", "");
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_alpha_padding_percent", 0);
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_width_percent", 100);
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_height_percent", 100);
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_scale_percent", 100);
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_x_percent", 0);
-		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_y_percent", 0);
-		obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
-		obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
-		obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
-		obs_data_set_default_string(settings, "lol_dashboard.heatmap_gradient", "spectrum");
-		obs_data_set_default_int(settings, "lol_dashboard.gradient_low", 0xffeb6325);
-		obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
-		obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
-		obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
-	};
+	info.get_defaults = defaults;
 	obs_register_source(&info);
 }
 } // namespace sources

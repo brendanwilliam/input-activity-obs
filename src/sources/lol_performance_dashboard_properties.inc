@@ -38,7 +38,8 @@ bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *setti
 	for (const char *name :
 	     {"lol_dashboard.camera_source", "lol_dashboard.camera_width_percent",
 	      "lol_dashboard.camera_height_percent", "lol_dashboard.camera_scale_percent",
-	      "lol_dashboard.camera_translate_x_percent", "lol_dashboard.camera_translate_y_percent"})
+	      "lol_dashboard.camera_translate_x_percent", "lol_dashboard.camera_translate_y_percent",
+	      "lol_dashboard.camera_background_color"})
 		obs_property_set_visible(obs_properties_get(props, name), visible);
 	return true;
 }
@@ -68,6 +69,40 @@ bool add_camera_source(void *data, obs_source_t *source)
 		obs_property_list_add_string(context->property, obs_source_get_name(source),
 					     obs_source_get_uuid(source));
 	return true;
+}
+
+void defaults(obs_data_t *settings)
+{
+	obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
+	obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
+	obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
+	obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
+	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
+	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
+	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
+	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 67);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_background_color", 0xff1a1a1a);
+	obs_data_set_default_bool(settings, "lol_dashboard.show_minimap_cover", true);
+	obs_data_set_default_bool(settings, "lol_dashboard.use_custom_minimap_cover", false);
+	obs_data_set_default_string(settings, "lol_dashboard.minimap_cover_path", "");
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_alpha_padding_percent", 0);
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_width_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_height_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_scale_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_x_percent", 0);
+	obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_y_percent", 0);
+	obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
+	obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
+	obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
+	obs_data_set_default_string(settings, "lol_dashboard.heatmap_gradient", "spectrum");
+	obs_data_set_default_int(settings, "lol_dashboard.gradient_low", 0xffeb6325);
+	obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
+	obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
+	obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
 }
 
 obs_properties_t *properties(void *data)
@@ -141,6 +176,8 @@ obs_properties_t *properties(void *data)
 				      obs_module_text("LoLPerformanceDashboard.TranslateXPercent"), -200, 200, 1);
 	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_translate_y_percent",
 				      obs_module_text("LoLPerformanceDashboard.TranslateYPercent"), -200, 200, 1);
+	obs_properties_add_color_alpha(camera_properties, "lol_dashboard.camera_background_color",
+				      obs_module_text("LoLPerformanceDashboard.CameraBackgroundColor"));
 
 	auto *cover = obs_properties_add_group(properties, "lol_dashboard.minimap_cover",
 					       obs_module_text("LoLPerformanceDashboard.MinimapCover"),
