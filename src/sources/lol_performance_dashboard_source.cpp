@@ -66,6 +66,7 @@ public:
 	{
 		path_ = QString::fromUtf8(obs_data_get_string(settings, path_key));
 		advanced_positioning_ = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
+		always_visible_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
 		show_camera_ = obs_data_get_bool(settings, "lol_dashboard.show_camera");
 		camera_source_uuid_ = obs_data_get_string(settings, "lol_dashboard.camera_source");
 		camera_width_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_width_percent"));
@@ -108,8 +109,8 @@ public:
 
 	void tick(float)
 	{
-		game_visible_ = uiohook::league_game_is_frontmost();
-		camera_mode_visible_ = show_camera_ && uiohook::league_is_frontmost();
+		game_visible_ = always_visible_ || uiohook::league_game_is_frontmost();
+		camera_mode_visible_ = show_camera_;
 		if (!layout_ || !game_visible_)
 			return;
 		const auto panels = panel_rectangles();
@@ -281,7 +282,7 @@ private:
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
-	bool advanced_positioning_{}, game_visible_{}, camera_mode_visible_{};
+	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{};
 	bool show_camera_{}, show_minimap_cover_{true};
 	std::string camera_source_uuid_;
 	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
@@ -337,6 +338,7 @@ void register_lol_performance_dashboard_source()
 	info.get_properties = properties;
 	info.get_defaults = [](obs_data_t *settings) {
 		obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
+		obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
 		obs_data_set_default_int(settings, "lol_dashboard.window", 60);
 		obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
 		obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");

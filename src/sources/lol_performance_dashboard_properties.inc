@@ -40,10 +40,10 @@ bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *setti
 bool minimap_cover_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool visible = obs_data_get_bool(settings, "lol_dashboard.show_minimap_cover");
-	for (const char *name : {"lol_dashboard.minimap_cover_path", "lol_dashboard.minimap_cover_width_percent",
-				 "lol_dashboard.minimap_cover_height_percent", "lol_dashboard.minimap_cover_scale_percent",
-				 "lol_dashboard.minimap_cover_translate_x_percent",
-				 "lol_dashboard.minimap_cover_translate_y_percent"})
+	for (const char *name :
+	     {"lol_dashboard.minimap_cover_path", "lol_dashboard.minimap_cover_width_percent",
+	      "lol_dashboard.minimap_cover_height_percent", "lol_dashboard.minimap_cover_scale_percent",
+	      "lol_dashboard.minimap_cover_translate_x_percent", "lol_dashboard.minimap_cover_translate_y_percent"})
 		obs_property_set_visible(obs_properties_get(props, name), visible);
 	return true;
 }
@@ -73,6 +73,8 @@ obs_properties_t *properties(void *data)
 				   reload_clicked, data);
 	obs_properties_add_button2(properties, "lol_dashboard.reset",
 				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
+	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
+				obs_module_text("LoLPerformanceDashboard.AlwaysVisible"));
 	auto *advanced = obs_properties_add_bool(properties, "lol_dashboard.advanced_positioning",
 						 obs_module_text("LoLPerformanceDashboard.AdvancedPositioning"));
 	obs_property_set_modified_callback(advanced, advanced_positioning_changed);
