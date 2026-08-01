@@ -37,11 +37,10 @@ lol_dashboard_camera_visibility::~lol_dashboard_camera_visibility()
 
 void lol_dashboard_camera_visibility::restore()
 {
-	if (active_camera_) {
-		obs_source_remove_active_child(dashboard_, active_camera_);
-		obs_source_release(active_camera_);
-		active_camera_ = nullptr;
-	}
+	deactivate();
+	if (camera_)
+		obs_source_release(camera_);
+	camera_ = nullptr;
 	for (obs_sceneitem_t *item : hidden_items_) {
 		obs_sceneitem_set_visible(item, true);
 		obs_sceneitem_release(item);
@@ -52,6 +51,21 @@ void lol_dashboard_camera_visibility::restore()
 void lol_dashboard_camera_visibility::hide(obs_sceneitem_t *item)
 {
 	hidden_items_.push_back(item);
+}
+
+void lol_dashboard_camera_visibility::activate()
+{
+	if (active_ || !dashboard_ || !camera_)
+		return;
+	active_ = obs_source_add_active_child(dashboard_, camera_);
+}
+
+void lol_dashboard_camera_visibility::deactivate()
+{
+	if (!active_)
+		return;
+	obs_source_remove_active_child(dashboard_, camera_);
+	active_ = false;
 }
 
 void lol_dashboard_camera_visibility::sync(obs_source_t *dashboard, const std::string &camera_source_uuid)
@@ -69,10 +83,8 @@ void lol_dashboard_camera_visibility::sync(obs_source_t *dashboard, const std::s
 	}
 	visibility_context context{this, camera};
 	obs_enum_scenes(hide_camera_scene, &context);
-	if (obs_source_add_active_child(dashboard_, camera))
-		active_camera_ = camera;
-	else
-		obs_source_release(camera);
+	camera_ = camera;
+	activate();
 }
 
 } // namespace sources

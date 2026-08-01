@@ -198,6 +198,8 @@ public:
 		}
 	}
 	void reset_statistics() { visuals_.reset(); }
+	void activate() { camera_visibility_.activate(); }
+	void deactivate() { camera_visibility_.deactivate(); }
 	void auto_link_captures()
 	{
 		obs_data_t *settings = obs_source_get_settings(source_);
@@ -346,6 +348,12 @@ void register_lol_performance_dashboard_source()
 	};
 	info.video_render = [](void *data, gs_effect_t *effect) {
 		static_cast<dashboard_source *>(data)->draw(effect);
+	};
+	info.activate = [](void *data) {
+		static_cast<dashboard_source *>(data)->activate();
+	};
+	info.deactivate = [](void *data) {
+		static_cast<dashboard_source *>(data)->deactivate();
 	};
 	info.get_width = [](void *data) {
 		return static_cast<dashboard_source *>(data)->width();
