@@ -39,8 +39,9 @@ capture, saved mode settings, or hidden controls' values.
 The shared **Alignment** setting controls horizontal indicator direction in every mode: right
 alignment anchors bars and box plots on the right and makes them grow left. Section titles are
 aligned to the selected edge. Live Keys uses the shared setting for its most-used chart, placing
-its key label on the growth edge and count on the opposite edge. **Invert layout** moves the
-most-used chart above live keys and orders its largest bar at the bottom.
+its key label on the growth edge and count on the opposite edge. Top-key rows start at the chart's
+top edge and use the configured fixed spacing. **Invert layout** moves the most-used chart above
+live keys and orders its largest bar at the bottom.
 
 ## Rules
 
