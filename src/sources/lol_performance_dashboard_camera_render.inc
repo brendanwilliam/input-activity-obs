@@ -48,7 +48,7 @@ void dashboard_source::render_camera(gs_effect_t *effect, const QRect &mask, con
 		}
 		gs_texrender_reset(camera_texture_);
 		if (gs_texrender_begin(camera_texture_, camera_width, camera_height)) {
-			struct vec4 clear_color {};
+			struct vec4 clear_color{};
 			gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 			gs_ortho(0.0f, float(camera_width), 0.0f, float(camera_height), -100.0f, 100.0f);
 			obs_source_video_render(camera);
@@ -58,11 +58,13 @@ void dashboard_source::render_camera(gs_effect_t *effect, const QRect &mask, con
 		const QRect visible = mask.intersected(bounds);
 		if (texture && !visible.isEmpty()) {
 			const auto source_coordinate = [](int position, int start, int extent, uint32_t source_extent) {
-				return std::clamp(int(std::lround(double(position - start) * source_extent / extent)), 0,
-						  int(source_extent));
+				return std::clamp(int(std::lround(double(position - start) * source_extent / extent)),
+						  0, int(source_extent));
 			};
-			const int source_left = source_coordinate(visible.left(), bounds.left(), bounds.width(), camera_width);
-			const int source_top = source_coordinate(visible.top(), bounds.top(), bounds.height(), camera_height);
+			const int source_left =
+				source_coordinate(visible.left(), bounds.left(), bounds.width(), camera_width);
+			const int source_top =
+				source_coordinate(visible.top(), bounds.top(), bounds.height(), camera_height);
 			const int source_right =
 				source_coordinate(visible.right() + 1, bounds.left(), bounds.width(), camera_width);
 			const int source_bottom =
@@ -72,7 +74,7 @@ void dashboard_source::render_camera(gs_effect_t *effect, const QRect &mask, con
 			gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture);
 			gs_matrix_push();
 			gs_matrix_translate3f(float(visible.x()), float(visible.y()), 0.0f);
-			gs_matrix_scale3f(float(visible.width()) / source_width, float(visible.height()) / source_height, 1.0f);
+			gs_matrix_scale3f(float(visible.width()), float(visible.height()), 1.0f);
 			gs_draw_sprite_subregion(texture, 0, source_left, source_top, source_width, source_height);
 			gs_matrix_pop();
 		}
