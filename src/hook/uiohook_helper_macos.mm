@@ -313,6 +313,23 @@ namespace uiohook {
         return false;
     }
 
+    bool league_game_is_frontmost()
+    {
+        @autoreleasepool {
+            const NSString *path = NSWorkspace.sharedWorkspace.frontmostApplication.executableURL.path;
+            return [path hasSuffix:@"Contents/LoL/Game/League Of Legends"];
+        }
+    }
+
+    bool league_is_frontmost()
+    {
+        @autoreleasepool {
+            const NSString *path = NSWorkspace.sharedWorkspace.frontmostApplication.executableURL.path;
+            return [path hasSuffix:@"Contents/LoL/Game/League Of Legends"] ||
+                   [path hasSuffix:@"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"];
+        }
+    }
+
     std::vector<target_window> target_windows()
     {
         std::vector<target_window> result;

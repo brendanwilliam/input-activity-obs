@@ -17,11 +17,11 @@ lol_dashboard_rect scaled(const league_safe_area::rect &rect, int width, int hei
 		int(std::lround((rect.bottom - rect.top) * height))};
 }
 
-lol_dashboard_rect fit_in(const lol_dashboard_rect &bounds, double aspect, double scale)
+lol_dashboard_rect cover(const lol_dashboard_rect &bounds, double aspect, double scale)
 {
 	if (bounds.width() < 1 || bounds.height() < 1 || aspect <= 0.0)
 		return {};
-	const double width = std::min<double>(bounds.width(), bounds.height() * aspect) * scale;
+	const double width = std::max<double>(bounds.width(), bounds.height() * aspect) * scale;
 	const double height = width / aspect;
 	return {0, 0, std::max(1, int(std::lround(width))), std::max(1, int(std::lround(height)))};
 }
@@ -35,8 +35,8 @@ lol_dashboard_rect anchored_lower_corner(lol_dashboard_rect rect, const lol_dash
 } // namespace
 
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
-						    const lol_dashboard_camera_layout &camera, double cover_aspect,
-						    int cover_scale_percent)
+						    const lol_dashboard_camera_layout &camera,
+						    const lol_dashboard_image_layout &minimap_cover)
 {
 	const int width = layout.game.width;
 	const int height = layout.game.height;
@@ -64,18 +64,33 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 	result.right_aligned = !minimap_left;
 
 	const lol_dashboard_rect cover_bounds = scaled(minimap, width, height);
-	result.minimap_cover = anchored_lower_corner(fit_in(cover_bounds, cover_aspect,
-							    std::clamp(cover_scale_percent, 1, 400) / 100.0),
-						     cover_bounds, !minimap_left);
+	const lol_dashboard_rect cover_mask{
+		cover_bounds.left(), cover_bounds.top(),
+		std::max(1, cover_bounds.width() * std::clamp(minimap_cover.width_percent, 1, 200) / 100),
+		std::max(1, cover_bounds.height() * std::clamp(minimap_cover.height_percent, 1, 200) / 100)};
+	result.minimap_cover_mask = anchored_lower_corner(cover_mask, cover_bounds, !minimap_left);
+	result.minimap_cover = cover(result.minimap_cover_mask, minimap_cover.aspect,
+				     std::clamp(minimap_cover.scale_percent, 1, 400) / 100.0);
+	result.minimap_cover.moveLeft(result.minimap_cover_mask.left() +
+				      (result.minimap_cover_mask.width() - result.minimap_cover.width()) / 2);
+	result.minimap_cover.moveTop(result.minimap_cover_mask.top() +
+				     (result.minimap_cover_mask.height() - result.minimap_cover.height()) / 2);
+	result.minimap_cover.translate(
+		cover_bounds.width() * std::clamp(minimap_cover.translate_x_percent, -200, 200) / 100,
+		cover_bounds.height() * std::clamp(minimap_cover.translate_y_percent, -200, 200) / 100);
 
 	const lol_dashboard_rect camera_bounds{
 		mouse_bounds.left(), mouse_bounds.top(),
 		std::max(1, mouse_bounds.width() * std::clamp(camera.width_percent, 1, 200) / 100),
 		std::max(1, mouse_bounds.height() * std::clamp(camera.height_percent, 1, 200) / 100)};
 	if (camera.enabled && camera.aspect > 0.0) {
-		result.camera = anchored_lower_corner(fit_in(camera_bounds, camera.aspect,
-							     std::clamp(camera.scale_percent, 1, 400) / 100.0),
-						      mouse_bounds, !minimap_left);
+		result.camera_mask = anchored_lower_corner(camera_bounds, mouse_bounds, !minimap_left);
+		result.camera =
+			cover(result.camera_mask, camera.aspect, std::clamp(camera.scale_percent, 1, 400) / 100.0);
+		result.camera.moveLeft(result.camera_mask.left() +
+				       (result.camera_mask.width() - result.camera.width()) / 2);
+		result.camera.moveTop(result.camera_mask.top() +
+				      (result.camera_mask.height() - result.camera.height()) / 2);
 		result.camera.translate(mouse_bounds.width() * std::clamp(camera.translate_x_percent, -200, 200) / 100,
 					mouse_bounds.height() * std::clamp(camera.translate_y_percent, -200, 200) /
 						100);
@@ -85,7 +100,7 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 				  heat_height};
 		result.summary = {result.heatmap.left(), result.heatmap.bottom() + panel_gap + 1, heat_width,
 				  std::max(1, mouse_bounds.bottom() - result.heatmap.bottom() - panel_gap)};
-		result.right_aligned = false;
+		result.right_aligned = !minimap_left;
 	} else {
 		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
 		result.heatmap = {minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(), heat_top,

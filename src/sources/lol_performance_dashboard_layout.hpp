@@ -44,14 +44,23 @@ struct lol_dashboard_camera_layout {
 	int translate_y_percent{};
 };
 
+struct lol_dashboard_image_layout {
+	double aspect{1.0};
+	int width_percent{100};
+	int height_percent{100};
+	int scale_percent{100};
+	int translate_x_percent{};
+	int translate_y_percent{};
+};
+
 struct lol_dashboard_panels {
-	lol_dashboard_rect header, heatmap, summary, keys, camera, minimap_cover;
+	lol_dashboard_rect header, heatmap, summary, keys, camera_mask, camera, minimap_cover_mask, minimap_cover;
 	bool right_aligned{};
 	bool camera_visible{};
 };
 
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
-						    const lol_dashboard_camera_layout &camera, double cover_aspect,
-						    int cover_scale_percent);
+						    const lol_dashboard_camera_layout &camera,
+						    const lol_dashboard_image_layout &minimap_cover);
 
 } // namespace sources

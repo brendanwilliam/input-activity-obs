@@ -28,6 +28,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- The LoL Performance Dashboard now keeps its heatmap statistics top-aligned, restores the right-aligned key layout, limits dashboard visuals to the active game client, and renders linked cameras as cropped masks in either League mode. Minimap covers now use the same cropped-mask sizing and image-position controls.
 - Input capture now queues raw events immediately and routes them on OBS video ticks, so adding source instances does not multiply capture work and the macOS input callback avoids application, window, display, and model processing.
 - Live Keys now has clearer alignment and inversion behavior, consistent special-key indicators, and improved most-used key bars. Input Intensity box plots have more legible current-value markers, and Mouse Activity defaults to 720×560.
 - Preference panels now use clear characteristic headings, retire unused defaults with legacy fallbacks, and hide Mouse Activity and Live Keys options until their parent feature is enabled.

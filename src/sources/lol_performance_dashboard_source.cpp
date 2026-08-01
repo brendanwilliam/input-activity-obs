@@ -3,6 +3,7 @@
 #include "../hook/uiohook_helper.hpp"
 #include "../input/input_broker.hpp"
 #include "league_safe_area_layout.hpp"
+#include "lol_performance_dashboard_camera_visibility.hpp"
 #include "lol_performance_dashboard_layout.hpp"
 #include "lol_performance_dashboard_visuals.hpp"
 
@@ -75,10 +76,19 @@ public:
 		camera_translate_y_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
 		show_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.show_minimap_cover");
+		minimap_cover_width_percent_ =
+			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_width_percent"));
+		minimap_cover_height_percent_ =
+			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_height_percent"));
 		minimap_cover_scale_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_scale_percent"));
+		minimap_cover_translate_x_percent_ =
+			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_translate_x_percent"));
+		minimap_cover_translate_y_percent_ =
+			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_translate_y_percent"));
 		load_minimap_cover(
 			QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.minimap_cover_path")));
+		camera_visibility_.sync(source_, camera_source_uuid_);
 		const int left = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_left"))
 						       : 0;
 		const int top = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
@@ -98,8 +108,9 @@ public:
 
 	void tick(float)
 	{
-		visible_ = uiohook::league_game_is_running();
-		if (!layout_ || !visible_)
+		game_visible_ = uiohook::league_game_is_frontmost();
+		camera_mode_visible_ = show_camera_ && uiohook::league_is_frontmost();
+		if (!layout_ || !game_visible_)
 			return;
 		const auto panels = panel_rectangles();
 		visuals_.configure(theme_, heatmap_, window_, frame_, qrect(panels.heatmap));
@@ -111,7 +122,7 @@ public:
 
 	void draw(gs_effect_t *effect)
 	{
-		if (!layout_ || !visible_)
+		if (!layout_ || (!game_visible_ && !camera_mode_visible_))
 			return;
 		const int width = layout_->game.width, height = layout_->game.height;
 		QImage image(width, height, QImage::Format_RGBA8888_Premultiplied);
@@ -119,10 +130,16 @@ public:
 		QPainter painter(&image);
 		painter.setRenderHint(QPainter::Antialiasing);
 		const auto panels = panel_rectangles();
-		visuals_.draw(painter, qrect(panels.header), qrect(panels.heatmap), qrect(panels.summary),
-			      qrect(panels.keys), panels.right_aligned);
-		if (show_minimap_cover_ && !minimap_cover_.isNull() && !panels.minimap_cover.isEmpty())
-			painter.drawImage(qrect(panels.minimap_cover), minimap_cover_);
+		if (game_visible_) {
+			visuals_.draw(painter, qrect(panels.header), qrect(panels.heatmap), qrect(panels.summary),
+				      qrect(panels.keys), panels.right_aligned);
+			if (show_minimap_cover_ && !minimap_cover_.isNull() && !panels.minimap_cover_mask.isEmpty()) {
+				painter.save();
+				painter.setClipRect(qrect(panels.minimap_cover_mask));
+				painter.drawImage(qrect(panels.minimap_cover), minimap_cover_);
+				painter.restore();
+			}
+		}
 		if (!texture_ || texture_width_ != width || texture_height_ != height) {
 			gs_texture_destroy(texture_);
 			texture_ = gs_texture_create(width, height, GS_RGBA, 1, nullptr, GS_DYNAMIC);
@@ -138,8 +155,8 @@ public:
 		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture_);
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
-		if (panels.camera_visible)
-			render_camera(qrect(panels.camera));
+		if (camera_mode_visible_ && panels.camera_visible)
+			render_camera(qrect(panels.camera_mask), qrect(panels.camera));
 	}
 
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
@@ -216,8 +233,9 @@ private:
 			*layout_,
 			{aspect.has_value(), aspect.value_or(1.0), camera_width_percent_, camera_height_percent_,
 			 camera_scale_percent_, camera_translate_x_percent_, camera_translate_y_percent_},
-			minimap_cover_.isNull() ? 1.0 : double(minimap_cover_.width()) / minimap_cover_.height(),
-			minimap_cover_scale_percent_);
+			{minimap_cover_.isNull() ? 1.0 : double(minimap_cover_.width()) / minimap_cover_.height(),
+			 minimap_cover_width_percent_, minimap_cover_height_percent_, minimap_cover_scale_percent_,
+			 minimap_cover_translate_x_percent_, minimap_cover_translate_y_percent_});
 	}
 	void load_minimap_cover(const QString &custom_path)
 	{
@@ -234,7 +252,7 @@ private:
 			bfree(default_path);
 		}
 	}
-	void render_camera(const QRect &bounds) const
+	void render_camera(const QRect &mask, const QRect &bounds) const
 	{
 		obs_source_t *camera = obs_get_source_by_uuid(camera_source_uuid_.c_str());
 		if (!camera || camera == source_ || obs_source_get_type(camera) != OBS_SOURCE_TYPE_INPUT) {
@@ -245,12 +263,16 @@ private:
 		const uint32_t camera_width = obs_source_get_width(camera);
 		const uint32_t camera_height = obs_source_get_height(camera);
 		if (camera_width && camera_height) {
+			const gs_rect scissor{mask.left(), int(height()) - mask.bottom() - 1, mask.width(),
+					      mask.height()};
+			gs_set_scissor_rect(&scissor);
 			gs_matrix_push();
 			gs_matrix_translate3f(float(bounds.x()), float(bounds.y()), 0.0f);
 			gs_matrix_scale3f(float(bounds.width()) / camera_width, float(bounds.height()) / camera_height,
 					  1.0f);
 			obs_source_video_render(camera);
 			gs_matrix_pop();
+			gs_set_scissor_rect(nullptr);
 		}
 		obs_source_release(camera);
 	}
@@ -259,14 +281,17 @@ private:
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
-	bool advanced_positioning_{}, visible_{};
+	bool advanced_positioning_{}, game_visible_{}, camera_mode_visible_{};
 	bool show_camera_{}, show_minimap_cover_{true};
 	std::string camera_source_uuid_;
 	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
-	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_scale_percent_{100};
+	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
+		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
+		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{};
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	QImage minimap_cover_;
+	lol_dashboard_camera_visibility camera_visibility_;
 	std::optional<league_safe_area::model> layout_;
 	lol_dashboard_visuals visuals_;
 	uint64_t cursor_{};
@@ -322,7 +347,11 @@ void register_lol_performance_dashboard_source()
 		obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);
 		obs_data_set_default_bool(settings, "lol_dashboard.show_minimap_cover", true);
 		obs_data_set_default_string(settings, "lol_dashboard.minimap_cover_path", "");
+		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_width_percent", 100);
+		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_height_percent", 100);
 		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_scale_percent", 100);
+		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_x_percent", 0);
+		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_translate_y_percent", 0);
 		obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
 		obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
 		obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
