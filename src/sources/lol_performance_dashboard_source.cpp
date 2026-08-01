@@ -153,7 +153,9 @@ public:
 		const auto panels = panel_rectangles();
 		if (camera_mode_visible_ && panels.camera_visible)
 			camera_visibility_.fit_to_panel(panels.camera_mask.left(), panels.camera_mask.top(),
-							panels.camera_mask.width(), panels.camera_mask.height());
+							panels.camera_mask.width(), panels.camera_mask.height(),
+							panels.camera.left(), panels.camera.top(),
+							panels.camera.width(), panels.camera.height());
 		visuals_.configure(theme_, heatmap_, window_, frame_, qrect(panels.heatmap));
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
