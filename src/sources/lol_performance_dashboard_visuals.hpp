@@ -30,6 +30,12 @@ struct lol_dashboard_heatmap {
 	qreal radius{10.0};
 };
 
+struct lol_dashboard_regions {
+	bool intensity{true};
+	bool keys{true};
+	bool mouse_activity{true};
+};
+
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
@@ -37,7 +43,8 @@ void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt
 class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-		       int rolling_window_seconds, const QRect &game_frame, const QRect &heatmap_bounds);
+		       const lol_dashboard_regions &regions, int rolling_window_seconds, const QRect &game_frame,
+		       const QRect &heatmap_bounds);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void reset();
@@ -68,6 +75,7 @@ private:
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
 	lol_dashboard_heatmap heatmap_;
+	lol_dashboard_regions regions_;
 	QRect game_frame_{0, 0, 1920, 1080}, heatmap_bounds_;
 	std::vector<hex_bin> hex_bins_;
 	std::optional<QPointF> last_heat_point_;

@@ -78,6 +78,9 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
 	obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
 	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
+	obs_data_set_default_bool(settings, "lol_dashboard.show_intensity", true);
+	obs_data_set_default_bool(settings, "lol_dashboard.show_keys", true);
+	obs_data_set_default_bool(settings, "lol_dashboard.show_mouse_activity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
 	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
 	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 133);
@@ -150,6 +153,16 @@ obs_properties_t *properties(void *data)
 			       obs_module_text("LoLPerformanceDashboard.Top"), -32768, 32767, 1);
 	obs_properties_add_int_slider(properties, "lol_dashboard.window",
 				      obs_module_text("LoLPerformanceDashboard.Window"), 1, 60, 1);
+	auto *regions = obs_properties_add_group(properties, "lol_dashboard.regions",
+					 obs_module_text("LoLPerformanceDashboard.Regions"), OBS_GROUP_NORMAL,
+					 obs_properties_create());
+	auto *region_properties = obs_property_group_content(regions);
+	obs_properties_add_bool(region_properties, "lol_dashboard.show_intensity",
+				obs_module_text("LoLPerformanceDashboard.ShowIntensity"));
+	obs_properties_add_bool(region_properties, "lol_dashboard.show_keys",
+				obs_module_text("LoLPerformanceDashboard.ShowKeys"));
+	obs_properties_add_bool(region_properties, "lol_dashboard.show_mouse_activity",
+				obs_module_text("LoLPerformanceDashboard.ShowMouseActivity"));
 
 	auto *camera = obs_properties_add_group(properties, "lol_dashboard.camera",
 						obs_module_text("LoLPerformanceDashboard.Camera"), OBS_GROUP_NORMAL,

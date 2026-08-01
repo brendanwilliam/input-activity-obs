@@ -74,6 +74,7 @@ target_sources(
     src/sources/lol_performance_dashboard_visuals.hpp
     src/sources/lol_performance_dashboard_visuals.cpp
     src/sources/lol_performance_dashboard_heatmap.cpp
+    src/sources/lol_performance_dashboard_summary.cpp
     src/sources/activity/core.inc
     src/sources/activity/key_labels.inc
     src/sources/activity/live_keys.inc
