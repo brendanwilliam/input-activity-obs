@@ -64,10 +64,13 @@ int main()
 	    !require(std::abs(mixed_model.exclusions[4].left - max_model.exclusions[4].left) < 0.000001))
 		return 1;
 	auto default_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, {});
+	auto max_minimap_panels = sources::lol_dashboard_panel_rectangles(max_model, {}, {});
 	if (!require(!default_panels.camera_visible) ||
 	    !require(default_panels.heatmap.bottom() < min_model.game.height) ||
 	    !require(default_panels.minimap_cover_mask.right() == min_model.game.width - 1) ||
-	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1))
+	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1) ||
+	    !require(max_minimap_panels.minimap_cover_mask.width() > default_panels.minimap_cover_mask.width()) ||
+	    !require(max_minimap_panels.minimap_cover_mask.height() > default_panels.minimap_cover_mask.height()))
 		return 1;
 	sources::lol_dashboard_camera_layout camera{true, 16.0 / 9.0, 67, 100, 100, 0, 0};
 	auto camera_panels = sources::lol_dashboard_panel_rectangles(min_model, camera, {});

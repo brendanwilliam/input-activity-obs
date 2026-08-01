@@ -3,6 +3,7 @@
 #include "../hook/uiohook_helper.hpp"
 #include "../input/input_broker.hpp"
 #include "league_safe_area_layout.hpp"
+#include "league_capture_switcher.hpp"
 #include "lol_performance_dashboard_camera_visibility.hpp"
 #include "lol_performance_dashboard_layout.hpp"
 #include "lol_performance_dashboard_visuals.hpp"
@@ -67,6 +68,8 @@ public:
 		path_ = QString::fromUtf8(obs_data_get_string(settings, path_key));
 		advanced_positioning_ = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
 		always_visible_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
+		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
+		client_capture_source_ = obs_data_get_string(settings, league_capture_switcher::client_source_key);
 		show_camera_ = obs_data_get_bool(settings, "lol_dashboard.show_camera");
 		camera_source_uuid_ = obs_data_get_string(settings, "lol_dashboard.camera_source");
 		camera_width_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_width_percent"));
@@ -109,12 +112,19 @@ public:
 
 	void tick(float)
 	{
-		game_visible_ = always_visible_ || uiohook::league_game_is_frontmost();
+		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
+		game_visible_ = always_visible_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
-		if (!layout_ || !game_visible_)
+		league_capture_switcher::switch_captures(game_capture_source_, client_capture_source_,
+							 game_is_frontmost);
+		if (!layout_)
 			return;
 		const auto panels = panel_rectangles();
 		visuals_.configure(theme_, heatmap_, window_, frame_, qrect(panels.heatmap));
+		if (!game_is_frontmost) {
+			discard_backlog_ = true;
+			return;
+		}
 		std::vector<input_data::trace_event> events;
 		input_data::button_map<uint16_t> keyboard, mouse;
 		input_broker::consume(target(), cursor_, discard_backlog_, events, keyboard, mouse);
@@ -188,6 +198,13 @@ public:
 		}
 	}
 	void reset_statistics() { visuals_.reset(); }
+	void auto_link_captures()
+	{
+		obs_data_t *settings = obs_source_get_settings(source_);
+		if (league_capture_switcher::auto_link(settings))
+			obs_source_update(source_, settings);
+		obs_data_release(settings);
+	}
 
 private:
 	static QStringList game_config_candidates()
@@ -284,6 +301,7 @@ private:
 	int window_{60};
 	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{};
 	bool show_camera_{}, show_minimap_cover_{true};
+	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
 	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
 	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
@@ -339,6 +357,8 @@ void register_lol_performance_dashboard_source()
 	info.get_defaults = [](obs_data_t *settings) {
 		obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
 		obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
+		obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
+		obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
 		obs_data_set_default_int(settings, "lol_dashboard.window", 60);
 		obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
 		obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");

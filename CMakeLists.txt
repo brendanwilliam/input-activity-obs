@@ -61,6 +61,8 @@ target_sources(
     src/sources/league_safe_area_layout.cpp
     src/sources/league_safe_area_source.hpp
     src/sources/league_safe_area_source.cpp
+    src/sources/league_capture_switcher.hpp
+    src/sources/league_capture_switcher.cpp
     src/sources/lol_performance_dashboard_source.cpp
     src/sources/lol_performance_dashboard_camera_visibility.hpp
     src/sources/lol_performance_dashboard_camera_visibility.cpp

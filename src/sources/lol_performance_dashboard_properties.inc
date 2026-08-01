@@ -13,6 +13,11 @@ bool reset_clicked(obs_properties_t *, obs_property_t *, void *data)
 	static_cast<dashboard_source *>(data)->reset_statistics();
 	return true;
 }
+bool auto_link_captures_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	static_cast<dashboard_source *>(data)->auto_link_captures();
+	return true;
+}
 bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	obs_property_set_visible(obs_properties_get(props, "lol_dashboard.frame"),
@@ -75,6 +80,25 @@ obs_properties_t *properties(void *data)
 				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
 	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
 				obs_module_text("LoLPerformanceDashboard.AlwaysVisible"));
+	auto *capture_switching = obs_properties_add_group(properties, "lol_dashboard.capture_switching",
+						   obs_module_text("LoLPerformanceDashboard.CaptureSwitching"),
+						   OBS_GROUP_NORMAL, obs_properties_create());
+	auto *capture_properties = obs_property_group_content(capture_switching);
+	obs_properties_add_button2(capture_properties, "lol_dashboard.auto_link_captures",
+				   obs_module_text("LoLPerformanceDashboard.AutoLinkCaptures"), auto_link_captures_clicked,
+				   data);
+	auto *game_capture = obs_properties_add_list(capture_properties, league_capture_switcher::game_source_key,
+					      obs_module_text("LoLPerformanceDashboard.GameCapture"), OBS_COMBO_TYPE_LIST,
+					      OBS_COMBO_FORMAT_STRING);
+	auto *client_capture = obs_properties_add_list(capture_properties, league_capture_switcher::client_source_key,
+						obs_module_text("LoLPerformanceDashboard.ClientCapture"), OBS_COMBO_TYPE_LIST,
+						OBS_COMBO_FORMAT_STRING);
+	for (obs_property_t *property : {game_capture, client_capture})
+		obs_property_list_add_string(property, obs_module_text("LoLPerformanceDashboard.NoCapture"), "");
+	for (const auto &[name, uuid] : league_capture_switcher::capture_sources()) {
+		obs_property_list_add_string(game_capture, name.c_str(), uuid.c_str());
+		obs_property_list_add_string(client_capture, name.c_str(), uuid.c_str());
+	}
 	auto *advanced = obs_properties_add_bool(properties, "lol_dashboard.advanced_positioning",
 						 obs_module_text("LoLPerformanceDashboard.AdvancedPositioning"));
 	obs_property_set_modified_callback(advanced, advanced_positioning_changed);
