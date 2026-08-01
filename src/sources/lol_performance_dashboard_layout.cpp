@@ -26,6 +26,15 @@ lol_dashboard_rect cover(const lol_dashboard_rect &bounds, double aspect, double
 	return {0, 0, std::max(1, int(std::lround(width))), std::max(1, int(std::lround(height)))};
 }
 
+lol_dashboard_rect fit(const lol_dashboard_rect &bounds, double aspect, double scale)
+{
+	if (bounds.width() < 1 || bounds.height() < 1 || aspect <= 0.0)
+		return {};
+	const double width = std::min<double>(bounds.width(), bounds.height() * aspect) * scale;
+	const double height = width / aspect;
+	return {0, 0, std::max(1, int(std::lround(width))), std::max(1, int(std::lround(height)))};
+}
+
 lol_dashboard_rect anchored_lower_corner(lol_dashboard_rect rect, const lol_dashboard_rect &bounds, bool left)
 {
 	rect.moveLeft(left ? bounds.left() : bounds.right() - rect.width() + 1);
@@ -69,12 +78,16 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		std::max(1, cover_bounds.width() * std::clamp(minimap_cover.width_percent, 1, 200) / 100),
 		std::max(1, cover_bounds.height() * std::clamp(minimap_cover.height_percent, 1, 200) / 100)};
 	result.minimap_cover_mask = anchored_lower_corner(cover_mask, cover_bounds, !minimap_left);
-	result.minimap_cover = cover(result.minimap_cover_mask, minimap_cover.aspect,
-				     std::clamp(minimap_cover.scale_percent, 1, 400) / 100.0);
-	result.minimap_cover.moveLeft(result.minimap_cover_mask.left() +
-				      (result.minimap_cover_mask.width() - result.minimap_cover.width()) / 2);
-	result.minimap_cover.moveTop(result.minimap_cover_mask.top() +
-				     (result.minimap_cover_mask.height() - result.minimap_cover.height()) / 2);
+	const int padding = std::min(
+		std::min(result.minimap_cover_mask.width(), result.minimap_cover_mask.height()) / 2,
+		int(std::lround(std::min(result.minimap_cover_mask.width(), result.minimap_cover_mask.height()) *
+				std::clamp(minimap_cover.alpha_padding_percent, 0, 50) / 100.0)));
+	const lol_dashboard_rect image_bounds =
+		result.minimap_cover_mask.adjusted(padding, padding, -padding, -padding);
+	result.minimap_cover = (minimap_cover.fit_within_mask ? fit : cover)(
+		image_bounds, minimap_cover.aspect, std::clamp(minimap_cover.scale_percent, 1, 400) / 100.0);
+	result.minimap_cover.moveLeft(image_bounds.left() + (image_bounds.width() - result.minimap_cover.width()) / 2);
+	result.minimap_cover.moveTop(image_bounds.top() + (image_bounds.height() - result.minimap_cover.height()) / 2);
 	result.minimap_cover.translate(
 		cover_bounds.width() * std::clamp(minimap_cover.translate_x_percent, -200, 200) / 100,
 		cover_bounds.height() * std::clamp(minimap_cover.translate_y_percent, -200, 200) / 100);

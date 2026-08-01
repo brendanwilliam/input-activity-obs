@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QImage>
+#include <QImageReader>
 #include <QPainter>
 #include <QStringList>
 #include <algorithm>
@@ -79,6 +80,14 @@ public:
 		camera_translate_y_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
 		show_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.show_minimap_cover");
+		use_custom_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.use_custom_minimap_cover");
+		const QString custom_cover_path =
+			QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.minimap_cover_path"));
+		if (!obs_data_has_user_value(settings, "lol_dashboard.use_custom_minimap_cover") &&
+		    !custom_cover_path.isEmpty()) {
+			use_custom_minimap_cover_ = true;
+			obs_data_set_bool(settings, "lol_dashboard.use_custom_minimap_cover", true);
+		}
 		minimap_cover_width_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_width_percent"));
 		minimap_cover_height_percent_ =
@@ -89,8 +98,9 @@ public:
 			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_translate_x_percent"));
 		minimap_cover_translate_y_percent_ =
 			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_translate_y_percent"));
-		load_minimap_cover(
-			QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.minimap_cover_path")));
+		minimap_cover_alpha_padding_percent_ =
+			int(obs_data_get_int(settings, "lol_dashboard.minimap_cover_alpha_padding_percent"));
+		load_minimap_cover(use_custom_minimap_cover_ ? custom_cover_path : QString{});
 		camera_visibility_.sync(source_, camera_source_uuid_);
 		const int left = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_left"))
 						       : 0;
@@ -256,13 +266,18 @@ private:
 			 camera_scale_percent_, camera_translate_x_percent_, camera_translate_y_percent_},
 			{minimap_cover_.isNull() ? 1.0 : double(minimap_cover_.width()) / minimap_cover_.height(),
 			 minimap_cover_width_percent_, minimap_cover_height_percent_, minimap_cover_scale_percent_,
-			 minimap_cover_translate_x_percent_, minimap_cover_translate_y_percent_});
+			 minimap_cover_translate_x_percent_, minimap_cover_translate_y_percent_,
+			 use_custom_minimap_cover_ ? minimap_cover_alpha_padding_percent_ : 0,
+			 use_custom_minimap_cover_});
 	}
 	void load_minimap_cover(const QString &custom_path)
 	{
 		QImage image;
-		if (!custom_path.isEmpty())
-			image.load(custom_path);
+		if (!custom_path.isEmpty()) {
+			QImageReader reader(custom_path);
+			reader.setAutoTransform(true);
+			image = reader.read();
+		}
 		if (!image.isNull()) {
 			minimap_cover_ = image;
 			return;
@@ -303,13 +318,14 @@ private:
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
 	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
-		show_minimap_cover_{true};
+		show_minimap_cover_{true}, use_custom_minimap_cover_{};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
 	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
 	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
 		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
-		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{};
+		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{},
+		minimap_cover_alpha_padding_percent_{};
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	QImage minimap_cover_;
@@ -378,7 +394,9 @@ void register_lol_performance_dashboard_source()
 		obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);
 		obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);
 		obs_data_set_default_bool(settings, "lol_dashboard.show_minimap_cover", true);
+		obs_data_set_default_bool(settings, "lol_dashboard.use_custom_minimap_cover", false);
 		obs_data_set_default_string(settings, "lol_dashboard.minimap_cover_path", "");
+		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_alpha_padding_percent", 0);
 		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_width_percent", 100);
 		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_height_percent", 100);
 		obs_data_set_default_int(settings, "lol_dashboard.minimap_cover_scale_percent", 100);

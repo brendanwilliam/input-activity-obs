@@ -51,6 +51,8 @@ struct lol_dashboard_image_layout {
 	int scale_percent{100};
 	int translate_x_percent{};
 	int translate_y_percent{};
+	int alpha_padding_percent{};
+	bool fit_within_mask{};
 };
 
 struct lol_dashboard_panels {

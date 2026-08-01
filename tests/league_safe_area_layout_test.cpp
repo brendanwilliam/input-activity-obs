@@ -90,6 +90,13 @@ int main()
 	    !require(cover_panels.minimap_cover.left() > centered_cover_panels.minimap_cover.left()) ||
 	    !require(cover_panels.minimap_cover.top() < centered_cover_panels.minimap_cover.top()))
 		return 1;
+	sources::lol_dashboard_image_layout padded_custom_cover{1.0, 100, 100, 100, 0, 0, 20, true};
+	auto padded_cover_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, padded_custom_cover);
+	if (!require(padded_cover_panels.minimap_cover.width() < padded_cover_panels.minimap_cover_mask.width()) ||
+	    !require(padded_cover_panels.minimap_cover.height() < padded_cover_panels.minimap_cover_mask.height()) ||
+	    !require(padded_cover_panels.minimap_cover.left() > padded_cover_panels.minimap_cover_mask.left()) ||
+	    !require(padded_cover_panels.minimap_cover.top() > padded_cover_panels.minimap_cover_mask.top()))
+		return 1;
 	auto flipped_panels = sources::lol_dashboard_panel_rectangles(flipped_model, camera, {});
 	if (!require(flipped_panels.camera_mask.right() < flipped_model.game.width) ||
 	    !require(flipped_panels.minimap_cover_mask.left() == 0) ||
