@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- LoL Performance Dashboard camera panels that render a selected OBS video-input source opposite the minimap, with safe-area-relative sizing, scale, and translation controls.
+- LoL Performance Dashboard minimap covers with a packaged default image, custom image selection, scale control, and automatic flipped-minimap anchoring.
 - A League Safe Area OBS source that reads `game.cfg` and renders placement-safe regions around persistent League HUD elements.
 - LoL Performance Dashboard overlays for League, including placement-aware input visualizations, session intensity statistics, configurable hexbins, automatic game detection, and dashboard reset controls.
 - A unified `Input Activity` OBS source with Live Keys, Mouse Activity, Input Intensity, and Input Statistics modes. Its shared appearance settings include a transparent-by-default background color.

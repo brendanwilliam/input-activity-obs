@@ -1,4 +1,5 @@
 #include "sources/league_safe_area_layout.hpp"
+#include "sources/lol_performance_dashboard_layout.hpp"
 
 #include <cmath>
 #include <string>
@@ -61,6 +62,24 @@ int main()
 	auto mixed_model = make_model(*mixed_scales.value);
 	if (!require(std::abs(mixed_model.exclusions[2].right - min_model.exclusions[2].right) < 0.000001) ||
 	    !require(std::abs(mixed_model.exclusions[4].left - max_model.exclusions[4].left) < 0.000001))
+		return 1;
+	auto default_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, 1.0, 100);
+	if (!require(!default_panels.camera_visible) ||
+	    !require(default_panels.heatmap.bottom() < min_model.game.height) ||
+	    !require(default_panels.minimap_cover.right() == min_model.game.width - 1) ||
+	    !require(default_panels.minimap_cover.bottom() == min_model.game.height - 1))
+		return 1;
+	sources::lol_dashboard_camera_layout camera{true, 16.0 / 9.0, 67, 100, 100, 0, 0};
+	auto camera_panels = sources::lol_dashboard_panel_rectangles(min_model, camera, 1.0, 100);
+	if (!require(camera_panels.camera_visible) || !require(camera_panels.camera.left() >= 0) ||
+	    !require(camera_panels.camera.bottom() < min_model.game.height) ||
+	    !require(camera_panels.heatmap.top() >= camera_panels.header.bottom()) ||
+	    !require(camera_panels.summary.left() == camera_panels.heatmap.left()))
+		return 1;
+	auto flipped_panels = sources::lol_dashboard_panel_rectangles(flipped_model, camera, 1.0, 100);
+	if (!require(flipped_panels.camera.right() < flipped_model.game.width) ||
+	    !require(flipped_panels.minimap_cover.left() == 0) ||
+	    !require(flipped_panels.heatmap.right() < flipped_model.game.width))
 		return 1;
 	auto invalid = parse_game_config("[General]\nWidth=2560\n");
 	if (!require(!invalid.value))
