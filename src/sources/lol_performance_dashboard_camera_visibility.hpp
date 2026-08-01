@@ -22,7 +22,7 @@ private:
 	std::vector<obs_sceneitem_t *> hidden_items_;
 	obs_source_t *dashboard_{};
 	obs_source_t *camera_{};
-	bool active_{};
+	bool active_{}, showing_{};
 	void restore();
 };
 
