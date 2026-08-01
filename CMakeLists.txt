@@ -66,6 +66,8 @@ target_sources(
     src/sources/lol_performance_dashboard_source.cpp
     src/sources/lol_performance_dashboard_camera_visibility.hpp
     src/sources/lol_performance_dashboard_camera_visibility.cpp
+    src/sources/lol_dashboard_game_config_watcher.hpp
+    src/sources/lol_dashboard_game_config_watcher.cpp
     src/sources/lol_performance_dashboard_properties.inc
     src/sources/lol_performance_dashboard_layout.hpp
     src/sources/lol_performance_dashboard_layout.cpp

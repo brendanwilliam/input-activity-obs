@@ -1,13 +1,12 @@
 #include "activity_sources.hpp"
-
 #include "../hook/uiohook_helper.hpp"
 #include "../input/input_broker.hpp"
 #include "league_safe_area_layout.hpp"
 #include "league_capture_switcher.hpp"
+#include "lol_dashboard_game_config_watcher.hpp"
 #include "lol_performance_dashboard_camera_visibility.hpp"
 #include "lol_performance_dashboard_layout.hpp"
 #include "lol_performance_dashboard_visuals.hpp"
-
 #include <QDir>
 #include <QFile>
 #include <QImage>
@@ -19,7 +18,6 @@
 #include <obs-module.h>
 #include <obs-hotkey.h>
 #include <util/bmem.h>
-
 extern "C" {
 #include <graphics/graphics.h>
 }
@@ -66,6 +64,7 @@ public:
 	void update(obs_data_t *settings)
 	{
 		path_ = QString::fromUtf8(obs_data_get_string(settings, path_key));
+		game_config_watcher_.set_path(path_);
 		advanced_positioning_ = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
 		always_visible_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
 		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
@@ -110,8 +109,10 @@ public:
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
 	}
 
-	void tick(float)
+	void tick(float seconds)
 	{
+		if (game_config_watcher_.changed(seconds))
+			reload();
 		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
 		game_visible_ = always_visible_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
@@ -301,8 +302,8 @@ private:
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
-	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{};
-	bool show_camera_{}, show_minimap_cover_{true};
+	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
+		show_minimap_cover_{true};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
 	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
@@ -312,6 +313,7 @@ private:
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	QImage minimap_cover_;
+	lol_dashboard_game_config_watcher game_config_watcher_;
 	lol_dashboard_camera_visibility camera_visibility_;
 	std::optional<league_safe_area::model> layout_;
 	lol_dashboard_visuals visuals_;
