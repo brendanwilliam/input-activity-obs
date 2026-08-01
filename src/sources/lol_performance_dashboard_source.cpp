@@ -55,9 +55,10 @@ public:
 	~dashboard_source()
 	{
 		obs_hotkey_unregister(reset_hotkey_);
-		if (texture_) {
+		if (texture_ || camera_texture_) {
 			obs_enter_graphics();
 			gs_texture_destroy(texture_);
+			gs_texrender_destroy(camera_texture_);
 			obs_leave_graphics();
 		}
 	}
@@ -199,7 +200,7 @@ public:
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
 		if (camera_mode_visible_ && panels.camera_visible)
-			render_camera(qrect(panels.camera_mask), qrect(panels.camera));
+			render_camera(effect, qrect(panels.camera_mask), qrect(panels.camera));
 	}
 
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
@@ -281,7 +282,7 @@ private:
 			bfree(default_path);
 		}
 	}
-	void render_camera(const QRect &mask, const QRect &bounds) const;
+	void render_camera(gs_effect_t *effect, const QRect &mask, const QRect &bounds);
 
 	obs_source_t *source_{};
 	QString path_;
@@ -307,6 +308,7 @@ private:
 	uint64_t cursor_{};
 	bool discard_backlog_{};
 	gs_texture_t *texture_{};
+	gs_texrender_t *camera_texture_{};
 	int texture_width_{}, texture_height_{};
 	obs_hotkey_id reset_hotkey_{OBS_INVALID_HOTKEY_ID};
 };
