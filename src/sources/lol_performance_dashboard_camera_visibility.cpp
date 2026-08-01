@@ -61,11 +61,17 @@ void lol_dashboard_camera_visibility::activate()
 	if (active_) {
 		obs_source_inc_showing(camera_);
 		showing_ = true;
+		obs_source_inc_active(camera_);
+		source_active_ = true;
 	}
 }
 
 void lol_dashboard_camera_visibility::deactivate()
 {
+	if (source_active_) {
+		obs_source_dec_active(camera_);
+		source_active_ = false;
+	}
 	if (showing_) {
 		obs_source_dec_showing(camera_);
 		showing_ = false;
