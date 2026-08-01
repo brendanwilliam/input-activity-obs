@@ -80,7 +80,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
 	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
-	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 67);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 133);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);

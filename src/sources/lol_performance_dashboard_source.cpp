@@ -71,14 +71,31 @@ public:
 		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
 		client_capture_source_ = obs_data_get_string(settings, league_capture_switcher::client_source_key);
 		show_camera_ = obs_data_get_bool(settings, "lol_dashboard.show_camera");
-		camera_source_uuid_ = obs_data_get_string(settings, "lol_dashboard.camera_source");
+		const std::string selected_camera_source = obs_data_get_string(settings, "lol_dashboard.camera_source");
+		const bool camera_link_changed = camera_source_initialized_ &&
+						 camera_source_uuid_ != selected_camera_source;
+		camera_source_uuid_ = selected_camera_source;
+		camera_source_initialized_ = true;
 		camera_width_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_width_percent"));
 		camera_height_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_height_percent"));
-		camera_scale_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_scale_percent"));
+		camera_scale_percent_ = camera_link_changed
+						? 100
+						: int(obs_data_get_int(settings, "lol_dashboard.camera_scale_percent"));
 		camera_translate_x_percent_ =
-			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_x_percent"));
+			camera_link_changed
+				? 0
+				: int(obs_data_get_int(settings, "lol_dashboard.camera_translate_x_percent"));
 		camera_translate_y_percent_ =
-			int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
+			camera_link_changed
+				? 0
+				: int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
+		if (camera_link_changed) {
+			obs_data_set_int(settings, "lol_dashboard.camera_scale_percent", camera_scale_percent_);
+			obs_data_set_int(settings, "lol_dashboard.camera_translate_x_percent",
+					 camera_translate_x_percent_);
+			obs_data_set_int(settings, "lol_dashboard.camera_translate_y_percent",
+					 camera_translate_y_percent_);
+		}
 		camera_background_color_ =
 			obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.camera_background_color")));
 		show_minimap_cover_ = obs_data_get_bool(settings, "lol_dashboard.show_minimap_cover");
@@ -244,36 +261,8 @@ private:
 		result.rectangle_bottom = frame_.bottom();
 		return result;
 	}
-	std::optional<double> camera_aspect() const
-	{
-		if (!show_camera_ || camera_source_uuid_.empty())
-			return {};
-		obs_source_t *camera = obs_get_source_by_uuid(camera_source_uuid_.c_str());
-		if (!camera || camera == source_ || obs_source_get_type(camera) != OBS_SOURCE_TYPE_INPUT) {
-			if (camera)
-				obs_source_release(camera);
-			return {};
-		}
-		const uint32_t camera_width = obs_source_get_width(camera);
-		const uint32_t camera_height = obs_source_get_height(camera);
-		obs_source_release(camera);
-		if (!camera_width || !camera_height)
-			return {};
-		return double(camera_width) / camera_height;
-	}
-	lol_dashboard_panels panel_rectangles() const
-	{
-		const auto aspect = camera_aspect();
-		return lol_dashboard_panel_rectangles(
-			*layout_,
-			{aspect.has_value(), aspect.value_or(1.0), camera_width_percent_, camera_height_percent_,
-			 camera_scale_percent_, camera_translate_x_percent_, camera_translate_y_percent_},
-			{minimap_cover_.isNull() ? 1.0 : double(minimap_cover_.width()) / minimap_cover_.height(),
-			 minimap_cover_width_percent_, minimap_cover_height_percent_, minimap_cover_scale_percent_,
-			 minimap_cover_translate_x_percent_, minimap_cover_translate_y_percent_,
-			 use_custom_minimap_cover_ ? minimap_cover_alpha_padding_percent_ : 0,
-			 use_custom_minimap_cover_});
-	}
+	std::optional<double> camera_aspect() const;
+	lol_dashboard_panels panel_rectangles() const;
 	void load_minimap_cover(const QString &custom_path)
 	{
 		QImage image;
@@ -292,40 +281,17 @@ private:
 			bfree(default_path);
 		}
 	}
-	void render_camera(const QRect &mask, const QRect &bounds) const
-	{
-		obs_source_t *camera = obs_get_source_by_uuid(camera_source_uuid_.c_str());
-		if (!camera || camera == source_ || obs_source_get_type(camera) != OBS_SOURCE_TYPE_INPUT) {
-			if (camera)
-				obs_source_release(camera);
-			return;
-		}
-		const uint32_t camera_width = obs_source_get_width(camera);
-		const uint32_t camera_height = obs_source_get_height(camera);
-		if (camera_width && camera_height) {
-			const gs_rect scissor{mask.left(), int(height()) - mask.bottom() - 1, mask.width(),
-					      mask.height()};
-			gs_set_scissor_rect(&scissor);
-			gs_matrix_push();
-			gs_matrix_translate3f(float(bounds.x()), float(bounds.y()), 0.0f);
-			gs_matrix_scale3f(float(bounds.width()) / camera_width, float(bounds.height()) / camera_height,
-					  1.0f);
-			obs_source_video_render(camera);
-			gs_matrix_pop();
-			gs_set_scissor_rect(nullptr);
-		}
-		obs_source_release(camera);
-	}
+	void render_camera(const QRect &mask, const QRect &bounds) const;
 
 	obs_source_t *source_{};
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
 	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
-		show_minimap_cover_{true}, use_custom_minimap_cover_{};
+		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
-	int camera_width_percent_{67}, camera_height_percent_{100}, camera_scale_percent_{100};
+	int camera_width_percent_{133}, camera_height_percent_{100}, camera_scale_percent_{100};
 	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
 		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
 		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{},
@@ -345,6 +311,7 @@ private:
 	obs_hotkey_id reset_hotkey_{OBS_INVALID_HOTKEY_ID};
 };
 
+#include "lol_performance_dashboard_camera_render.inc"
 #include "lol_performance_dashboard_properties.inc"
 } // namespace
 

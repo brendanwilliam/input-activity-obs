@@ -59,6 +59,7 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 	const league_safe_area::rect key{side_left, key_top, side_right, std::max(key_top, key_bottom)};
 	const league_safe_area::rect mouse = minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 							  : league_safe_area::rect{0.0, player.top, player.left, 1.0};
+	const lol_dashboard_rect camera_anchor_bounds = scaled(mouse, width, height);
 	const lol_dashboard_rect mouse_bounds = scaled(mouse, width, height)
 							.adjusted(horizontal_padding, vertical_top_padding,
 								  -horizontal_padding, -vertical_bottom_padding);
@@ -93,20 +94,20 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		cover_bounds.height() * std::clamp(minimap_cover.translate_y_percent, -200, 200) / 100);
 
 	const lol_dashboard_rect camera_bounds{
-		mouse_bounds.left(), mouse_bounds.top(),
-		std::max(1, mouse_bounds.width() * std::clamp(camera.width_percent, 1, 200) / 100),
-		std::max(1, mouse_bounds.height() * std::clamp(camera.height_percent, 1, 200) / 100)};
+		camera_anchor_bounds.left(), camera_anchor_bounds.top(),
+		std::max(1, camera_anchor_bounds.width() * std::clamp(camera.width_percent, 1, 200) / 200),
+		std::max(1, cover_bounds.height() * std::clamp(camera.height_percent, 1, 200) / 100)};
 	if (camera.enabled && camera.aspect > 0.0) {
-		result.camera_mask = anchored_lower_corner(camera_bounds, mouse_bounds, !minimap_left);
+		result.camera_mask = anchored_lower_corner(camera_bounds, camera_anchor_bounds, !minimap_left);
 		result.camera =
 			cover(result.camera_mask, camera.aspect, std::clamp(camera.scale_percent, 1, 400) / 100.0);
 		result.camera.moveLeft(result.camera_mask.left() +
 				       (result.camera_mask.width() - result.camera.width()) / 2);
 		result.camera.moveTop(result.camera_mask.top() +
 				      (result.camera_mask.height() - result.camera.height()) / 2);
-		result.camera.translate(mouse_bounds.width() * std::clamp(camera.translate_x_percent, -200, 200) / 100,
-					mouse_bounds.height() * std::clamp(camera.translate_y_percent, -200, 200) /
-						100);
+		result.camera.translate(
+			camera_anchor_bounds.width() * std::clamp(camera.translate_x_percent, -200, 200) / 100,
+			cover_bounds.height() * std::clamp(camera.translate_y_percent, -200, 200) / 100);
 		result.camera_visible = true;
 		const int top = std::max(header_bounds.bottom() + 1, panel_gap);
 		result.heatmap = {minimap_left ? width - panel_gap - heat_width : panel_gap, top, heat_width,
