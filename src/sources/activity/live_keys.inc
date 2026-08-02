@@ -301,19 +301,14 @@ private:
 			std::max_element(keys.begin(), keys.end(), [](const auto &left, const auto &right) {
 				return left.press_count < right.press_count;
 			})->press_count;
-		const int slot_count = most_used_maximum;
-		const int gap =
-			std::min(most_used_element_spacing, std::max(0, bounds.height() / std::max(1, slot_count * 3)));
-		const int row_height = std::max(1, (bounds.height() - gap * std::max(0, slot_count - 1)) / slot_count);
-		const int bar_height = std::max(1, std::min(row_height, (subtitle_size * 2 + 2) / 3));
-		const int value_height = std::max(0, row_height - bar_height);
+		const int gap = most_used_element_spacing;
+		const int value_height = QFontMetrics(font(subtitle_size)).lineSpacing();
+		const int bar_height = std::max(1, (subtitle_size * 2 + 2) / 3);
+		const int row_height = value_height + bar_height;
 		const int chart_width = bounds.width();
 		const int chart_left = bounds.left();
 		for (size_t index = 0; index < keys.size(); ++index) {
-			const int slot = invert_layout
-						 ? slot_count - static_cast<int>(keys.size()) + static_cast<int>(index)
-						 : static_cast<int>(index);
-			const int top = bounds.top() + slot * (row_height + gap);
+			const int top = bounds.top() + static_cast<int>(index) * (row_height + gap);
 			const int bar_width =
 				std::max(1, static_cast<int>(chart_width * keys[index].press_count / highest));
 			const QRect bar(right_aligned ? chart_left + chart_width - bar_width : chart_left,
