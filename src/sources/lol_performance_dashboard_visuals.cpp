@@ -19,9 +19,11 @@ constexpr int text_size = 30;
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-				      int rolling_window_seconds, const QRect &game_frame, const QRect &heatmap_bounds)
+				      const lol_dashboard_regions &regions, int rolling_window_seconds,
+				      const QRect &game_frame, const QRect &heatmap_bounds)
 {
 	theme_ = theme;
+	regions_ = regions;
 	const bool hex_size_changed = heatmap_.radius != heatmap.radius;
 	heatmap_ = heatmap;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
@@ -188,11 +190,17 @@ QString lol_dashboard_visuals::distance_label() const
 {
 	double value = distance_ / 2800.0 * 2.54;
 	QString unit = "cm";
-	if (value > 10000.0) {
+	int decimals = value < 10.0 ? 2 : 1;
+	if (value >= 100000.0) {
+		value /= 100000.0;
+		unit = "km";
+		decimals = 3;
+	} else if (value >= 1000.0) {
 		value /= 100.0;
 		unit = "m";
+		decimals = 2;
 	}
-	return QString("%1 %2").arg(value, 0, 'f', value < 10.0 ? 2 : 1).arg(unit);
+	return QString("%1 %2").arg(value, 0, 'f', decimals).arg(unit);
 }
 void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds) const
 {
@@ -391,11 +399,15 @@ void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const Q
 	painter.fillRect(QRect(0, 0, std::max({header.right(), heatmap.right(), summary.right(), keys.right()}) + 1,
 			       std::max({header.bottom(), heatmap.bottom(), summary.bottom(), keys.bottom()}) + 1),
 			 theme_.background);
-	draw_intensity(painter, header);
-	draw_heatmap(painter, heatmap);
+	if (regions_.intensity)
+		draw_intensity(painter, header);
+	if (regions_.mouse_activity)
+		draw_heatmap(painter, heatmap);
 	painter.setClipping(false);
-	draw_summary(painter, summary, right_aligned);
-	draw_keys(painter, keys, right_aligned);
+	if (regions_.mouse_activity)
+		draw_summary(painter, summary, right_aligned);
+	if (regions_.keys)
+		draw_keys(painter, keys, right_aligned);
 }
 
 } // namespace sources

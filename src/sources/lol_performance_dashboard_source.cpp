@@ -126,6 +126,9 @@ public:
 						       : 0;
 		const int top = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
 		window_ = std::clamp(int(obs_data_get_int(settings, "lol_dashboard.window")), 1, 60);
+		regions_ = {obs_data_get_bool(settings, "lol_dashboard.show_intensity"),
+			    obs_data_get_bool(settings, "lol_dashboard.show_keys"),
+			    obs_data_get_bool(settings, "lol_dashboard.show_mouse_activity")};
 		theme_ = {obs_color(uint32_t(obs_data_get_int(settings, "activity.inactive_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.active_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.background_color")))};
@@ -156,7 +159,7 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, heatmap_, window_, frame_, qrect(panels.heatmap));
+		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap));
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
 			return;
@@ -303,6 +306,7 @@ private:
 	QColor camera_background_color_{26, 26, 26, 255};
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
+	lol_dashboard_regions regions_;
 	QImage minimap_cover_;
 	lol_dashboard_game_config_watcher game_config_watcher_;
 	lol_dashboard_camera_visibility camera_visibility_;

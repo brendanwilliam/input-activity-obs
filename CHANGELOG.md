@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The LoL Performance Dashboard now keeps its heatmap statistics top-aligned, restores the right-aligned key layout, limits dashboard visuals to the active game client, and renders linked cameras as cropped masks in either League mode. Minimap covers now use the same cropped-mask sizing and image-position controls.
 - The LoL Performance Dashboard camera now stays visible outside League, and the new Always show dashboard option keeps all dashboard visuals visible outside the game.
 - The LoL Performance Dashboard now reloads `game.cfg` changes while active so minimap covers immediately follow live minimap-size updates.
+- The LoL Performance Dashboard now provides independent intensity, key, and mouse-activity visibility controls, and distance totals scale through centimetres, metres, and kilometres.
 - Live Keys most-used bars now keep their configured vertical spacing and flow from the top of the chart when fewer than the configured number of keys are present.
 - Input capture now queues raw events immediately and routes them on OBS video ticks, so adding source instances does not multiply capture work and the macOS input callback avoids application, window, display, and model processing.
 - Live Keys now has clearer alignment and inversion behavior, consistent special-key indicators, and improved most-used key bars. Input Intensity box plots have more legible current-value markers, and Mouse Activity defaults to 720×560.
