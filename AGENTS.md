@@ -2,12 +2,16 @@
 
 ## Policy
 
-Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from `main`. Target `main` through a pull request for all changes. Never push directly to `main` or bypass required checks.
+Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from current `develop`.
+Target `develop` through a pull request for ordinary changes; it is the shared integration branch for parallel
+work. Promote `develop` to `main` through a separate pull request only when the integrated set is ready.
+Never push directly to either protected branch, and never bypass `main`'s required checks on the promotion PR.
+Before starting feature work, ensure `develop` contains current `main`; after a main-only change or when first
+adopting this workflow, synchronize `main` into `develop` through a pull request.
 
-For a coordinated group of multiple tasks implemented on the same day, use a dated integration branch named
-`chore/updates-YYYY-MM-DD`, created from current `main`. Commit the related work to that branch and open one
-pull request to `main` after the group is ready. Use a normal task-specific branch for isolated work; do not
-use an update branch to avoid required checks.
+For a coordinated group of closely related tasks, use a dated integration branch named
+`chore/updates-YYYY-MM-DD`, created from current `develop`, and target its pull request at `develop`. Use a
+normal task-specific branch for isolated work.
 
 Use Conventional Commit subjects such as `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `build:`, and `ci:`. Give non-trivial changes an explanatory body. Treat the pull request as the durable, human-facing change record.
 
@@ -76,7 +80,7 @@ reopen OBS after installation; do not control OBS unless explicitly asked.
 
 ## Repository-owned skills
 
-- [`skills/start-change`](skills/start-change/SKILL.md): start a governed branch and synchronize with `main`.
+- [`skills/start-change`](skills/start-change/SKILL.md): start a governed branch and synchronize with `develop`.
 - [`skills/prepare-pr`](skills/prepare-pr/SKILL.md): validate, document, and hand off a pull request.
 - [`skills/release-macos-plugin`](skills/release-macos-plugin/SKILL.md): prepare and validate a signed/notarized release.
 - [`skills/refresh-obs-docs-reference`](skills/refresh-obs-docs-reference/SKILL.md): audit the full OBS documentation site and refresh the local navigation reference.
