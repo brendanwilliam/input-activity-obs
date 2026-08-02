@@ -50,5 +50,15 @@ configure_ruleset() {
   fi
 }
 
-configure_ruleset develop
+remove_ruleset() {
+  local name=$1
+  local ruleset_id
+  ruleset_id=$(gh api "repos/$repository/rulesets" --jq ".[] | select(.name == \"$name\") | .id" | head -n1 || true)
+
+  if [[ -n "$ruleset_id" ]]; then
+    gh api --method DELETE "repos/$repository/rulesets/$ruleset_id"
+  fi
+}
+
+remove_ruleset "Protect develop"
 configure_ruleset main

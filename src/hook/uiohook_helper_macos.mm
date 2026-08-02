@@ -10,9 +10,10 @@
 
 #include "uiohook_helper.hpp"
 
-#include "../input/input_data.hpp"
+#include "../input/input_broker.hpp"
 
 #include <ApplicationServices/ApplicationServices.h>
+#import <AppKit/AppKit.h>
 #include <cstdarg>
 #include <cstdlib>
 #include <obs-module.h>
@@ -25,20 +26,82 @@ namespace uiohook {
     uint64_t last_scroll_time = 0;
     bool state = false;
 
+    static uint64_t focused_window_id(pid_t pid)
+    {
+        AXUIElementRef application = AXUIElementCreateApplication(pid);
+        if (!application)
+            return 0;
+
+        CFTypeRef focused_window = nullptr;
+        const AXError focused_window_result =
+            AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute, &focused_window);
+        CFRelease(application);
+        if (focused_window_result != kAXErrorSuccess || !focused_window)
+            return 0;
+
+        CFTypeRef window_number = nullptr;
+        const AXError window_number_result = AXUIElementCopyAttributeValue(static_cast<AXUIElementRef>(focused_window),
+                                                                           CFSTR("AXWindowNumber"), &window_number);
+        CFRelease(focused_window);
+        if (window_number_result != kAXErrorSuccess || !window_number)
+            return 0;
+
+        int64_t number {};
+        const bool converted = CFGetTypeID(window_number) == CFNumberGetTypeID() &&
+                               CFNumberGetValue(static_cast<CFNumberRef>(window_number), kCFNumberSInt64Type, &number);
+        CFRelease(window_number);
+        return converted && number > 0 ? static_cast<uint64_t>(number) : 0;
+    }
+
+    input_context current_input_context()
+    {
+        input_context context {};
+        @autoreleasepool {
+            NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+            if (!application)
+                return context;
+            const pid_t process_id = application.processIdentifier;
+            NSString *bundle_identifier = application.bundleIdentifier;
+            if (bundle_identifier)
+                context.application_id = bundle_identifier.UTF8String;
+            const uint64_t focused_window = focused_window_id(process_id);
+            CFArrayRef windows = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+            if (!windows)
+                return context;
+            for (NSDictionary *window in (__bridge NSArray *) windows) {
+                if ([window[(id) kCGWindowOwnerPID] intValue] != process_id ||
+                    [window[(id) kCGWindowLayer] intValue] != 0)
+                    continue;
+                const uint64_t window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                if (focused_window && window_id != focused_window)
+                    continue;
+                context.window_id = window_id;
+                CGRect bounds {};
+                if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
+                                                           &bounds)) {
+                    CGDirectDisplayID display {};
+                    uint32_t count {};
+                    if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count)
+                        context.focused_display_id = display;
+                }
+                break;
+            }
+            CFRelease(windows);
+        }
+        return context;
+    }
+
+    uint32_t display_at(int x, int y)
+    {
+        CGDirectDisplayID display {};
+        uint32_t count {};
+        return CGGetDisplaysWithPoint(CGPointMake(x, y), 1, &display, &count) == kCGErrorSuccess && count ? display : 0;
+    }
+
     static void process_event(uiohook_event *event)
     {
-        static input_data thread_data;
-        static constexpr uint64_t refresh_ms = 16;
-        static uint64_t last_time = 0;
-        const uint64_t diff = event->time - last_time;
-        const bool important = event->type < EVENT_MOUSE_MOVED;
-
-        thread_data.dispatch_uiohook_event(event);
-        if (important || (diff >= refresh_ms && local_data::data.last_event < thread_data.last_event)) {
-            last_time = event->time;
-            std::lock_guard<std::mutex> lock(local_data::data.m_mutex);
-            local_data::data.copy(&thread_data);
-        }
+        input_broker::push(event);
     }
 
     static pthread_t hook_thread;
@@ -200,6 +263,97 @@ namespace uiohook {
         pthread_mutex_destroy(&hook_running_mutex);
         pthread_mutex_destroy(&hook_control_mutex);
         pthread_cond_destroy(&hook_control_cond);
+    }
+
+    std::vector<target_display> target_displays()
+    {
+        std::vector<target_display> result;
+        CGDirectDisplayID displays[16] {};
+        uint32_t count {};
+        if (CGGetActiveDisplayList(16, displays, &count) != kCGErrorSuccess)
+            return result;
+        result.reserve(count);
+        for (uint32_t index = 0; index < count; ++index) {
+            const CGRect bounds = CGDisplayBounds(displays[index]);
+            const int width = static_cast<int>(bounds.size.width);
+            const int height = static_cast<int>(bounds.size.height);
+            result.push_back({displays[index],
+                              "Display " + std::to_string(index + 1) + " (" + std::to_string(width) + "x" +
+                                  std::to_string(height) + ")",
+                              width, height});
+        }
+        return result;
+    }
+
+    std::vector<target_application> target_applications()
+    {
+        std::vector<target_application> result;
+        @autoreleasepool {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+                NSString *bundle_identifier = application.bundleIdentifier;
+                if (!bundle_identifier)
+                    continue;
+                NSString *name = application.localizedName ?: bundle_identifier;
+                result.push_back({bundle_identifier.UTF8String, name.UTF8String});
+            }
+        }
+        return result;
+    }
+
+    static bool is_league_game(NSRunningApplication *application)
+    {
+        const NSString *path = application.executableURL.path;
+        return [application.localizedName isEqualToString:@"League Of Legends"] ||
+               [path hasSuffix:@"Contents/LoL/Game/LeagueOfLegends.app/Contents/MacOS/LeagueofLegends"];
+    }
+
+    bool league_game_is_running()
+    {
+        @autoreleasepool {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+                const NSString *path = application.executableURL.path;
+                if (is_league_game(application) ||
+                    [path hasSuffix:@"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"])
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    bool league_game_is_frontmost()
+    {
+        @autoreleasepool {
+            return is_league_game(NSWorkspace.sharedWorkspace.frontmostApplication);
+        }
+    }
+
+    std::vector<target_window> target_windows()
+    {
+        std::vector<target_window> result;
+        @autoreleasepool {
+            CFArrayRef windows = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+            if (!windows)
+                return result;
+            for (NSDictionary *window in (__bridge NSArray *) windows) {
+                if ([window[(id) kCGWindowLayer] intValue] != 0)
+                    continue;
+                NSRunningApplication *application = [NSRunningApplication
+                    runningApplicationWithProcessIdentifier:[window[(id) kCGWindowOwnerPID] intValue]];
+                NSString *bundle_identifier = application.bundleIdentifier;
+                if (!bundle_identifier)
+                    continue;
+                NSString *application_name = application.localizedName ?: bundle_identifier;
+                NSString *window_name = window[(id) kCGWindowName];
+                NSString *label = window_name.length
+                                      ? [NSString stringWithFormat:@"%@ — %@", application_name, window_name]
+                                      : application_name;
+                result.push_back({bundle_identifier.UTF8String, [window[(id) kCGWindowNumber] unsignedLongLongValue],
+                                  label.UTF8String});
+            }
+            CFRelease(windows);
+        }
+        return result;
     }
 
 }  // namespace uiohook

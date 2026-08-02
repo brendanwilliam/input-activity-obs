@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use OBS Documentation Reference"
+  short_description: "Find and verify OBS API guidance during development"
+  default_prompt: "Use $use-obs-docs-reference to guide this OBS integration change."

@@ -42,15 +42,21 @@ invoke_formatter() {
         exit 2
       }
 
-      local -a formatter_version=($(${formatter} --version))
-
-      if ! is-at-least 19.1.1 ${formatter_version[-1]}; then
-        log_error "clang-format is not version 19.1.1 or above (found ${formatter_version[-1]}."
+      local formatter_version="$(${formatter} --version)"
+      if [[ ${formatter_version} =~ ([0-9]+(\.[0-9]+)+) ]]; then
+        formatter_version=${match[1]}
+      else
+        log_error "Could not determine the clang-format version from: ${formatter_version}"
         exit 2
       fi
 
-      if ! is-at-least ${formatter_version[-1]} 19.1.1; then
-        log_error "clang-format is more recent than version 19.1.1 (found ${formatter_version[-1]})."
+      if ! is-at-least 19.1.1 ${formatter_version}; then
+        log_error "clang-format is not version 19.1.1 or above (found ${formatter_version}."
+        exit 2
+      fi
+
+      if is-at-least 20.0.0 ${formatter_version}; then
+        log_error "clang-format must be a 19.x release (found ${formatter_version})."
         exit 2
       fi
 
