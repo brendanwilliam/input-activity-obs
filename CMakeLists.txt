@@ -61,7 +61,16 @@ target_sources(
     src/sources/league_safe_area_layout.cpp
     src/sources/league_safe_area_source.hpp
     src/sources/league_safe_area_source.cpp
+    src/sources/league_capture_switcher.hpp
+    src/sources/league_capture_switcher.cpp
     src/sources/lol_performance_dashboard_source.cpp
+    src/sources/lol_performance_dashboard_camera_visibility.hpp
+    src/sources/lol_performance_dashboard_camera_visibility.cpp
+    src/sources/lol_dashboard_game_config_watcher.hpp
+    src/sources/lol_dashboard_game_config_watcher.cpp
+    src/sources/lol_performance_dashboard_properties.inc
+    src/sources/lol_performance_dashboard_layout.hpp
+    src/sources/lol_performance_dashboard_layout.cpp
     src/sources/lol_performance_dashboard_visuals.hpp
     src/sources/lol_performance_dashboard_visuals.cpp
     src/sources/lol_performance_dashboard_heatmap.cpp
@@ -89,6 +98,7 @@ if(BUILD_TESTING)
     league-safe-area-layout-test
     tests/league_safe_area_layout_test.cpp
     src/sources/league_safe_area_layout.cpp
+    src/sources/lol_performance_dashboard_layout.cpp
   )
   target_include_directories(league-safe-area-layout-test PRIVATE src)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)

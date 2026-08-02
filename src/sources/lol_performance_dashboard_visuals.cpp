@@ -228,26 +228,28 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
-	const int group_height = std::max(1, (bounds.height() - 10) / 2);
-	const int label_height = group_height / 2;
-	const int clicks_top = bounds.top() + group_height + 10;
+	const int label_height = subtitle_size + 8;
+	const int value_height = text_size + 12;
+	const int group_gap = 10;
+	int top = bounds.top();
 	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), bounds.top(), bounds.width(), label_height),
-					 alignment, obs_module_text("MouseActivity.Distance"));
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
+					 obs_module_text("MouseActivity.Distance"));
+	top += label_height;
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(
-		painter, QRect(bounds.left(), bounds.top() + label_height, bounds.width(), group_height - label_height),
-		alignment, distance_label());
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
+					 distance_label());
+	top += value_height + group_gap;
 	painter.setPen(Qt::white);
 	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), clicks_top, bounds.width(), label_height),
-					 alignment, obs_module_text("MouseActivity.Clicks"));
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
+					 obs_module_text("MouseActivity.Clicks"));
+	top += label_height;
 	painter.setFont(QFont("Silom", text_size, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(
-		painter, QRect(bounds.left(), clicks_top + label_height, bounds.width(), group_height - label_height),
-		alignment, QString::number(total_clicks_));
+	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
+					 QString::number(total_clicks_));
 }
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {

@@ -45,4 +45,5 @@ std::vector<target_window> target_windows();
 input_context current_input_context();
 uint32_t display_at(int x, int y);
 bool league_game_is_running();
+bool league_game_is_frontmost();
 } // namespace uiohook

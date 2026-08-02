@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- LoL Performance Dashboard can link Game and Client macOS Screen Capture sources, automatically switching their scene-item visibility based on whether the League game is frontmost.
+- LoL Performance Dashboard camera panels that render a selected OBS video-input source opposite the minimap, with safe-area-relative sizing, scale, and translation controls.
+- LoL Performance Dashboard minimap covers with a packaged default image, custom image selection, scale control, and automatic flipped-minimap anchoring.
 - A League Safe Area OBS source that reads `game.cfg` and renders placement-safe regions around persistent League HUD elements.
 - LoL Performance Dashboard overlays for League, including placement-aware input visualizations, session intensity statistics, configurable hexbins, automatic game detection, and dashboard reset controls.
 - A unified `Input Activity` OBS source with Live Keys, Mouse Activity, Input Intensity, and Input Statistics modes. Its shared appearance settings include a transparent-by-default background color.
@@ -26,6 +29,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- The LoL Performance Dashboard now keeps its heatmap statistics top-aligned, restores the right-aligned key layout, limits dashboard visuals to the active game client, and renders linked cameras as cropped masks in either League mode. Minimap covers now use the same cropped-mask sizing and image-position controls.
+- The LoL Performance Dashboard camera now stays visible outside League, and the new Always show dashboard option keeps all dashboard visuals visible outside the game.
+- The LoL Performance Dashboard now reloads `game.cfg` changes while active so minimap covers immediately follow live minimap-size updates.
 - Live Keys most-used bars now keep their configured vertical spacing and flow from the top of the chart when fewer than the configured number of keys are present.
 - Input capture now queues raw events immediately and routes them on OBS video ticks, so adding source instances does not multiply capture work and the macOS input callback avoids application, window, display, and model processing.
 - Live Keys now has clearer alignment and inversion behavior, consistent special-key indicators, and improved most-used key bars. Input Intensity box plots have more legible current-value markers, and Mouse Activity defaults to 720×560.

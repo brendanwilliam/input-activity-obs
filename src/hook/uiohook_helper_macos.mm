@@ -300,17 +300,31 @@ namespace uiohook {
         return result;
     }
 
+    static bool is_league_game(NSRunningApplication *application)
+    {
+        const NSString *path = application.executableURL.path;
+        return [application.localizedName isEqualToString:@"League Of Legends"] ||
+               [path hasSuffix:@"Contents/LoL/Game/LeagueofLegends.app/Contents/MacOS/LeagueofLegends"];
+    }
+
     bool league_game_is_running()
     {
         @autoreleasepool {
             for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
                 const NSString *path = application.executableURL.path;
-                if ([path hasSuffix:@"Contents/LoL/Game/League Of Legends"] ||
+                if (is_league_game(application) ||
                     [path hasSuffix:@"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"])
                     return true;
             }
         }
         return false;
+    }
+
+    bool league_game_is_frontmost()
+    {
+        @autoreleasepool {
+            return is_league_game(NSWorkspace.sharedWorkspace.frontmostApplication);
+        }
     }
 
     std::vector<target_window> target_windows()
