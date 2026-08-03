@@ -12,7 +12,7 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 add_subdirectory(deps/libuiohook)
 
 find_package(libobs REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Svg Widgets)
 find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices REQUIRED)
 find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
 
@@ -27,6 +27,7 @@ target_link_libraries(
     OBS::libobs
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Svg
     Qt6::Widgets
     uiohook
@@ -41,7 +42,7 @@ target_compile_options(
 )
 set_target_properties(
   ${CMAKE_PROJECT_NAME}
-  PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
+  PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF
 )
 
 target_sources(
@@ -63,6 +64,14 @@ target_sources(
     src/sources/league_safe_area_source.cpp
     src/sources/league_capture_switcher.hpp
     src/sources/league_capture_switcher.cpp
+    src/sources/lol_game_report_types.hpp
+    src/sources/lol_game_report_types.cpp
+    src/sources/lol_game_report_store.hpp
+    src/sources/lol_game_report_store.cpp
+    src/sources/lol_game_report_collector.hpp
+    src/sources/lol_game_report_collector.cpp
+    src/sources/lol_game_report_source.hpp
+    src/sources/lol_game_report_source.cpp
     src/sources/lol_performance_dashboard_source.cpp
     src/sources/lol_performance_dashboard_camera_visibility.hpp
     src/sources/lol_performance_dashboard_camera_visibility.cpp
@@ -103,4 +112,13 @@ if(BUILD_TESTING)
   target_include_directories(league-safe-area-layout-test PRIVATE src)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
   add_test(NAME league-safe-area-layout COMMAND league-safe-area-layout-test)
+  add_executable(
+    lol-game-report-test
+    tests/lol_game_report_test.cpp
+    src/sources/lol_game_report_types.cpp
+  )
+  target_link_libraries(lol-game-report-test PRIVATE Qt6::Core)
+  target_include_directories(lol-game-report-test PRIVATE src)
+  target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
+  add_test(NAME lol-game-report COMMAND lol-game-report-test)
 endif()
