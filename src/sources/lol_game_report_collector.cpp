@@ -14,7 +14,9 @@
 #include <QTimer>
 #include <QUuid>
 #include <QSet>
+#include <QStringList>
 #include <atomic>
+#include <algorithm>
 #include <memory>
 #include <mutex>
 
@@ -73,7 +75,9 @@ private:
 	void process_batch()
 	{
 		const QJsonObject name = batch_.value("activeplayer").toObject();
-		const QString player = name.value("summonerName").toString(name.value("riotId").toString());
+		const QString riot_id = name.value("riotId").toString();
+		const QString game_name = name.value("riotIdGameName").toString();
+		const QString player = riot_id.isEmpty() ? game_name : riot_id;
 		if (player.isEmpty()) {
 			if (active_ && ++misses_ >= 3)
 				finalize();
@@ -85,6 +89,7 @@ private:
 			report_ = {};
 			report_.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
 			report_.player = player;
+			player_aliases_ = {riot_id, game_name, name.value("summonerName").toString()};
 			state_ = collection_state::recording;
 		}
 		const QJsonObject game = batch_.value("gamestats").toObject();
@@ -118,13 +123,19 @@ private:
 			const QString type = event.value("EventName").toString();
 			const QString killer = event.value("KillerName").toString(),
 				      victim = event.value("VictimName").toString();
-			if (type != "GameEnd" && killer != report_.player && victim != report_.player)
+			if (type != "GameEnd" && !is_local_player(killer) && !is_local_player(victim))
 				continue;
 			seen_.insert(id);
 			report_.events.append({id, type, int(event.value("EventTime").toDouble()), type});
 			if (type == "GameEnd")
 				finalize();
 		}
+	}
+	bool is_local_player(const QString &name) const
+	{
+		return std::any_of(player_aliases_.cbegin(), player_aliases_.cend(), [&name](const QString &alias) {
+			return !alias.isEmpty() && alias.compare(name, Qt::CaseInsensitive) == 0;
+		});
 	}
 	void finalize()
 	{
@@ -150,6 +161,7 @@ private:
 	QJsonObject batch_;
 	report report_;
 	QSet<QString> seen_;
+	QStringList player_aliases_;
 };
 
 struct shared_collector {
@@ -206,6 +218,6 @@ QString collector::state_text(collection_state value)
 		return "Recording self-only local game data";
 	if (value == collection_state::finalizing)
 		return "Finalizing report";
-	return "No completed report yet";
+	return "Waiting for a local League game";
 }
 } // namespace sources::lol_game_report

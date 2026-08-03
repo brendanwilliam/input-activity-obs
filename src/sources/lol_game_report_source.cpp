@@ -75,6 +75,7 @@ public:
 	}
 	QVector<lol_game_report::report> reports() const { return store_.reports(); }
 	bool show_latest() const { return show_latest_; }
+	QString collector_status() const { return lol_game_report::collector::state_text(collector_.state()); }
 
 private:
 	std::optional<lol_game_report::report> selected_report() const
@@ -171,6 +172,12 @@ obs_properties_t *properties(void *data)
 		for (const auto &report : static_cast<game_report_source *>(data)->reports())
 			obs_property_list_add_string(list, lol_game_report::display_name(report).toUtf8().constData(),
 						     report.id.toUtf8().constData());
+	const QString status = QString("%1: %2").arg(
+		obs_module_text("LoLGameReport.CollectorStatus"),
+		data ? static_cast<game_report_source *>(data)->collector_status()
+		     : lol_game_report::collector::state_text(lol_game_report::collection_state::empty));
+	obs_properties_add_text(general, "lol_game_report.collector_status", status.toUtf8().constData(),
+				OBS_TEXT_INFO);
 	obs_properties_add_group(props, "lol_game_report.report", obs_module_text("LoLGameReport.Report"),
 				 OBS_GROUP_NORMAL, general);
 	auto *actions = obs_properties_create();
