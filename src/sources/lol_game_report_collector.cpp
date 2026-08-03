@@ -9,7 +9,9 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslConfiguration>
 #include <QSslError>
+#include <QSslSocket>
 #include <QThread>
 #include <QTimer>
 #include <QUuid>
@@ -44,6 +46,11 @@ private:
 	{
 		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/" + path));
 		request.setTransferTimeout(1200);
+		// This request URL is constructed solely from this module's fixed loopback endpoint and
+		// endpoint names. Riot's Live Client Data service uses a self-signed certificate there.
+		QSslConfiguration ssl = request.sslConfiguration();
+		ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
+		request.setSslConfiguration(ssl);
 		auto *reply = manager_->get(request);
 		QObject::connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &) {
 			// Riot's self-signed local certificate is accepted only for this literal loopback request.
