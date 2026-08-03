@@ -19,5 +19,15 @@ int main()
 	report recovered;
 	assert(from_json(QJsonDocument(to_json(input)).object(), recovered));
 	assert(recovered.id == input.id && recovered.samples.size() == 2);
+	assert(recovered.schema_version == 2);
+	assert(classify_event("TurretKilled") == "tower");
+	assert(classify_event("DragonKill") == "objective");
+	const auto normalized = normalized_series({2.0, 4.0}, false);
+	assert(normalized.size() == 2 && normalized.last() == 1.0);
+	QJsonObject legacy = to_json(input);
+	legacy["schema_version"] = 1;
+	legacy.remove("champion");
+	assert(from_json(legacy, recovered));
+	assert(recovered.schema_version == 1 && recovered.champion.isEmpty());
 	return 0;
 }

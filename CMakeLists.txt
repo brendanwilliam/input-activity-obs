@@ -68,6 +68,8 @@ target_sources(
     src/sources/lol_game_report_types.cpp
     src/sources/lol_game_report_store.hpp
     src/sources/lol_game_report_store.cpp
+    src/sources/lol_game_report_web.hpp
+    src/sources/lol_game_report_web.cpp
     src/sources/lol_game_report_collector.hpp
     src/sources/lol_game_report_collector.cpp
     src/sources/lol_game_report_source.hpp
