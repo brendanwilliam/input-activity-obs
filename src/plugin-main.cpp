@@ -6,6 +6,7 @@
 
 #include "hook/uiohook_helper.hpp"
 #include "sources/activity_sources.hpp"
+#include "sources/lol_game_report_source.hpp"
 
 #include <obs-module.h>
 #include <plugin-support.h>
@@ -18,6 +19,7 @@ bool obs_module_load(void)
 	sources::register_activity_sources();
 	sources::register_league_safe_area_source();
 	sources::register_lol_performance_dashboard_source();
+	sources::register_lol_game_report_source();
 	uiohook::start();
 	blog(LOG_INFO, "[input-activity] loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a self-only local League Game Report OBS source with local report retention and PNG/JSON export.
+
 All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
