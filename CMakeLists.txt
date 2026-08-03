@@ -101,6 +101,25 @@ target_sources(
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
 
+if(APPLE)
+  cmake_path(GET Qt6_DIR PARENT_PATH _qt6_cmake_dir)
+  cmake_path(GET _qt6_cmake_dir PARENT_PATH _qt6_lib_dir)
+  cmake_path(GET _qt6_lib_dir PARENT_PATH _qt6_root_dir)
+  set(_qt_tls_backend "${_qt6_root_dir}/plugins/tls/libqsecuretransportbackend.dylib")
+  if(NOT EXISTS "${_qt_tls_backend}")
+    message(FATAL_ERROR "Qt Secure Transport TLS backend is missing: ${_qt_tls_backend}")
+  endif()
+  add_custom_command(
+    TARGET ${CMAKE_PROJECT_NAME}
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>/Contents/Resources/tls"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${_qt_tls_backend}"
+            "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>/Contents/Resources/tls/libqsecuretransportbackend.dylib"
+    VERBATIM
+  )
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
   add_executable(

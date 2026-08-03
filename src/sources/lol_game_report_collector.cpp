@@ -9,6 +9,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPluginLoader>
 #include <QSslConfiguration>
 #include <QSslError>
 #include <QSslSocket>
@@ -21,6 +22,11 @@
 #include <algorithm>
 #include <memory>
 #include <mutex>
+#include <obs-module.h>
+
+extern "C" {
+#include <util/bmem.h>
+}
 
 namespace sources::lol_game_report {
 namespace {
@@ -29,6 +35,7 @@ public:
 	explicit worker(std::atomic<collection_state> &state) : state_(state) {}
 	void start()
 	{
+		load_tls_backend();
 		manager_ = new QNetworkAccessManager(this);
 		timer_ = new QTimer(this);
 		QObject::connect(timer_, &QTimer::timeout, this, [this] { poll(); });
@@ -42,6 +49,15 @@ public:
 	}
 
 private:
+	void load_tls_backend()
+	{
+		char *path = obs_module_file("tls/libqsecuretransportbackend.dylib");
+		if (!path)
+			return;
+		tls_backend_ = std::make_unique<QPluginLoader>(QString::fromUtf8(path));
+		bfree(path);
+		tls_backend_->instance();
+	}
 	void get(const QString &path, std::function<void(const QJsonObject &)> done)
 	{
 		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/" + path));
@@ -52,6 +68,7 @@ private:
 		ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
 		request.setSslConfiguration(ssl);
 		auto *reply = manager_->get(request);
+		reply->ignoreSslErrors();
 		QObject::connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &) {
 			// Riot's self-signed local certificate is accepted only for this literal loopback request.
 			if (reply->url().host() == "127.0.0.1" && reply->url().port(2999) == 2999)
@@ -161,6 +178,7 @@ private:
 	std::atomic<collection_state> &state_;
 	QNetworkAccessManager *manager_{};
 	QTimer *timer_{};
+	std::unique_ptr<QPluginLoader> tls_backend_;
 	int pending_{};
 	int misses_{};
 	bool active_{};
