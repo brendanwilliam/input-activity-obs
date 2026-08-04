@@ -283,4 +283,83 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 			complete(std::move(value), status);
 		});
 }
+
+void riot_api::enrich_latest(report value, std::function<void(report, QString)> complete)
+{
+	auto diagnose = [this](QJsonObject fields) {
+		if (diagnostics_)
+			diagnostics_(fields);
+	};
+	const QString key = env_value("RIOT_API_KEY");
+	const QString platform = env_value("RIOT_PLATFORM").toUpper();
+	const QString game_name = value.player.section('#', 0, 0);
+	const QString tag_line = value.player.section('#', 1, 1);
+	if (key.isEmpty() || platform.isEmpty() || game_name.isEmpty() || tag_line.isEmpty()) {
+		diagnose({{"request", "automatic_match_lookup"}, {"outcome", "configuration_or_riot_id_unavailable"}});
+		complete(std::move(value), "Automatic Riot enrichment is unavailable.");
+		return;
+	}
+	const QString region = routing_for(platform);
+	QNetworkRequest account_request(
+		QUrl(QString("https://%1.api.riotgames.com/riot/account/v1/accounts/by-riot-id/%2/%3")
+			     .arg(region, QString::fromUtf8(QUrl::toPercentEncoding(game_name)),
+				  QString::fromUtf8(QUrl::toPercentEncoding(tag_line)))));
+	account_request.setRawHeader("X-Riot-Token", key.toUtf8());
+	account_request.setTransferTimeout(8000);
+	auto *account = manager_->get(account_request);
+	connect(account, &QNetworkReply::finished, account,
+		[this, account, key, region, value = std::move(value), complete = std::move(complete)]() mutable {
+			const int account_status = account->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+			if (account->error() != QNetworkReply::NoError) {
+				if (diagnostics_)
+					diagnostics_({{"request", "account"},
+						      {"outcome", "failure"},
+						      {"http_status", account_status}});
+				account->deleteLater();
+				complete(std::move(value), "Automatic Riot account lookup failed.");
+				return;
+			}
+			const QString puuid = QJsonDocument::fromJson(account->readAll()).object()["puuid"].toString();
+			account->deleteLater();
+			if (diagnostics_)
+				diagnostics_({{"request", "account"},
+					      {"outcome", "success"},
+					      {"http_status", account_status},
+					      {"matched_local_player", !puuid.isEmpty()}});
+			if (puuid.isEmpty()) {
+				complete(std::move(value), "Automatic Riot account lookup returned no PUUID.");
+				return;
+			}
+			QNetworkRequest matches_request(QUrl(
+				QString("https://%1.api.riotgames.com/lol/match/v5/matches/by-puuid/%2/ids?start=0&count=1")
+					.arg(region, QString::fromUtf8(QUrl::toPercentEncoding(puuid)))));
+			matches_request.setRawHeader("X-Riot-Token", key.toUtf8());
+			matches_request.setTransferTimeout(8000);
+			auto *matches = manager_->get(matches_request);
+			connect(matches, &QNetworkReply::finished, matches,
+				[this, matches, value = std::move(value), complete = std::move(complete)]() mutable {
+					const int status =
+						matches->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+					const QJsonArray ids =
+						matches->error() == QNetworkReply::NoError
+							? QJsonDocument::fromJson(matches->readAll()).array()
+							: QJsonArray{};
+					if (diagnostics_)
+						diagnostics_({{"request", "match_ids"},
+							      {"outcome", matches->error() == QNetworkReply::NoError
+										  ? "success"
+										  : "failure"},
+							      {"http_status", status},
+							      {"match_count", ids.size()}});
+					matches->deleteLater();
+					if (ids.isEmpty()) {
+						complete(std::move(value),
+							 "Automatic Riot match lookup found no recent match.");
+						return;
+					}
+					value.game_id = ids.first().toString();
+					enrich(std::move(value), std::move(complete));
+				});
+		});
+}
 } // namespace sources::lol_game_report

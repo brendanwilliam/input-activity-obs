@@ -15,6 +15,7 @@ class riot_api final : public QObject {
 public:
 	explicit riot_api(QObject *parent = nullptr);
 	void enrich(report value, std::function<void(report, QString)> complete);
+	void enrich_latest(report value, std::function<void(report, QString)> complete);
 	void set_diagnostics(std::function<void(const QJsonObject &)> callback) { diagnostics_ = std::move(callback); }
 
 private:

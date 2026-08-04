@@ -1,6 +1,7 @@
 #include "lol_game_report_collector.hpp"
 
 #include "lol_game_report_diagnostics.hpp"
+#include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_store.hpp"
 #include "lol_game_report_web.hpp"
 
@@ -313,6 +314,11 @@ private:
 				    {"input_sample_count", report_.input_samples.size()}});
 		if (auto_open_)
 			web_.open(report_);
+		riot_.enrich_latest(report_, [this](report value, const QString &status) {
+			if (status.startsWith("Riot Match-v5 enrichment complete"))
+				store().save(std::move(value));
+			diagnostics_.write("riot_enrichment", "automatic_completed", {{"status", status}});
+		});
 		active_ = false;
 		finalizing_ = false;
 		seen_.clear();
@@ -343,6 +349,7 @@ private:
 	int last_logged_game_seconds_{-1};
 	diagnostic_log diagnostics_;
 	web_server web_{this};
+	riot_api riot_{this};
 };
 
 struct shared_collector {
