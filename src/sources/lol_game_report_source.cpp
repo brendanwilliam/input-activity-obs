@@ -5,6 +5,7 @@
 #include "lol_game_report_store.hpp"
 
 #include <QBuffer>
+#include <QDesktopServices>
 #include <QDir>
 #include <QImage>
 #include <QPainter>
@@ -29,10 +30,15 @@ constexpr const char *series_key = "lol_game_report.chart_series";
 constexpr const char *events_key = "lol_game_report.event_categories";
 constexpr const char *dpi_key = "lol_game_report.mouse_dpi";
 constexpr const char *auto_open_key = "lol_game_report.auto_open";
+constexpr const char *development_logs_key = "lol_game_report.development_logs";
 
 class game_report_source {
 public:
-	game_report_source(obs_source_t *, obs_data_t *settings) { update(settings); }
+	game_report_source(obs_source_t *, obs_data_t *settings)
+	{
+		riot_.set_diagnostics([this](const QJsonObject &fields) { collector_.log_riot_diagnostic(fields); });
+		update(settings);
+	}
 	~game_report_source()
 	{
 		if (texture_) {
@@ -53,6 +59,7 @@ public:
 		dpi_ = int(obs_data_get_int(settings, dpi_key));
 		collector_.set_dpi(dpi_);
 		collector_.set_auto_open(obs_data_get_bool(settings, auto_open_key));
+		collector_.set_development_logs(obs_data_get_bool(settings, development_logs_key));
 	}
 	void draw(gs_effect_t *effect)
 	{
@@ -111,6 +118,13 @@ public:
 	QString collector_status() const { return lol_game_report::collector::state_text(collector_.state()); }
 	QString recap_url() const { return collector_.recap_url(); }
 	QString riot_status() const { return riot_status_; }
+	QString development_log_path() const { return collector_.development_log_path(); }
+	bool development_logs_enabled() const { return collector_.development_logs_enabled(); }
+	bool reveal_development_log() const
+	{
+		const QString path = development_log_path();
+		return !path.isEmpty() && QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+	}
 
 private:
 	std::optional<lol_game_report::report> selected_report() const
@@ -252,6 +266,10 @@ bool enrich_clicked(obs_properties_t *, obs_property_t *, void *data)
 {
 	return static_cast<game_report_source *>(data)->enrich_selected();
 }
+bool reveal_development_log_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	return data && static_cast<game_report_source *>(data)->reveal_development_log();
+}
 bool latest_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	obs_property_set_visible(obs_properties_get(props, selected_key), !obs_data_get_bool(settings, latest_key));
@@ -289,6 +307,20 @@ obs_properties_t *properties(void *data)
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	obs_properties_add_bool(general, auto_open_key, obs_module_text("LoLGameReport.AutoOpen"));
+	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
+	obs_properties_add_text(general, "lol_game_report.development_logs_warning",
+				obs_module_text("LoLGameReport.DevelopmentLogsWarning"), OBS_TEXT_INFO);
+	const QString development_log_path = data ? static_cast<game_report_source *>(data)->development_log_path()
+						  : QString();
+	obs_properties_add_text(general, "lol_game_report.development_logs_status",
+				QString("%1: %2")
+					.arg(obs_module_text("LoLGameReport.DevelopmentLogsStatus"),
+					     development_log_path.isEmpty()
+						     ? obs_module_text("LoLGameReport.DevelopmentLogsNone")
+						     : development_log_path)
+					.toUtf8()
+					.constData(),
+				OBS_TEXT_INFO);
 	const QString local_url = data ? static_cast<game_report_source *>(data)->recap_url() : QString();
 	obs_properties_add_text(
 		general, "lol_game_report.local_url",
@@ -305,6 +337,10 @@ obs_properties_t *properties(void *data)
 				   delete_clicked, data);
 	obs_properties_add_button2(actions, "lol_game_report.enrich", obs_module_text("LoLGameReport.Enrich"),
 				   enrich_clicked, data);
+	auto *reveal = obs_properties_add_button2(actions, "lol_game_report.reveal_development_log",
+						  obs_module_text("LoLGameReport.RevealDevelopmentLog"),
+						  reveal_development_log_clicked, data);
+	obs_property_set_enabled(reveal, data && !development_log_path.isEmpty());
 	obs_properties_add_text(actions, "lol_game_report.riot_status",
 				QString("%1: %2")
 					.arg(obs_module_text("LoLGameReport.RiotStatus"),
@@ -326,6 +362,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, events_key, "kill,objective,tower,level");
 	obs_data_set_default_int(settings, dpi_key, 800);
 	obs_data_set_default_bool(settings, auto_open_key, true);
+	obs_data_set_default_bool(settings, development_logs_key, false);
 	obs_data_set_default_string(
 		settings, directory_key,
 		QStandardPaths::writableLocation(QStandardPaths::PicturesLocation).toUtf8().constData());

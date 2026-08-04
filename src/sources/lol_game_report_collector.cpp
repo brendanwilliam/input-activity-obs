@@ -1,5 +1,6 @@
 #include "lol_game_report_collector.hpp"
 
+#include "lol_game_report_diagnostics.hpp"
 #include "lol_game_report_store.hpp"
 #include "lol_game_report_web.hpp"
 
@@ -7,6 +8,7 @@
 #include "../input/input_broker.hpp"
 
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -53,6 +55,8 @@ public:
 	{
 		if (timer_)
 			timer_->stop();
+		diagnostics_.write("collector", "worker_stopped");
+		diagnostics_.close_and_remove();
 	}
 	void set_dpi(int dpi)
 	{
@@ -61,6 +65,14 @@ public:
 		pending_dpi_ = std::clamp(dpi, 100, 32000);
 	}
 	void set_auto_open(bool enabled) { auto_open_ = enabled; }
+	void set_development_logs(bool enabled)
+	{
+		diagnostics_.set_enabled(enabled);
+		diagnostics_.write("collector", "development_logs_changed", {{"enabled", enabled}});
+	}
+	bool development_logs_enabled() const { return diagnostics_.enabled(); }
+	QString development_log_path() const { return diagnostics_.path(); }
+	void log_riot_diagnostic(QJsonObject fields) { diagnostics_.write("riot_enrichment", "request", fields); }
 	QString recap_url() { return web_.url(QString()); }
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
@@ -70,12 +82,17 @@ public:
 		if (report_.input_samples.isEmpty() || report_.input_samples.last().seconds != seconds)
 			report_.input_samples.append({seconds});
 		auto &sample = report_.input_samples.last();
+		int movement_count{};
+		double batch_distance{};
 		for (const auto &event : events) {
 			++sample.actions;
 			if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
+				++movement_count;
 				if (has_mouse_) {
 					const double dx = event.x - last_mouse_x_, dy = event.y - last_mouse_y_;
-					sample.mouse_distance_pixels += std::sqrt(dx * dx + dy * dy);
+					const double distance = std::sqrt(dx * dx + dy * dy);
+					sample.mouse_distance_pixels += distance;
+					batch_distance += distance;
 				}
 				last_mouse_x_ = event.x;
 				last_mouse_y_ = event.y;
@@ -92,6 +109,12 @@ public:
 					++bin->count;
 			}
 		}
+		diagnostics_.write("input", seconds <= 0 ? "input_accepted_zero_clock" : "input_accepted",
+				   {{"sample_seconds", seconds},
+				    {"action_count", int(events.size())},
+				    {"movement_count", movement_count},
+				    {"distance_pixels", batch_distance},
+				    {"clock_aligned", seconds > 0}});
 	}
 
 private:
@@ -106,6 +129,8 @@ private:
 	}
 	void get(const QString &path, std::function<void(const QJsonObject &)> done)
 	{
+		auto elapsed = std::make_shared<QElapsedTimer>();
+		elapsed->start();
 		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/" + path));
 		request.setTransferTimeout(1200);
 		// This request URL is constructed solely from this module's fixed loopback endpoint and
@@ -120,18 +145,38 @@ private:
 			if (reply->url().host() == "127.0.0.1" && reply->url().port(2999) == 2999)
 				reply->ignoreSslErrors();
 		});
-		QObject::connect(reply, &QNetworkReply::finished, reply, [reply, done = std::move(done)] {
-			const auto object = reply->error() == QNetworkReply::NoError
-						    ? QJsonDocument::fromJson(reply->readAll()).object()
-						    : QJsonObject{};
-			done(object);
-			reply->deleteLater();
-		});
+		QObject::connect(
+			reply, &QNetworkReply::finished, reply, [this, reply, path, elapsed, done = std::move(done)] {
+				const bool success = reply->error() == QNetworkReply::NoError;
+				const QByteArray body = reply->readAll();
+				const QJsonDocument document = success ? QJsonDocument::fromJson(body)
+								       : QJsonDocument{};
+				const QJsonObject object = document.object();
+				const QJsonObject playerlist =
+					document.isArray() ? QJsonObject{{"allPlayers", document.array()}} : object;
+				QJsonObject fields{{"endpoint", path},
+						   {"success", success},
+						   {"http_status",
+						    reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()},
+						   {"latency_ms", int(elapsed->elapsed())}};
+				if (success) {
+					if (path == "eventdata")
+						fields.insert("payload", sanitize_eventdata(object));
+					else if (path == "playerlist")
+						fields.insert("payload", summarize_playerlist(playerlist));
+					else if (path != "playerlist")
+						fields.insert("payload", object);
+				}
+				diagnostics_.write("collector", "endpoint_completed", fields);
+				done(object);
+				reply->deleteLater();
+			});
 	}
 	void poll()
 	{
 		if (pending_)
 			return;
+		diagnostics_.write("collector", "poll_started");
 		pending_ = 7;
 		batch_ = {};
 		for (const QString &endpoint : {"activeplayer", "activeplayerscores", "activeplayeritems",
@@ -149,8 +194,10 @@ private:
 		const QString game_name = name.value("riotIdGameName").toString();
 		const QString player = riot_id.isEmpty() ? game_name : riot_id;
 		if (player.isEmpty()) {
+			diagnostics_.write("collector", "missing_player",
+					   {{"active", active_}, {"misses", misses_ + 1}});
 			if (active_ && ++misses_ >= 3)
-				finalize();
+				finalize("missing_player");
 			return;
 		}
 		misses_ = 0;
@@ -163,12 +210,19 @@ private:
 			report_.dpi = pending_dpi_;
 			player_aliases_ = {riot_id, game_name, name.value("summonerName").toString()};
 			state_ = collection_state::recording;
+			diagnostics_.write("collector", "report_started", {{"has_riot_id", !riot_id.isEmpty()}});
 		}
 		const QJsonObject game = batch_.value("gamestats").toObject();
 		report_.game_mode = game.value("gameMode").toString();
 		report_.map = game.value("mapName").toString();
 		report_.duration_seconds = game.value("gameTime").toInt();
 		last_game_seconds_ = report_.duration_seconds;
+		if (last_logged_game_seconds_ != last_game_seconds_) {
+			diagnostics_.write("collector", "game_clock_changed",
+					   {{"game_seconds", last_game_seconds_},
+					    {"clock_aligned", last_game_seconds_ > 0}});
+			last_logged_game_seconds_ = last_game_seconds_;
+		}
 		const QJsonObject scores = batch_.value("activeplayerscores").toObject();
 		stat_sample sample;
 		sample.seconds = game.value("gameTime").toInt();
@@ -219,8 +273,12 @@ private:
 			report_.events.append(
 				{id, type, int(event.value("EventTime").toDouble()), type, classify_event(type)});
 			if (type == "GameEnd")
-				finalize();
+				finalize("game_end_event");
 		}
+		diagnostics_.write("collector", "poll_completed",
+				   {{"sample_count", report_.samples.size()},
+				    {"event_count", report_.events.size()},
+				    {"game_seconds", report_.duration_seconds}});
 	}
 	bool is_local_player(const QString &name) const
 	{
@@ -228,15 +286,31 @@ private:
 			return !alias.isEmpty() && alias.compare(name, Qt::CaseInsensitive) == 0;
 		});
 	}
-	void finalize()
+	void finalize(const QString &reason)
 	{
 		if (!active_ || finalizing_)
 			return;
 		finalizing_ = true;
 		state_ = collection_state::finalizing;
+		const bool no_valid_samples =
+			std::none_of(report_.samples.cbegin(), report_.samples.cend(),
+				     [](const stat_sample &sample) { return sample.seconds > 0; });
+		if (report_.duration_seconds <= 0 || report_.game_id.isEmpty() || no_valid_samples)
+			diagnostics_.write("collector", "report_finalization_warning",
+					   {{"reason", reason},
+					    {"zero_duration", report_.duration_seconds <= 0},
+					    {"absent_game_id", report_.game_id.isEmpty()},
+					    {"no_valid_stat_samples", no_valid_samples},
+					    {"duration_seconds", report_.duration_seconds},
+					    {"sample_count", report_.samples.size()}});
 		report_.completed_at = QDateTime::currentDateTimeUtc();
 		report_.chapters = make_chapters(report_.samples, report_.events);
 		store().save(report_);
+		diagnostics_.write("collector", "report_finalized",
+				   {{"reason", reason},
+				    {"sample_count", report_.samples.size()},
+				    {"event_count", report_.events.size()},
+				    {"input_sample_count", report_.input_samples.size()}});
 		if (auto_open_)
 			web_.open(report_);
 		active_ = false;
@@ -245,6 +319,7 @@ private:
 		last_items_.clear();
 		ability_levels_.clear();
 		has_mouse_ = false;
+		last_logged_game_seconds_ = -1;
 		state_ = collection_state::empty;
 	}
 	std::atomic<collection_state> &state_;
@@ -265,12 +340,15 @@ private:
 	int16_t last_mouse_x_{}, last_mouse_y_{};
 	bool has_mouse_{};
 	bool auto_open_{true};
+	int last_logged_game_seconds_{-1};
+	diagnostic_log diagnostics_;
 	web_server web_{this};
 };
 
 struct shared_collector {
 	std::mutex mutex;
 	int references{};
+	int development_log_references{};
 	std::atomic<collection_state> state{collection_state::empty};
 	QThread thread;
 	worker *worker{};
@@ -287,6 +365,8 @@ struct shared_collector {
 	void release()
 	{
 		std::lock_guard lock(mutex);
+		if (references <= 0)
+			return;
 		if (--references != 0)
 			return;
 		QMetaObject::invokeMethod(worker, [this] { worker->stop(); }, Qt::BlockingQueuedConnection);
@@ -311,6 +391,41 @@ struct shared_collector {
 		QMetaObject::invokeMethod(
 			worker, [this, enabled] { worker->set_auto_open(enabled); }, Qt::QueuedConnection);
 	}
+	void set_development_logs(bool enabled)
+	{
+		std::lock_guard lock(mutex);
+		if (enabled)
+			++development_log_references;
+		else if (development_log_references > 0)
+			--development_log_references;
+		if (!worker)
+			return;
+		const bool active = development_log_references > 0;
+		QMetaObject::invokeMethod(
+			worker, [this, active] { worker->set_development_logs(active); }, Qt::QueuedConnection);
+	}
+	bool development_logs_enabled()
+	{
+		std::lock_guard lock(mutex);
+		return development_log_references > 0;
+	}
+	QString development_log_path()
+	{
+		QString result;
+		std::lock_guard lock(mutex);
+		if (worker)
+			QMetaObject::invokeMethod(
+				worker, [this, &result] { result = worker->development_log_path(); },
+				Qt::BlockingQueuedConnection);
+		return result;
+	}
+	void log_riot_diagnostic(const QJsonObject &fields)
+	{
+		std::lock_guard lock(mutex);
+		if (worker)
+			QMetaObject::invokeMethod(
+				worker, [this, fields] { worker->log_riot_diagnostic(fields); }, Qt::QueuedConnection);
+	}
 	QString recap_url()
 	{
 		QString result;
@@ -332,6 +447,8 @@ collector::collector()
 }
 collector::~collector()
 {
+	if (development_logs_)
+		shared().set_development_logs(false);
 	shared().release();
 }
 collection_state collector::state() const
@@ -360,6 +477,25 @@ void collector::tick(int dpi)
 void collector::set_auto_open(bool enabled)
 {
 	shared().set_auto_open(enabled);
+}
+void collector::set_development_logs(bool enabled)
+{
+	if (development_logs_ == enabled)
+		return;
+	development_logs_ = enabled;
+	shared().set_development_logs(enabled);
+}
+bool collector::development_logs_enabled() const
+{
+	return shared().development_logs_enabled();
+}
+QString collector::development_log_path() const
+{
+	return shared().development_log_path();
+}
+void collector::log_riot_diagnostic(const QJsonObject &fields)
+{
+	shared().log_riot_diagnostic(fields);
 }
 QString collector::recap_url() const
 {

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add a self-only local League Game Report OBS source with local report retention and PNG/JSON export.
+- Add opt-in, session-only development logs for League Game Report diagnostics.
 
 All notable changes to this project are documented in this file.
 

@@ -66,6 +66,8 @@ target_sources(
     src/sources/league_capture_switcher.cpp
     src/sources/lol_game_report_types.hpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_game_report_diagnostics.hpp
+    src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_store.hpp
     src/sources/lol_game_report_store.cpp
     src/sources/lol_game_report_web.hpp
@@ -141,6 +143,7 @@ if(BUILD_TESTING)
     lol-game-report-test
     tests/lol_game_report_test.cpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_game_report_diagnostics.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core)
   target_include_directories(lol-game-report-test PRIVATE src)

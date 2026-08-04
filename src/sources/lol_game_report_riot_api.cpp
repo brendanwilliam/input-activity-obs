@@ -149,12 +149,18 @@ riot_api::riot_api(QObject *parent) : QObject(parent), manager_(new QNetworkAcce
 
 void riot_api::enrich(report value, std::function<void(report, QString)> complete)
 {
+	auto diagnose = [this](QJsonObject fields) {
+		if (diagnostics_)
+			diagnostics_(fields);
+	};
 	const QString key = env_value("RIOT_API_KEY");
 	if (key.isEmpty()) {
+		diagnose({{"outcome", "api_key_unavailable"}});
 		complete(std::move(value), "Riot API key is unavailable.");
 		return;
 	}
 	if (value.game_id.isEmpty()) {
+		diagnose({{"outcome", "game_id_unavailable"}});
 		complete(std::move(value), "The selected report has no Riot game ID.");
 		return;
 	}
@@ -165,6 +171,10 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 	auto *reply = manager_->get(request);
 	connect(reply, &QNetworkReply::finished, reply,
 		[this, reply, key, value = std::move(value), complete = std::move(complete)]() mutable {
+			auto diagnose = [this](QJsonObject fields) {
+				if (diagnostics_)
+					diagnostics_(fields);
+			};
 			QString status;
 			if (reply->error() == QNetworkReply::NoError) {
 				const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
@@ -195,6 +205,12 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 				}
 				if (self_team == 0)
 					status = "Riot match found, but the report player was not a participant.";
+				diagnose({{"request", "match"},
+					  {"outcome", "success"},
+					  {"http_status",
+					   reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()},
+					  {"participant_count", players.size()},
+					  {"matched_local_player", self_team != 0}});
 				value.team_gold = value.enemy_team_gold = value.team_kills = value.enemy_team_kills = 0;
 				for (const auto entry : players) {
 					const QJsonObject player = entry.toObject();
@@ -221,18 +237,33 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 					timeline_request.setTransferTimeout(8000);
 					auto *timeline = manager_->get(timeline_request);
 					connect(timeline, &QNetworkReply::finished, timeline,
-						[timeline, value = std::move(value), participant_id, self_player,
+						[this, timeline, value = std::move(value), participant_id, self_player,
 						 complete = std::move(complete)]() mutable {
 							QString timeline_status =
 								"Riot Match-v5 enrichment complete; timeline unavailable.";
 							if (timeline->error() == QNetworkReply::NoError) {
-								apply_timeline(
-									value,
+								const QJsonObject timeline_root =
 									QJsonDocument::fromJson(timeline->readAll())
-										.object(),
-									participant_id, self_player);
+										.object();
+								apply_timeline(value, timeline_root, participant_id,
+									       self_player);
 								timeline_status = "Riot Match-v5 enrichment complete.";
 							}
+							if (diagnostics_)
+								diagnostics_(
+									{{"request", "timeline"},
+									 {"outcome",
+									  timeline->error() == QNetworkReply::NoError
+										  ? "success"
+										  : "failure"},
+									 {"http_status",
+									  timeline->attribute(
+											  QNetworkRequest::
+												  HttpStatusCodeAttribute)
+										  .toInt()},
+									 {"frame_count", value.samples.size()},
+									 {"event_count", value.events.size()},
+									 {"item_count", value.item_events.size()}});
 							timeline->deleteLater();
 							complete(std::move(value), timeline_status);
 						});
@@ -240,6 +271,10 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 					return;
 				}
 			} else {
+				diagnose({{"request", "match"},
+					  {"outcome", "failure"},
+					  {"http_status",
+					   reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()}});
 				status =
 					QString("Riot API request failed (HTTP %1).")
 						.arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt());

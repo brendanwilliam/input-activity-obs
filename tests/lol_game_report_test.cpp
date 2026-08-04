@@ -1,6 +1,10 @@
 #include "sources/lol_game_report_types.hpp"
+#include "sources/lol_game_report_diagnostics.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QFile>
+#include <QStandardPaths>
 #include <cassert>
 
 int main()
@@ -32,5 +36,32 @@ int main()
 	legacy.remove("champion");
 	assert(from_json(legacy, recovered));
 	assert(recovered.schema_version == 1 && recovered.champion.isEmpty());
+	QJsonObject raw_event{{"EventName", "ChampionKill"},
+			      {"KillerName", "Self"},
+			      {"VictimName", "Other"},
+			      {"EventTime", 12.0}};
+	QJsonObject events{{"Events", QJsonArray{raw_event}}};
+	const QJsonObject sanitized = sanitize_eventdata(events);
+	const QJsonObject sanitized_event = sanitized["Events"].toArray().first().toObject();
+	assert(sanitized_event["EventName"] == "ChampionKill");
+	assert(sanitized_event["KillerName"] == "redacted");
+	assert(sanitized_event["VictimName"] == "redacted");
+	const QJsonObject playerlist{
+		{"allPlayers", QJsonArray{QJsonObject{{"team", "ORDER"}, {"summonerName", "Never logged"}},
+					  QJsonObject{{"team", "CHAOS"}, {"riotId", "Never logged"}}}}};
+	const QJsonObject summary = summarize_playerlist(playerlist);
+	assert(summary["row_count"] == 2 && summary["team_counts"].toObject()["ORDER"] == 1);
+	assert(!QJsonDocument(summary).toJson().contains("Never logged"));
+	QStandardPaths::setTestModeEnabled(true);
+	diagnostic_log log;
+	assert(log.path().isEmpty());
+	log.set_enabled(true);
+	const QString log_path = log.path();
+	assert(!log_path.isEmpty() && QFile::exists(log_path));
+	log.write("input", "input_accepted_zero_clock", {{"action_count", 3}});
+	log.set_enabled(false);
+	assert(QFile::exists(log_path));
+	log.close_and_remove();
+	assert(!QFile::exists(log_path));
 	return 0;
 }
