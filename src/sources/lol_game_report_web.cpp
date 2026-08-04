@@ -1,5 +1,6 @@
 #include "lol_game_report_web.hpp"
 
+#include "lol_game_report_ddragon.hpp"
 #include "lol_game_report_store.hpp"
 #include "lol_game_report_web_assets.hpp"
 
@@ -12,6 +13,7 @@
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPointer>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTcpSocket>
@@ -37,8 +39,10 @@ bool safe_path_part(const QString &value)
 web_server::web_server(QObject *parent) : QObject(parent)
 {
 	connect(&server_, &QTcpServer::newConnection, this, [this] {
-		while (auto *socket = server_.nextPendingConnection())
+		while (auto *socket = server_.nextPendingConnection()) {
 			connect(socket, &QTcpSocket::readyRead, socket, [this, socket] { respond(socket); });
+			connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+		}
 	});
 }
 
@@ -123,24 +127,20 @@ void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
 	}
 	if (ability) {
 		const QString metadata = root + "/champion-" + part[4] + ".json";
-		auto fetch_icon = [this, socket, metadata, directory, file_path, part](const QJsonObject &champion) {
-			const int slot = QString("QWER").indexOf(part[5]);
-			const QString image_name = champion["data"]
-							   .toObject()[part[4]]
-							   .toObject()["spells"]
-							   .toArray()[slot]
-							   .toObject()["image"]
-							   .toObject()["full"]
-							   .toString();
+		const QPointer<QTcpSocket> guarded_socket(socket);
+		auto fetch_icon = [this, guarded_socket, directory, file_path, part](const QJsonObject &champion) {
+			const QString image_name = ability_icon_filename(champion, part[4], part[5].front());
 			if (image_name.isEmpty()) {
-				socket->write(response("Not found", "text/plain", 404));
-				socket->disconnectFromHost();
+				if (guarded_socket && guarded_socket->state() == QAbstractSocket::ConnectedState) {
+					guarded_socket->write(response("Not found", "text/plain", 404));
+					guarded_socket->disconnectFromHost();
+				}
 				return;
 			}
 			auto *icon = network_.get(
 				QNetworkRequest(QUrl(QString("https://ddragon.leagueoflegends.com/cdn/%1/img/spell/%2")
 							     .arg(part[3], image_name))));
-			connect(icon, &QNetworkReply::finished, icon, [socket, icon, directory, file_path] {
+			connect(icon, &QNetworkReply::finished, icon, [guarded_socket, icon, directory, file_path] {
 				const QByteArray bytes = icon->error() == QNetworkReply::NoError ? icon->readAll()
 												 : QByteArray{};
 				if (!bytes.isEmpty()) {
@@ -150,11 +150,12 @@ void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
 						file.write(bytes);
 						file.commit();
 					}
-					socket->write(response(bytes, "image/png"));
-				} else {
-					socket->write(response("Not found", "text/plain", 404));
 				}
-				socket->disconnectFromHost();
+				if (guarded_socket && guarded_socket->state() == QAbstractSocket::ConnectedState) {
+					guarded_socket->write(bytes.isEmpty() ? response("Not found", "text/plain", 404)
+									      : response(bytes, "image/png"));
+					guarded_socket->disconnectFromHost();
+				}
 				icon->deleteLater();
 			});
 		};
@@ -187,7 +188,8 @@ void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
 			? QString("https://ddragon.leagueoflegends.com/cdn/%1/img/champion/%2.png").arg(part[3], part[4])
 			: QString("https://ddragon.leagueoflegends.com/cdn/%1/img/item/%2.png").arg(part[3], part[4]);
 	auto *reply = network_.get(QNetworkRequest(QUrl(remote)));
-	connect(reply, &QNetworkReply::finished, reply, [socket, reply, directory, file_path] {
+	const QPointer<QTcpSocket> guarded_socket(socket);
+	connect(reply, &QNetworkReply::finished, reply, [guarded_socket, reply, directory, file_path] {
 		const QByteArray bytes = reply->error() == QNetworkReply::NoError ? reply->readAll() : QByteArray{};
 		if (!bytes.isEmpty()) {
 			QDir().mkpath(directory);
@@ -196,11 +198,12 @@ void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
 				file.write(bytes);
 				file.commit();
 			}
-			socket->write(response(bytes, "image/png"));
-		} else {
-			socket->write(response("Not found", "text/plain", 404));
 		}
-		socket->disconnectFromHost();
+		if (guarded_socket && guarded_socket->state() == QAbstractSocket::ConnectedState) {
+			guarded_socket->write(bytes.isEmpty() ? response("Not found", "text/plain", 404)
+							      : response(bytes, "image/png"));
+			guarded_socket->disconnectFromHost();
+		}
 		reply->deleteLater();
 	});
 }

@@ -70,6 +70,8 @@ target_sources(
     src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_store.hpp
     src/sources/lol_game_report_store.cpp
+    src/sources/lol_game_report_ddragon.hpp
+    src/sources/lol_game_report_ddragon.cpp
     src/sources/lol_game_report_web.hpp
     src/sources/lol_game_report_web.cpp
     src/sources/lol_game_report_web_assets.hpp
@@ -144,6 +146,7 @@ if(BUILD_TESTING)
     tests/lol_game_report_test.cpp
     src/sources/lol_game_report_types.cpp
     src/sources/lol_game_report_diagnostics.cpp
+    src/sources/lol_game_report_ddragon.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core)
   target_include_directories(lol-game-report-test PRIVATE src)

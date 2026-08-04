@@ -1,4 +1,5 @@
 #include "sources/lol_game_report_types.hpp"
+#include "sources/lol_game_report_ddragon.hpp"
 #include "sources/lol_game_report_diagnostics.hpp"
 
 #include <QJsonArray>
@@ -52,6 +53,39 @@ int main()
 	const QJsonObject summary = summarize_playerlist(playerlist);
 	assert(summary["row_count"] == 2 && summary["team_counts"].toObject()["ORDER"] == 1);
 	assert(!QJsonDocument(summary).toJson().contains("Never logged"));
+	const QJsonObject ability_metadata = QJsonDocument::fromJson(R"({
+        "data": {"Ahri": {"spells": [
+          {"image": {"full": "AhriOrbofDeception.png"}},
+          {"image": {"full": "AhriFoxFire.png"}},
+          {"image": {"full": "AhriSeduce.png"}},
+          {"image": {"full": "AhriTumble.png"}}
+        ]}}
+      })")
+						     .object();
+	assert(ability_icon_filename(ability_metadata, "Ahri", 'Q') == "AhriOrbofDeception.png");
+	assert(ability_icon_filename(ability_metadata, "Missing", 'Q').isEmpty());
+	QJsonObject missing_spells_metadata = ability_metadata;
+	QJsonObject data = missing_spells_metadata.value("data").toObject();
+	QJsonObject champion = data.value("Ahri").toObject();
+	champion.remove("spells");
+	data["Ahri"] = champion;
+	missing_spells_metadata["data"] = data;
+	assert(ability_icon_filename(missing_spells_metadata, "Ahri", 'Q').isEmpty());
+	QJsonObject out_of_range_metadata = ability_metadata;
+	data = out_of_range_metadata.value("data").toObject();
+	champion = data.value("Ahri").toObject();
+	champion["spells"] = QJsonArray{};
+	data["Ahri"] = champion;
+	out_of_range_metadata["data"] = data;
+	assert(ability_icon_filename(out_of_range_metadata, "Ahri", 'Q').isEmpty());
+	assert(ability_icon_filename(ability_metadata, "Ahri", 'X').isEmpty());
+	QJsonObject missing_image_metadata = ability_metadata;
+	data = missing_image_metadata.value("data").toObject();
+	champion = data.value("Ahri").toObject();
+	champion["spells"] = QJsonArray{QJsonObject{}};
+	data["Ahri"] = champion;
+	missing_image_metadata["data"] = data;
+	assert(ability_icon_filename(missing_image_metadata, "Ahri", 'Q').isEmpty());
 	QStandardPaths::setTestModeEnabled(true);
 	diagnostic_log log;
 	assert(log.path().isEmpty());
