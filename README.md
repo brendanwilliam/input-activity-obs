@@ -61,7 +61,7 @@ The install step uses the template's default OBS plugin directory. To run format
 
 ## League Game Report web development
 
-Preview and refine the League Game Report without rebuilding or opening OBS:
+Preview and refine the League Game Report with mock data, without rebuilding or opening OBS:
 
 ```sh
 npm run report:dev
@@ -72,6 +72,16 @@ Open <http://127.0.0.1:4173>. The local server uses
 saving a report HTML, CSS, or JavaScript file. Those web files are the canonical plugin assets: each save also
 updates the embedded C++ source. Run `npm run report:sync` if you need to synchronize them without starting the
 server.
+
+To load a real Game ID while keeping the hot-reload UI, first use the report action in OBS to open a report in your
+browser. Copy only that address's origin (for example, `http://127.0.0.1:49152`), then run:
+
+```sh
+REPORT_API_ORIGIN=http://127.0.0.1:49152 npm run report:dev
+```
+
+The dev server proxies its `/api` requests to that local OBS server. If port 4173 is occupied, use a different
+preview port with `REPORT_DEV_PORT=4174 npm run report:dev`.
 
 ## Contributing
 

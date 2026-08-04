@@ -15,6 +15,12 @@ const files = {
 const contentType = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 const read = path => readFileSync(path, 'utf8');
 const cpp = value => `R"league_report(${value})league_report"`;
+const apiOrigin = process.env.REPORT_API_ORIGIN ? new URL(process.env.REPORT_API_ORIGIN) : null;
+const devPort = Number(process.env.REPORT_DEV_PORT || 4173);
+
+if (apiOrigin && !['127.0.0.1', 'localhost', '::1'].includes(apiOrigin.hostname)) {
+  throw new Error('REPORT_API_ORIGIN must use a loopback address.');
+}
 
 function syncAssets() {
   for (const file of [files.html, files.css, files.script]) {
@@ -34,17 +40,28 @@ const clients = new Set();
 function reload() { for (const response of clients) response.write('data: reload\\n\\n'); }
 function injectedHtml() { return read(files.html).replace('</body>', '<script>new EventSource("/dev-events").onmessage=()=>location.reload()</script></body>'); }
 function send(response, status, body, type = 'text/plain; charset=utf-8') { response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body); }
+async function proxyApi(request, response, requestUrl) {
+  try {
+    const upstream = new URL(`${requestUrl.pathname}${requestUrl.search}`, apiOrigin);
+    const upstreamResponse = await fetch(upstream);
+    send(response, upstreamResponse.status, await upstreamResponse.text(), upstreamResponse.headers.get('content-type') || contentType['.json']);
+  } catch {
+    send(response, 502, JSON.stringify({ error: `The local report API at ${apiOrigin.origin} is unavailable. Open a report from OBS first, then check the copied origin.` }), contentType['.json']);
+  }
+}
 
-const server = createServer((request, response) => {
-  const path = new URL(request.url, 'http://127.0.0.1').pathname;
+const server = createServer(async (request, response) => {
+  const requestUrl = new URL(request.url, 'http://127.0.0.1');
+  const { pathname: path } = requestUrl;
   if (path === '/dev-events') {
     response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     response.write('retry: 300\\n\\n'); clients.add(response); request.on('close', () => clients.delete(response)); return;
   }
   if (path === '/' || path === '/index.html') return send(response, 200, injectedHtml(), contentType['.html']);
+  if (path.startsWith('/api/') && apiOrigin) return proxyApi(request, response, requestUrl);
   if (path === '/api/latest' || path.startsWith('/api/report/')) return send(response, 200, read(files.report), contentType['.json']);
   if (path === '/api/game/') return send(response, 400, JSON.stringify({ error: 'A Game ID is required.' }), contentType['.json']);
-  if (path.startsWith('/api/game/')) return send(response, 200, read(files.report), contentType['.json']);
+  if (path.startsWith('/api/game/')) return send(response, 400, JSON.stringify({ error: 'The dev server is using mock data. Set REPORT_API_ORIGIN to the local URL that OBS opens for a report to load a real Game ID.' }), contentType['.json']);
   const mapping = { '/assets/recap.css': files.css, '/assets/recap.js': files.script };
   if (mapping[path]) return send(response, 200, read(mapping[path]), contentType[extname(mapping[path])]);
   return send(response, 404, 'Not found');
@@ -57,4 +74,9 @@ for (const path of Object.values(files)) {
   });
 }
 syncAssets();
-server.listen(4173, '127.0.0.1', () => console.log('League Game Report dev server: http://127.0.0.1:4173'));
+server.on('error', error => {
+  if (error.code === 'EADDRINUSE') console.error(`Port ${devPort} is already in use. Stop the other dev server or use REPORT_DEV_PORT=4174 npm run report:dev.`);
+  else console.error(error);
+  process.exitCode = 1;
+});
+server.listen(devPort, '127.0.0.1', () => console.log(`League Game Report dev server: http://127.0.0.1:${devPort}${apiOrigin ? ` (proxying ${apiOrigin.origin})` : ' (mock data)'}`));
