@@ -14,7 +14,7 @@ int main()
 	input.events = {{"event-1", "ChampionKill", 115, "ChampionKill"}};
 	input.chapters = make_chapters(input.samples, input.events);
 	assert(!input.chapters.isEmpty());
-	assert(!input.chapters.first().summary.contains("win", Qt::CaseInsensitive));
+	assert(!input.chapters.first().summary.contains("victory", Qt::CaseInsensitive));
 	assert(!input.chapters.first().summary.contains("decisive", Qt::CaseInsensitive));
 	report recovered;
 	assert(from_json(QJsonDocument(to_json(input)).object(), recovered));
@@ -23,7 +23,10 @@ int main()
 	assert(classify_event("TurretKilled") == "tower");
 	assert(classify_event("DragonKill") == "objective");
 	const auto normalized = normalized_series({2.0, 4.0}, false);
-	assert(normalized.size() == 2 && normalized.last() == 1.0);
+	assert(normalized.size() == 2 && normalized.first() == 0.0 && normalized.last() == 1.0);
+	const auto average_normalized = normalized_series({2.0, 4.0}, true);
+	assert(average_normalized.size() == 2 && average_normalized.first() < 1.0 && average_normalized.last() > 1.0);
+	assert(classify_event("RiftScuttlerKill") == "objective");
 	QJsonObject legacy = to_json(input);
 	legacy["schema_version"] = 1;
 	legacy.remove("champion");

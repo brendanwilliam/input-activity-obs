@@ -70,6 +70,10 @@ target_sources(
     src/sources/lol_game_report_store.cpp
     src/sources/lol_game_report_web.hpp
     src/sources/lol_game_report_web.cpp
+    src/sources/lol_game_report_web_assets.hpp
+    src/sources/lol_game_report_web_assets.cpp
+    src/sources/lol_game_report_riot_api.hpp
+    src/sources/lol_game_report_riot_api.cpp
     src/sources/lol_game_report_collector.hpp
     src/sources/lol_game_report_collector.cpp
     src/sources/lol_game_report_source.hpp
@@ -142,4 +146,8 @@ if(BUILD_TESTING)
   target_include_directories(lol-game-report-test PRIVATE src)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
+  if(APPLE)
+    target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+  endif()
 endif()

@@ -1,6 +1,7 @@
 #include "lol_game_report_source.hpp"
 
 #include "lol_game_report_collector.hpp"
+#include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_store.hpp"
 
 #include <QBuffer>
@@ -90,10 +91,26 @@ public:
 			return false;
 		return store_.remove(report->id);
 	}
+	bool enrich_selected()
+	{
+		const auto report = selected_report();
+		if (!report) {
+			riot_status_ = "Select a saved report before enriching.";
+			return false;
+		}
+		riot_status_ = "Requesting Riot Match-v5 data…";
+		riot_.enrich(*report, [this](lol_game_report::report value, const QString &status) {
+			if (status.startsWith("Riot Match-v5 enrichment complete"))
+				store_.save(std::move(value));
+			riot_status_ = status;
+		});
+		return true;
+	}
 	QVector<lol_game_report::report> reports() const { return store_.reports(); }
 	bool show_latest() const { return show_latest_; }
 	QString collector_status() const { return lol_game_report::collector::state_text(collector_.state()); }
 	QString recap_url() const { return collector_.recap_url(); }
+	QString riot_status() const { return riot_status_; }
 
 private:
 	std::optional<lol_game_report::report> selected_report() const
@@ -213,11 +230,13 @@ private:
 	}
 	lol_game_report::collector collector_;
 	lol_game_report::store store_;
+	lol_game_report::riot_api riot_;
 	bool show_latest_{true};
 	QString selected_, export_directory_, page_{"summary"}, series_{"gold"},
 		event_categories_{"kill,objective,tower,level"};
 	bool normalize_average_{};
 	int dpi_{800};
+	QString riot_status_{"Riot enrichment has not run."};
 	gs_texture_t *texture_{};
 };
 
@@ -228,6 +247,10 @@ bool export_clicked(obs_properties_t *, obs_property_t *, void *data)
 bool delete_clicked(obs_properties_t *, obs_property_t *, void *data)
 {
 	return static_cast<game_report_source *>(data)->delete_selected();
+}
+bool enrich_clicked(obs_properties_t *, obs_property_t *, void *data)
+{
+	return static_cast<game_report_source *>(data)->enrich_selected();
 }
 bool latest_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
@@ -280,6 +303,15 @@ obs_properties_t *properties(void *data)
 				   export_clicked, data);
 	obs_properties_add_button2(actions, "lol_game_report.delete", obs_module_text("LoLGameReport.Delete"),
 				   delete_clicked, data);
+	obs_properties_add_button2(actions, "lol_game_report.enrich", obs_module_text("LoLGameReport.Enrich"),
+				   enrich_clicked, data);
+	obs_properties_add_text(actions, "lol_game_report.riot_status",
+				QString("%1: %2")
+					.arg(obs_module_text("LoLGameReport.RiotStatus"),
+					     data ? static_cast<game_report_source *>(data)->riot_status() : "")
+					.toUtf8()
+					.constData(),
+				OBS_TEXT_INFO);
 	obs_properties_add_group(props, "lol_game_report.actions", obs_module_text("Preferences.Actions"),
 				 OBS_GROUP_NORMAL, actions);
 	obs_property_set_modified_callback(latest, latest_changed);

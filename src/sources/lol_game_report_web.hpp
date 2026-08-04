@@ -3,6 +3,7 @@
 #include "lol_game_report_types.hpp"
 
 #include <QObject>
+#include <QNetworkAccessManager>
 #include <QTcpServer>
 
 namespace sources::lol_game_report {
@@ -15,7 +16,9 @@ public:
 
 private:
 	void respond(QTcpSocket *socket);
+	void respond_ddragon(QTcpSocket *socket, const QString &path);
 	QTcpServer server_;
+	QNetworkAccessManager network_;
 };
 
 } // namespace sources::lol_game_report

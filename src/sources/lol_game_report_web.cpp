@@ -1,10 +1,19 @@
 #include "lol_game_report_web.hpp"
 
 #include "lol_game_report_store.hpp"
+#include "lol_game_report_web_assets.hpp"
 
-#include <QDesktopServices>
 #include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QSaveFile>
+#include <QStandardPaths>
 #include <QTcpSocket>
 #include <QUrl>
 #include <QUrlQuery>
@@ -13,13 +22,15 @@
 
 namespace sources::lol_game_report {
 namespace {
-constexpr auto page =
-	R"(<!doctype html><meta charset="utf-8"><title>League Game Report</title><style>body{background:#10151f;color:#e9eef8;font:18px system-ui;margin:48px}h1{color:#8fc8ff}pre{white-space:pre-wrap;background:#182131;padding:24px;border-radius:8px}</style><h1>League Game Report</h1><div id="status">Loading local report…</div><pre id="report"></pre><script>const id=new URLSearchParams(location.search).get('report');fetch(id?'/api/report/'+encodeURIComponent(id):'/api/latest').then(r=>r.json()).then(x=>{status.textContent=x.player+' — '+x.game_mode;report.textContent=JSON.stringify(x,null,2)}).catch(()=>status.textContent='This local report is unavailable.');</script>)";
 QByteArray response(const QByteArray &body, const char *type, int status = 200)
 {
 	return QByteArray("HTTP/1.1 ") + QByteArray::number(status) + (status == 200 ? " OK\r\n" : " Not Found\r\n") +
 	       "Content-Type: " + type + "; charset=utf-8\r\nContent-Length: " + QByteArray::number(body.size()) +
 	       "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body;
+}
+bool safe_path_part(const QString &value)
+{
+	return !value.isEmpty() && value.size() < 96 && !value.contains("..") && !value.contains('/');
 }
 } // namespace
 
@@ -36,9 +47,11 @@ QString web_server::url(const QString &report_id)
 	if (!server_.isListening() && !server_.listen(QHostAddress::LocalHost, 0))
 		return {};
 	QUrl result(QString("http://127.0.0.1:%1/").arg(server_.serverPort()));
-	QUrlQuery query;
-	query.addQueryItem("report", report_id);
-	result.setQuery(query);
+	if (!report_id.isEmpty()) {
+		QUrlQuery query;
+		query.addQueryItem("report", report_id);
+		result.setQuery(query);
+	}
 	return result.toString();
 }
 
@@ -62,7 +75,14 @@ void web_server::respond(QTcpSocket *socket)
 	}
 	const QString path = QUrl::fromEncoded(words[1]).path();
 	if (path == "/") {
-		socket->write(response(page, "text/html"));
+		socket->write(response(web_assets::html(), "text/html"));
+	} else if (path == "/assets/recap.css") {
+		socket->write(response(web_assets::css(), "text/css"));
+	} else if (path == "/assets/recap.js") {
+		socket->write(response(web_assets::script(), "application/javascript"));
+	} else if (path.startsWith("/assets/ddragon/")) {
+		respond_ddragon(socket, path);
+		return;
 	} else if (path == "/api/latest" || path.startsWith("/api/report/")) {
 		const QString id = path == "/api/latest" ? QString() : path.mid(QString("/api/report/").size());
 		const auto reports = store().reports();
@@ -77,5 +97,111 @@ void web_server::respond(QTcpSocket *socket)
 		socket->write(response("Not found", "text/plain", 404));
 	}
 	socket->disconnectFromHost();
+}
+
+void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
+{
+	const QStringList part = path.split('/', Qt::SkipEmptyParts);
+	const bool image = part.size() == 5 && (part[2] == "champion" || part[2] == "item");
+	const bool ability = part.size() == 6 && part[2] == "ability" && part[5].size() == 1 &&
+			     QString("QWER").contains(part[5]);
+	if ((!image && !ability) || part[0] != "assets" || part[1] != "ddragon" || !safe_path_part(part[3]) ||
+	    !safe_path_part(part[4])) {
+		socket->write(response("Not found", "text/plain", 404));
+		socket->disconnectFromHost();
+		return;
+	}
+	const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+			     "/league-game-reports/ddragon/" + part[3];
+	const QString directory = root + "/" + part[2];
+	const QString file_path = directory + "/" + part[4] + (ability ? "-" + part[5] : "") + ".png";
+	QFile cached(file_path);
+	if (cached.open(QIODevice::ReadOnly)) {
+		socket->write(response(cached.readAll(), "image/png"));
+		socket->disconnectFromHost();
+		return;
+	}
+	if (ability) {
+		const QString metadata = root + "/champion-" + part[4] + ".json";
+		auto fetch_icon = [this, socket, metadata, directory, file_path, part](const QJsonObject &champion) {
+			const int slot = QString("QWER").indexOf(part[5]);
+			const QString image_name = champion["data"]
+							   .toObject()[part[4]]
+							   .toObject()["spells"]
+							   .toArray()[slot]
+							   .toObject()["image"]
+							   .toObject()["full"]
+							   .toString();
+			if (image_name.isEmpty()) {
+				socket->write(response("Not found", "text/plain", 404));
+				socket->disconnectFromHost();
+				return;
+			}
+			auto *icon = network_.get(
+				QNetworkRequest(QUrl(QString("https://ddragon.leagueoflegends.com/cdn/%1/img/spell/%2")
+							     .arg(part[3], image_name))));
+			connect(icon, &QNetworkReply::finished, icon, [socket, icon, directory, file_path] {
+				const QByteArray bytes = icon->error() == QNetworkReply::NoError ? icon->readAll()
+												 : QByteArray{};
+				if (!bytes.isEmpty()) {
+					QDir().mkpath(directory);
+					QSaveFile file(file_path);
+					if (file.open(QIODevice::WriteOnly)) {
+						file.write(bytes);
+						file.commit();
+					}
+					socket->write(response(bytes, "image/png"));
+				} else {
+					socket->write(response("Not found", "text/plain", 404));
+				}
+				socket->disconnectFromHost();
+				icon->deleteLater();
+			});
+		};
+		QFile metadata_file(metadata);
+		if (metadata_file.open(QIODevice::ReadOnly)) {
+			fetch_icon(QJsonDocument::fromJson(metadata_file.readAll()).object());
+			return;
+		}
+		auto *reply = network_.get(QNetworkRequest(
+			QUrl(QString("https://ddragon.leagueoflegends.com/cdn/%1/data/en_US/champion/%2.json")
+				     .arg(part[3], part[4]))));
+		connect(reply, &QNetworkReply::finished, reply, [reply, metadata, fetch_icon] {
+			const QByteArray bytes = reply->error() == QNetworkReply::NoError ? reply->readAll()
+											  : QByteArray{};
+			if (!bytes.isEmpty()) {
+				QDir().mkpath(QFileInfo(metadata).dir().path());
+				QSaveFile file(metadata);
+				if (file.open(QIODevice::WriteOnly)) {
+					file.write(bytes);
+					file.commit();
+				}
+			}
+			fetch_icon(QJsonDocument::fromJson(bytes).object());
+			reply->deleteLater();
+		});
+		return;
+	}
+	const QString remote =
+		part[2] == "champion"
+			? QString("https://ddragon.leagueoflegends.com/cdn/%1/img/champion/%2.png").arg(part[3], part[4])
+			: QString("https://ddragon.leagueoflegends.com/cdn/%1/img/item/%2.png").arg(part[3], part[4]);
+	auto *reply = network_.get(QNetworkRequest(QUrl(remote)));
+	connect(reply, &QNetworkReply::finished, reply, [socket, reply, directory, file_path] {
+		const QByteArray bytes = reply->error() == QNetworkReply::NoError ? reply->readAll() : QByteArray{};
+		if (!bytes.isEmpty()) {
+			QDir().mkpath(directory);
+			QSaveFile file(file_path);
+			if (file.open(QIODevice::WriteOnly)) {
+				file.write(bytes);
+				file.commit();
+			}
+			socket->write(response(bytes, "image/png"));
+		} else {
+			socket->write(response("Not found", "text/plain", 404));
+		}
+		socket->disconnectFromHost();
+		reply->deleteLater();
+	});
 }
 } // namespace sources::lol_game_report

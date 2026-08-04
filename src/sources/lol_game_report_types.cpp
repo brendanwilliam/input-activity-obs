@@ -221,12 +221,12 @@ QVector<double> normalized_series(const QVector<double> &values, bool average_ra
 	QVector<double> result;
 	if (values.isEmpty())
 		return result;
-	double denominator = average_ratio ? std::accumulate(values.begin(), values.end(), 0.0) / values.size()
-					   : *std::max_element(values.begin(), values.end());
-	if (denominator == 0)
-		denominator = 1;
+	const double average = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+	const auto [low, high] = std::minmax_element(values.begin(), values.end());
+	const double denominator = average_ratio ? average : *high - *low;
 	for (double value : values)
-		result.append(average_ratio ? value / denominator : value / denominator);
+		result.append(denominator == 0 ? 0.0
+					       : (average_ratio ? value / denominator : (value - *low) / denominator));
 	return result;
 }
 QString display_name(const report &v)
