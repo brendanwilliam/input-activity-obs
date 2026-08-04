@@ -215,7 +215,7 @@ private:
 		const QJsonObject game = batch_.value("gamestats").toObject();
 		report_.game_mode = game.value("gameMode").toString();
 		report_.map = game.value("mapName").toString();
-		report_.duration_seconds = game.value("gameTime").toInt();
+		report_.duration_seconds = int(std::floor(game.value("gameTime").toDouble()));
 		last_game_seconds_ = report_.duration_seconds;
 		if (last_logged_game_seconds_ != last_game_seconds_) {
 			diagnostics_.write("collector", "game_clock_changed",
@@ -225,7 +225,7 @@ private:
 		}
 		const QJsonObject scores = batch_.value("activeplayerscores").toObject();
 		stat_sample sample;
-		sample.seconds = game.value("gameTime").toInt();
+		sample.seconds = int(std::floor(game.value("gameTime").toDouble()));
 		sample.kills = scores.value("kills").toInt();
 		sample.deaths = scores.value("deaths").toInt();
 		sample.assists = scores.value("assists").toInt();
