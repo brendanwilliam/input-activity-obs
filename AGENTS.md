@@ -6,8 +6,9 @@ Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branc
 Target `develop` through a pull request for ordinary changes; it is the shared integration branch for parallel
 work. Promote `develop` to `main` through a separate pull request only when the integrated set is ready.
 Never push directly to either protected branch, and never bypass `main`'s required checks on the promotion PR.
-Before starting feature work, ensure `develop` contains current `main`; after a main-only change or when first
-adopting this workflow, synchronize `main` into `develop` through a pull request.
+Before starting feature work, fetch `origin` and create the task branch from the latest `origin/develop`.
+Do not block ordinary feature work on `develop` containing `main`; reconcile main-only changes back into
+`develop` through a dedicated pull request when that integration is needed.
 
 For a coordinated group of closely related tasks, use a dated integration branch named
 `chore/updates-YYYY-MM-DD`, created from current `develop`, and target its pull request at `develop`. Use a

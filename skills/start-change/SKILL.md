@@ -6,15 +6,15 @@ description: Start a governed change in this repository. Use when beginning feat
 # Start Change
 
 1. Inspect the working tree and current branch. Preserve unrelated user changes.
-2. Fetch `origin/main` and `origin/develop`. Ensure `origin/develop` contains `origin/main`; if it does not,
-   first synchronize `main` into `develop` through a pull request. Then create the branch from `origin/develop`
-   using exactly one of:
+2. Fetch `origin`. Create the branch from the latest `origin/develop` using exactly one of:
    - `feature/<kebab-title>` for new behavior
    - `fix/<kebab-title>` for a defect
    - `chore/<kebab-title>` for maintenance
    - `chore/updates-YYYY-MM-DD` for a coordinated group of multiple tasks implemented that day; merge it to
      `develop` in one pull request after the group is ready
 3. Use `develop` as the feature base and pull-request target. Do not directly push `develop` or `main`.
+   Do not block ordinary feature work on `develop` containing `main`; reconcile main-only changes back into
+   `develop` through a dedicated pull request when that integration is needed.
 4. State the target branch (`develop`) and the validation expected for the scope. For release work, use `release-macos-plugin` and promote `develop` to `main`.
 5. Before handoff, synchronize with `origin/develop` and resolve conflicts on the feature branch. Preserve a linear history.
 
