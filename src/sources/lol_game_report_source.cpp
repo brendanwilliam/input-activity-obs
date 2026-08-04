@@ -5,10 +5,10 @@
 #include "lol_game_report_store.hpp"
 
 #include <QBuffer>
-#include <QDesktopServices>
 #include <QDir>
 #include <QImage>
 #include <QPainter>
+#include <QProcess>
 #include <QStandardPaths>
 #include <algorithm>
 #include <optional>
@@ -123,7 +123,7 @@ public:
 	bool reveal_development_log() const
 	{
 		const QString path = development_log_path();
-		return !path.isEmpty() && QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+		return !path.isEmpty() && QProcess::startDetached("open", {"-R", path});
 	}
 
 private:
