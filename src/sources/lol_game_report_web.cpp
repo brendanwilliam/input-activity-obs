@@ -87,12 +87,19 @@ void web_server::respond(QTcpSocket *socket)
 	} else if (path.startsWith("/assets/ddragon/")) {
 		respond_ddragon(socket, path);
 		return;
-	} else if (path == "/api/latest" || path.startsWith("/api/report/")) {
-		const QString id = path == "/api/latest" ? QString() : path.mid(QString("/api/report/").size());
+	} else if (path == "/api/latest" || path.startsWith("/api/report/") || path.startsWith("/api/game/")) {
+		const QString id = path.startsWith("/api/report/") ? path.mid(QString("/api/report/").size())
+								   : QString();
+		const QString game_id = path.startsWith("/api/game/") ? path.mid(QString("/api/game/").size())
+								      : QString();
 		const auto reports = store().reports();
-		const auto it = id.isEmpty() ? reports.cbegin()
-					     : std::find_if(reports.cbegin(), reports.cend(),
-							    [&id](const auto &value) { return value.id == id; });
+		const auto it =
+			path == "/api/latest"
+				? reports.cbegin()
+				: std::find_if(reports.cbegin(), reports.cend(), [&id, &game_id](const auto &value) {
+					  return (!id.isEmpty() && value.id == id) ||
+						 (!game_id.isEmpty() && value.game_id == game_id);
+				  });
 		if (it != reports.cend())
 			socket->write(response(QJsonDocument(to_json(*it)).toJson(), "application/json"));
 		else
