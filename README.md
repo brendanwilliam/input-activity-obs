@@ -73,12 +73,15 @@ saving a report HTML, CSS, or JavaScript file. Those web files are the canonical
 updates the embedded C++ source. Run `npm run report:sync` if you need to synchronize them without starting the
 server.
 
-To load a real Game ID without OBS, provide a Riot development key and your Riot ID. The key remains in the Node
-process and is never sent to the browser:
+To load a real Game ID without OBS, place your Riot development key and Riot ID in the local, ignored `.env` file.
+The key remains in the Node process and is never sent to the browser:
 
 ```sh
-RIOT_API_KEY=your-key RIOT_ID='Name#TAG' npm run report:dev
+RIOT_API_KEY=your-key
+RIOT_ID="Name#TAG"
 ```
+
+Then simply run `npm run report:dev`. `RIOT_ID` must be quoted because its tag separator is `#`.
 
 The direct response contains Riot match data. OBS-only input telemetry, such as APM and mouse heatmap data, remains
 unavailable outside OBS.

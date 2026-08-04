@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "report:dev": "node scripts/league-report-dev.mjs",
-    "report:sync": "node scripts/league-report-dev.mjs --sync"
+    "report:dev": "node --env-file-if-exists=.env scripts/league-report-dev.mjs",
+    "report:sync": "node --env-file-if-exists=.env scripts/league-report-dev.mjs --sync"
   }
 }
