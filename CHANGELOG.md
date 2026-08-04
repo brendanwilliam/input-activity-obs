@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - A self-only local League Game Report OBS source with local report retention and PNG/JSON export.
+- Opt-in, session-only development logs for League Game Report diagnostics.
+- Local recap controls to save the rendered source JSON and load a Riot Match-v5 report by Game ID.
 - LoL Performance Dashboard can link Game and Client macOS Screen Capture sources, automatically switching their scene-item visibility based on whether the League game is frontmost.
 - LoL Performance Dashboard camera panels that render a selected OBS video-input source opposite the minimap, with safe-area-relative sizing, scale, and translation controls.
 - LoL Performance Dashboard minimap covers with a packaged default image, custom image selection, scale control, and automatic flipped-minimap anchoring.

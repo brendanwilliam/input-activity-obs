@@ -66,8 +66,18 @@ target_sources(
     src/sources/league_capture_switcher.cpp
     src/sources/lol_game_report_types.hpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_game_report_diagnostics.hpp
+    src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_store.hpp
     src/sources/lol_game_report_store.cpp
+    src/sources/lol_game_report_ddragon.hpp
+    src/sources/lol_game_report_ddragon.cpp
+    src/sources/lol_game_report_web.hpp
+    src/sources/lol_game_report_web.cpp
+    src/sources/lol_game_report_web_assets.hpp
+    src/sources/lol_game_report_web_assets.cpp
+    src/sources/lol_game_report_riot_api.hpp
+    src/sources/lol_game_report_riot_api.cpp
     src/sources/lol_game_report_collector.hpp
     src/sources/lol_game_report_collector.cpp
     src/sources/lol_game_report_source.hpp
@@ -135,9 +145,15 @@ if(BUILD_TESTING)
     lol-game-report-test
     tests/lol_game_report_test.cpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_game_report_diagnostics.cpp
+    src/sources/lol_game_report_ddragon.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core)
   target_include_directories(lol-game-report-test PRIVATE src)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
+  if(APPLE)
+    target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+  endif()
 endif()
