@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_types.hpp"
 
 #include <QObject>
@@ -16,9 +17,11 @@ public:
 
 private:
 	void respond(QTcpSocket *socket);
+	void respond_game(QTcpSocket *socket, const QString &game_id);
 	void respond_ddragon(QTcpSocket *socket, const QString &path);
 	QTcpServer server_;
 	QNetworkAccessManager network_;
+	riot_api riot_{this};
 };
 
 } // namespace sources::lol_game_report

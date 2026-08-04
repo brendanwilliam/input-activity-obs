@@ -5,7 +5,7 @@
 - Add a self-only local League Game Report OBS source with local report retention and PNG/JSON export.
 - Add opt-in, session-only development logs for League Game Report diagnostics.
 - Prevent League Game Report recaps from crashing OBS when loading ability icons.
-- Add local recap controls to save the rendered source JSON and reopen a retained report by Game ID.
+- Add local recap controls to save the rendered source JSON and load a Riot Match-v5 report by Game ID.
 
 All notable changes to this project are documented in this file.
 

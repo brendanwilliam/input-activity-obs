@@ -17,6 +17,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTcpSocket>
+#include <QUuid>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -33,6 +34,19 @@ QByteArray response(const QByteArray &body, const char *type, int status = 200)
 bool safe_path_part(const QString &value)
 {
 	return !value.isEmpty() && value.size() < 96 && !value.contains("..") && !value.contains('/');
+}
+QByteArray error_response(const QString &message, int status = 404)
+{
+	return response(QJsonDocument(QJsonObject{{"error", message}}).toJson(QJsonDocument::Compact),
+			"application/json", status);
+}
+bool valid_game_id(const QString &value)
+{
+	const int separator = value.indexOf('_');
+	return safe_path_part(value) && separator > 0 && separator + 1 < value.size() &&
+	       std::all_of(value.cbegin(), value.cend(), [separator, index = 0](const QChar character) mutable {
+		       return index++ == separator ? character == '_' : character.isLetterOrNumber();
+	       });
 }
 } // namespace
 
@@ -87,19 +101,20 @@ void web_server::respond(QTcpSocket *socket)
 	} else if (path.startsWith("/assets/ddragon/")) {
 		respond_ddragon(socket, path);
 		return;
-	} else if (path == "/api/latest" || path.startsWith("/api/report/") || path.startsWith("/api/game/")) {
+	} else if (path == "/api/game/") {
+		socket->write(error_response("A Game ID is required.", 400));
+	} else if (path.startsWith("/api/game/")) {
+		respond_game(socket, path.mid(QString("/api/game/").size()));
+		return;
+	} else if (path == "/api/latest" || path.startsWith("/api/report/")) {
 		const QString id = path.startsWith("/api/report/") ? path.mid(QString("/api/report/").size())
 								   : QString();
-		const QString game_id = path.startsWith("/api/game/") ? path.mid(QString("/api/game/").size())
-								      : QString();
 		const auto reports = store().reports();
-		const auto it =
-			path == "/api/latest"
-				? reports.cbegin()
-				: std::find_if(reports.cbegin(), reports.cend(), [&id, &game_id](const auto &value) {
-					  return (!id.isEmpty() && value.id == id) ||
-						 (!game_id.isEmpty() && value.game_id == game_id);
-				  });
+		const auto it = path == "/api/latest"
+					? reports.cbegin()
+					: std::find_if(reports.cbegin(), reports.cend(), [&id](const auto &value) {
+						  return !id.isEmpty() && value.id == id;
+					  });
 		if (it != reports.cend())
 			socket->write(response(QJsonDocument(to_json(*it)).toJson(), "application/json"));
 		else
@@ -108,6 +123,44 @@ void web_server::respond(QTcpSocket *socket)
 		socket->write(response("Not found", "text/plain", 404));
 	}
 	socket->disconnectFromHost();
+}
+
+void web_server::respond_game(QTcpSocket *socket, const QString &game_id)
+{
+	if (!valid_game_id(game_id)) {
+		socket->write(error_response("Enter a Riot Game ID such as NA1_123456789.", 400));
+		socket->disconnectFromHost();
+		return;
+	}
+	const auto reports = store().reports();
+	const auto existing = std::find_if(reports.cbegin(), reports.cend(),
+					   [&game_id](const auto &value) { return value.game_id == game_id; });
+	if (existing != reports.cend()) {
+		socket->write(response(QJsonDocument(to_json(*existing)).toJson(), "application/json"));
+		socket->disconnectFromHost();
+		return;
+	}
+	if (reports.isEmpty() || reports.first().player.isEmpty()) {
+		socket->write(
+			error_response("Record a local game first so the plugin can identify your Riot ID.", 400));
+		socket->disconnectFromHost();
+		return;
+	}
+	report value;
+	value.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+	value.game_id = game_id;
+	value.player = reports.first().player;
+	const QPointer<QTcpSocket> guarded_socket(socket);
+	riot_.enrich(std::move(value), [guarded_socket](report loaded, const QString &status) {
+		const bool found = loaded.enrichment.value("riot_match_v5").toBool();
+		if (found)
+			store().save(loaded);
+		if (!guarded_socket || guarded_socket->state() != QAbstractSocket::ConnectedState)
+			return;
+		guarded_socket->write(found ? response(QJsonDocument(to_json(loaded)).toJson(), "application/json")
+					    : error_response(status));
+		guarded_socket->disconnectFromHost();
+	});
 }
 
 void web_server::respond_ddragon(QTcpSocket *socket, const QString &path)
