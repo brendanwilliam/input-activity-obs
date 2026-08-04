@@ -73,8 +73,18 @@ saving a report HTML, CSS, or JavaScript file. Those web files are the canonical
 updates the embedded C++ source. Run `npm run report:sync` if you need to synchronize them without starting the
 server.
 
-To load a real Game ID while keeping the hot-reload UI, first use the report action in OBS to open a report in your
-browser. Copy only that address's origin (for example, `http://127.0.0.1:49152`), then run:
+To load a real Game ID without OBS, provide a Riot development key and your Riot ID. The key remains in the Node
+process and is never sent to the browser:
+
+```sh
+RIOT_API_KEY=your-key RIOT_ID='Name#TAG' npm run report:dev
+```
+
+The direct response contains Riot match data. OBS-only input telemetry, such as APM and mouse heatmap data, remains
+unavailable outside OBS.
+
+Alternatively, while OBS is running, use the report action to open a report in your browser. Copy only that
+address's origin (for example, `http://127.0.0.1:49152`), then run:
 
 ```sh
 REPORT_API_ORIGIN=http://127.0.0.1:49152 npm run report:dev

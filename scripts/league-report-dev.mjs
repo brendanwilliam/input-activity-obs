@@ -17,6 +17,9 @@ const read = path => readFileSync(path, 'utf8');
 const cpp = value => `R"league_report(${value})league_report"`;
 const apiOrigin = process.env.REPORT_API_ORIGIN ? new URL(process.env.REPORT_API_ORIGIN) : null;
 const devPort = Number(process.env.REPORT_DEV_PORT || 4173);
+const riotApiKey = process.env.RIOT_API_KEY;
+const riotId = process.env.RIOT_ID;
+const riotPuuid = process.env.RIOT_PUUID;
 
 if (apiOrigin && !['127.0.0.1', 'localhost', '::1'].includes(apiOrigin.hostname)) {
   throw new Error('REPORT_API_ORIGIN must use a loopback address.');
@@ -49,6 +52,58 @@ async function proxyApi(request, response, requestUrl) {
     send(response, 502, JSON.stringify({ error: `The local report API at ${apiOrigin.origin} is unavailable. Open a report from OBS first, then check the copied origin.` }), contentType['.json']);
   }
 }
+function riotRegion(gameId) {
+  const platform = gameId.split('_', 1)[0].toUpperCase();
+  if (['BR1', 'LA1', 'LA2', 'NA1'].includes(platform)) return 'americas';
+  if (['EUN1', 'EUW1', 'ME1', 'RU', 'TR1'].includes(platform)) return 'europe';
+  if (['JP1', 'KR'].includes(platform)) return 'asia';
+  if (['OC1', 'PH2', 'SG2', 'TH2', 'TW2', 'VN2'].includes(platform)) return 'sea';
+  return null;
+}
+function normalizedId(value) { return value.trim().toLocaleLowerCase(); }
+function buildStandaloneReport(gameId, match) {
+  const [gameName, tagLine] = (riotId || '#').split('#', 2);
+  const participant = match.info?.participants?.find(candidate =>
+    riotPuuid ? candidate.puuid === riotPuuid : normalizedId(`${candidate.riotIdGameName || candidate.summonerName || ''}#${candidate.riotIdTagline || ''}`) === normalizedId(`${gameName}#${tagLine}`));
+  if (!participant) throw new Error('Your RIOT_ID or RIOT_PUUID was not found in this match.');
+  const allies = match.info.participants.filter(candidate => candidate.teamId === participant.teamId);
+  const enemies = match.info.participants.filter(candidate => candidate.teamId !== participant.teamId);
+  const duration = match.info.gameDuration > 100000 ? Math.round(match.info.gameDuration / 1000) : match.info.gameDuration;
+  const version = (match.info.gameVersion || '').split('.').slice(0, 3).join('.');
+  const timestamp = match.info.gameEndTimestamp || match.info.gameStartTimestamp || Date.now();
+  return {
+    id: `riot-${gameId}`,
+    game_id: gameId,
+    completed_at: new Date(timestamp).toISOString(),
+    player: `${participant.riotIdGameName || participant.summonerName || gameName}${participant.riotIdTagline ? `#${participant.riotIdTagline}` : ''}`,
+    champion: participant.championName,
+    role: participant.teamPosition || participant.individualPosition || 'Unavailable',
+    game_mode: match.info.gameMode,
+    map: match.info.gameName || `Map ${match.info.mapId}`,
+    outcome: participant.win ? 'Victory' : 'Defeat',
+    duration_seconds: duration,
+    team_gold: allies.reduce((sum, candidate) => sum + (candidate.goldEarned || 0), 0),
+    enemy_team_gold: enemies.reduce((sum, candidate) => sum + (candidate.goldEarned || 0), 0),
+    team_kills: allies.reduce((sum, candidate) => sum + (candidate.kills || 0), 0),
+    enemy_team_kills: enemies.reduce((sum, candidate) => sum + (candidate.kills || 0), 0),
+    assets: { ddragon_version: version },
+    samples: [{ seconds: duration, kills: participant.kills, deaths: participant.deaths, assists: participant.assists, cs: (participant.totalMinionsKilled || 0) + (participant.neutralMinionsKilled || 0), level: participant.champLevel, estimated_gold: participant.goldEarned }],
+    input_samples: [], heatmap: [], events: [], abilities: [],
+    item_events: [0, 1, 2, 3, 4, 5, 6].map(slot => participant[`item${slot}`]).filter(Boolean).map(item_id => ({ item_id: String(item_id), seconds: duration }))
+  };
+}
+async function loadRiotMatch(response, gameId) {
+  const region = riotRegion(gameId);
+  if (!region) return send(response, 400, JSON.stringify({ error: 'The Game ID has an unsupported Riot platform prefix.' }), contentType['.json']);
+  if (!riotId && !riotPuuid) return send(response, 400, JSON.stringify({ error: 'Set RIOT_ID (Name#TAG) or RIOT_PUUID to select your participant for standalone Game ID loading.' }), contentType['.json']);
+  try {
+    const result = await fetch(`https://${region}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(gameId)}`, { headers: { 'X-Riot-Token': riotApiKey } });
+    if (!result.ok) return send(response, result.status, JSON.stringify({ error: `Riot Match-v5 request failed (HTTP ${result.status}).` }), contentType['.json']);
+    return send(response, 200, JSON.stringify(buildStandaloneReport(gameId, await result.json())), contentType['.json']);
+  } catch (error) {
+    return send(response, 502, JSON.stringify({ error: error.message || 'Riot Match-v5 request failed.' }), contentType['.json']);
+  }
+}
 
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url, 'http://127.0.0.1');
@@ -61,7 +116,8 @@ const server = createServer(async (request, response) => {
   if (path.startsWith('/api/') && apiOrigin) return proxyApi(request, response, requestUrl);
   if (path === '/api/latest' || path.startsWith('/api/report/')) return send(response, 200, read(files.report), contentType['.json']);
   if (path === '/api/game/') return send(response, 400, JSON.stringify({ error: 'A Game ID is required.' }), contentType['.json']);
-  if (path.startsWith('/api/game/')) return send(response, 400, JSON.stringify({ error: 'The dev server is using mock data. Set REPORT_API_ORIGIN to the local URL that OBS opens for a report to load a real Game ID.' }), contentType['.json']);
+  if (path.startsWith('/api/game/') && riotApiKey) return loadRiotMatch(response, decodeURIComponent(path.slice('/api/game/'.length)));
+  if (path.startsWith('/api/game/')) return send(response, 400, JSON.stringify({ error: 'The dev server is using mock data. Set RIOT_API_KEY and RIOT_ID (Name#TAG), or configure REPORT_API_ORIGIN while OBS is running, to load a real Game ID.' }), contentType['.json']);
   const mapping = { '/assets/recap.css': files.css, '/assets/recap.js': files.script };
   if (mapping[path]) return send(response, 200, read(mapping[path]), contentType[extname(mapping[path])]);
   return send(response, 404, 'Not found');
@@ -79,4 +135,4 @@ server.on('error', error => {
   else console.error(error);
   process.exitCode = 1;
 });
-server.listen(devPort, '127.0.0.1', () => console.log(`League Game Report dev server: http://127.0.0.1:${devPort}${apiOrigin ? ` (proxying ${apiOrigin.origin})` : ' (mock data)'}`));
+server.listen(devPort, '127.0.0.1', () => console.log(`League Game Report dev server: http://127.0.0.1:${devPort}${apiOrigin ? ` (proxying ${apiOrigin.origin})` : riotApiKey ? ' (direct Riot API)' : ' (mock data)'}`));
