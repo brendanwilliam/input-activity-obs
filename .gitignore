@@ -29,6 +29,9 @@
 !SECURITY.md
 !skills
 !scripts
+!package.json
+!web
+!web/**
 
 # Exclude lock files
 *.lock.json

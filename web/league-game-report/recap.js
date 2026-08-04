@@ -1,0 +1,70 @@
+const $ = selector => document.querySelector(selector);
+const fmt = seconds => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
+const n = value => Number(value || 0).toLocaleString();
+const avg = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+const query = new URLSearchParams(location.search);
+const id = query.get('report');
+const gameId = query.get('game');
+const url = id ? `/api/report/${encodeURIComponent(id)}` : gameId ? `/api/game/${encodeURIComponent(gameId)}` : '/api/latest';
+const icon = (kind, version, value) => version && value ? `<img loading="lazy" src="/assets/ddragon/${kind}/${encodeURIComponent(version)}/${encodeURIComponent(value)}" onerror="this.style.visibility='hidden'">` : '';
+const abilityIcon = (version, champion, slot) => version && champion ? `<img loading="lazy" src="/assets/ddragon/ability/${encodeURIComponent(version)}/${encodeURIComponent(champion)}/${slot}" onerror="this.style.visibility='hidden'">` : '';
+
+function metric(label, value) { return `<div class="metric"><h3>${label}</h3><strong>${value}</strong></div>`; }
+function series(report, key) {
+  if (key === 'apm') return report.input_samples.map(sample => ({ x: sample.seconds, y: sample.actions * 60 }));
+  if (key === 'velocity') return report.input_samples.map(sample => ({ x: sample.seconds, y: sample.max_velocity_pixels_per_second }));
+  return report.samples.map(sample => ({ x: sample.seconds, y: key === 'gold' ? sample.estimated_gold : sample[key] }));
+}
+function normalized(points, mode) {
+  const values = points.map(point => point.y);
+  const low = Math.min(...values), high = Math.max(...values), mean = avg(values);
+  return points.map(point => ({ x: point.x, y: mode === 'average' ? point.y / (mean || 1) : (point.y - low) / ((high - low) || 1) }));
+}
+function reportTools(report) {
+  const tools = document.createElement('section');
+  tools.className = 'section';
+  tools.innerHTML = `<h2>Report data</h2><div class="controls"><label>Game ID <input id="game-id" value="${report.game_id || ''}" placeholder="e.g. NA1_123456789"></label><button id="load-game">Load game</button><button id="save-json">Save source JSON</button></div><p class="notice">A new Game ID is loaded from Riot Match-v5 for your most recently recorded Riot ID, then retained locally.</p>`;
+  $('#app').prepend(tools);
+  const load = () => { const value = $('#game-id').value.trim(); if (value) location.search = `game=${encodeURIComponent(value)}`; };
+  $('#load-game').onclick = load;
+  $('#game-id').onkeydown = event => { if (event.key === 'Enter') load(); };
+  $('#save-json').onclick = () => {
+    const link = document.createElement('a');
+    const name = (report.game_id || report.id || 'league-game-report').replace(/[^a-z0-9_-]/gi, '_');
+    const jsonUrl = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
+    link.href = jsonUrl; link.download = `league-game-report-${name}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(jsonUrl), 0);
+  };
+}
+function render(report) {
+  const final = report.samples.at(-1) || {}, input = report.input_samples || [];
+  const actions = input.reduce((sum, sample) => sum + sample.actions, 0);
+  const distance = input.reduce((sum, sample) => sum + sample.mouse_distance_pixels, 0);
+  const velocity = input.map(sample => sample.max_velocity_pixels_per_second);
+  const minutes = (report.duration_seconds || 1) / 60;
+  const version = report.assets?.ddragon_version || '';
+  const champion = icon('champion', version, report.champion);
+  $('#app').innerHTML = `<section class="hero"><div class="split"><div><h1>${champion} ${report.champion || 'League Game Report'}</h1><p class="sub">${report.completed_at?.slice(0, 16).replace('T', ' ')} · ${report.game_mode || 'Unavailable'} · ${report.map || ''}</p><p class="outcome ${report.outcome}">${report.outcome || 'Outcome unavailable'} · ${fmt(report.duration_seconds || 0)}</p></div><div class="grid">${metric('Team gold', report.team_gold ? `${n(report.team_gold)} / ${n(report.enemy_team_gold)}` : 'Unavailable')}${metric('Team kills', report.team_kills ? `${n(report.team_kills)} / ${n(report.enemy_team_kills)}` : 'Unavailable')}${metric('Riot ID', report.player || 'Unavailable')}${metric('Game ID', report.game_id || 'Unavailable')}</div></div><div class="grid">${metric('K / D / A', `${final.kills || 0} / ${final.deaths || 0} / ${final.assists || 0}`)}${metric('CS / CSPM', `${n(final.cs)} / ${(final.cs / minutes).toFixed(1)}`)}${metric('Gold / GPM', `${n(final.estimated_gold)} / ${(final.estimated_gold / minutes).toFixed(0)}`)}${metric('Role', report.role || 'Unavailable')}</div></section><section class="section"><h2>Performance data</h2><div class="split"><div><div class="heatmap" id="heatmap"></div><p class="notice">Mouse movement and distance are display-coordinate estimates; DPI snapshot: ${n(report.dpi || 800)}.</p></div><div class="grid">${metric('Total actions', n(actions))}${metric('Mouse distance', `${n(Math.round(distance))} px`)}${metric('Max / avg APM', `${n(Math.max(...input.map(sample => sample.actions * 60), 0))} / ${n(Math.round(avg(input.map(sample => sample.actions * 60))))}`)}${metric('Max / avg velocity', `${n(Math.round(Math.max(...velocity, 0)))} / ${n(Math.round(avg(velocity)))} px/s`)}</div></div></section><section class="section"><h2>Game data</h2><div class="controls"><label>Normalization <select id="norm"><option value="minmax">Min–max</option><option value="average">Game average ratio</option></select></label>${['apm', 'velocity', 'cs', 'gold', 'level'].map(key => `<button data-series="${key}" class="active">${key === 'gold' ? 'estimated gold' : key === 'level' ? 'level progression' : key}</button>`).join('')}</div><div class="chart"><canvas id="chart"></canvas></div><h3>Game events</h3><div class="controls">${['kill', 'objective', 'tower', 'level', 'item'].map(key => `<button data-event="${key}" class="active">${key}</button>`).join('')}</div><div class="timeline" id="events"></div><p class="notice">Level progression is stepped because the local game API does not provide fractional XP history. Estimated gold represents earned gold when available.</p></section><section class="section"><h2>Ability leveling path</h2><div class="abilities">${(report.abilities || []).map(ability => `<div class="ability">${abilityIcon(version, report.champion, ability.ability)}<b>${ability.ability}${ability.level}</b>${fmt(ability.seconds)}</div>`).join('') || '<p class="muted">Unavailable for this report.</p>'}</div><h2 style="margin-top:28px">Player build</h2><div class="build">${(report.item_events || []).map(item => `<div class="build-item">${icon('item', version, item.item_id)}<div>${item.item || `Item ${item.item_id}`}</div><small>${fmt(item.seconds)}</small></div>`).join('') || '<p class="muted">Unavailable for this report.</p>'}</div></section><section class="section"><h2>Timeseries insights</h2><div id="insights"></div></section><footer class="footer">Self-only local data. Riot Games is not endorsing or sponsoring this source.</footer>`;
+  for (const bucket of report.heatmap || []) {
+    const dot = document.createElement('i'); dot.className = 'dot';
+    dot.style.left = `${(bucket.x + .5) / 30 * 100}%`; dot.style.top = `${(bucket.y + .5) / 17 * 100}%`;
+    dot.style.width = dot.style.height = `${Math.min(70, 8 + Math.sqrt(bucket.count) * 5)}px`;
+    dot.style.opacity = Math.min(1, .18 + bucket.count / 100); $('#heatmap').append(dot);
+  }
+  const insights = [], first = (report.item_events || [])[0];
+  if (first) insights.push(`First build event: <b>${first.item || `Item ${first.item_id}`}</b> at ${fmt(first.seconds)}.`);
+  for (const ability of report.abilities || []) if ([6, 11, 16].includes(ability.level)) insights.push(`Level ${ability.level} milestone at ${fmt(ability.seconds)}.`);
+  if (!insights.length) insights.push('More insights will appear as local game samples are collected.');
+  $('#insights').innerHTML = insights.map(value => `<div class="insight">${value}</div>`).join('');
+  let chart;
+  const update = () => {
+    const keys = [...document.querySelectorAll('[data-series].active')].map(button => button.dataset.series), mode = $('#norm').value;
+    if (!window.Chart) { $('.chart').innerHTML = '<p class="notice">Charts need the configured Chart.js CDN connection. Metrics and event data remain available.</p>'; return; }
+    chart?.destroy();
+    chart = new Chart($('#chart'), { type: 'line', data: { datasets: keys.map((key, index) => ({ label: key === 'gold' ? 'estimated gold' : key, data: normalized(series(report, key), mode), borderColor: ['#86c5ff', '#e8bb5a', '#61d59b', '#f07886', '#af8cf5'][index], pointRadius: 0, tension: .25 })) }, options: { responsive: true, maintainAspectRatio: false, parsing: false, scales: { x: { type: 'linear', title: { display: true, text: 'Game time (seconds)' } }, y: { title: { display: true, text: mode === 'average' ? 'ratio to game average' : 'normalized value' } } }, plugins: { tooltip: { callbacks: { title: values => fmt(values[0].parsed.x) } } } } });
+  };
+  document.querySelectorAll('[data-series]').forEach(button => button.onclick = () => { button.classList.toggle('active'); update(); }); $('#norm').onchange = update; update();
+  const drawEvents = () => { const enabled = new Set([...document.querySelectorAll('[data-event].active')].map(button => button.dataset.event)); $('#events').innerHTML = (report.events || []).filter(event => enabled.has(event.category)).map(event => `<i class="event ${event.category}" style="left:${Math.min(100, event.seconds / (report.duration_seconds || 1) * 100)}%"><span>${fmt(event.seconds)} · ${event.detail || event.type}</span></i>`).join(''); };
+  document.querySelectorAll('[data-event]').forEach(button => button.onclick = () => { button.classList.toggle('active'); drawEvents(); }); drawEvents();
+}
+fetch(url).then(async response => { const body = await response.json().catch(() => ({})); return response.ok ? body : Promise.reject(body.error || 'This report is no longer stored by the local plugin.'); }).then(report => { render(report); reportTools(report); }).catch(error => $('#app').innerHTML = `<section class="hero"><h1>Report unavailable</h1><p class="sub">${error}</p></section>`);
