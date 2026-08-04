@@ -60,6 +60,7 @@ function render(report) {
   const update = () => {
     const keys = [...document.querySelectorAll('[data-series].active')].map(button => button.dataset.series), mode = $('#norm').value;
     if (!window.Chart) { $('.chart').innerHTML = '<p class="notice">Charts need the configured Chart.js CDN connection. Metrics and event data remain available.</p>'; return; }
+    Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
     chart?.destroy();
     chart = new Chart($('#chart'), { type: 'line', data: { datasets: keys.map((key, index) => ({ label: key === 'gold' ? 'estimated gold' : key, data: normalized(series(report, key), mode), borderColor: ['#86c5ff', '#e8bb5a', '#61d59b', '#f07886', '#af8cf5'][index], pointRadius: 0, tension: .25 })) }, options: { responsive: true, maintainAspectRatio: false, parsing: false, scales: { x: { type: 'linear', title: { display: true, text: 'Game time (seconds)' } }, y: { title: { display: true, text: mode === 'average' ? 'ratio to game average' : 'normalized value' } } }, plugins: { tooltip: { callbacks: { title: values => fmt(values[0].parsed.x) } } } } });
   };

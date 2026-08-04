@@ -1,6 +1,7 @@
 #include "lol_performance_dashboard_visuals.hpp"
 
 #include <QFont>
+#include <QFontDatabase>
 #include <QPainter>
 #include <QPolygonF>
 #include <algorithm>
@@ -16,6 +17,31 @@ constexpr int dashboard_padding = 20;
 constexpr int title_size = 22;
 constexpr int subtitle_size = 18;
 constexpr int text_size = 30;
+
+void ensure_dashboard_fonts_registered()
+{
+	static const bool registered = [] {
+		for (const char *resource : {"fonts/ScienceGothic.ttf", "fonts/Inter.ttf"}) {
+			char *path = obs_module_file(resource);
+			if (path) {
+				QFontDatabase::addApplicationFont(QString::fromUtf8(path));
+				bfree(path);
+			}
+		}
+		return true;
+	}();
+	Q_UNUSED(registered);
+}
+
+QFont display_font(int size, QFont::Weight weight = QFont::Normal)
+{
+	return {"Science Gothic", size, weight};
+}
+
+QFont data_font(int size, QFont::Weight weight = QFont::Normal)
+{
+	return {"Inter", size, weight};
+}
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
@@ -235,7 +261,7 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 {
 	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
-	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
+	painter.setFont(display_font(subtitle_size, QFont::Bold));
 	const int label_height = subtitle_size + 8;
 	const int value_height = text_size + 12;
 	const int group_gap = 10;
@@ -244,17 +270,17 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
 					 obs_module_text("MouseActivity.Distance"));
 	top += label_height;
-	painter.setFont(QFont("Silom", text_size, QFont::Bold));
+	painter.setFont(data_font(text_size, QFont::Bold));
 	painter.setPen(theme_.active);
 	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
 					 distance_label());
 	top += value_height + group_gap;
 	painter.setPen(Qt::white);
-	painter.setFont(QFont("Silom", subtitle_size, QFont::Bold));
+	painter.setFont(display_font(subtitle_size, QFont::Bold));
 	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
 					 obs_module_text("MouseActivity.Clicks"));
 	top += label_height;
-	painter.setFont(QFont("Silom", text_size, QFont::Bold));
+	painter.setFont(data_font(text_size, QFont::Bold));
 	painter.setPen(theme_.active);
 	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
 					 QString::number(total_clicks_));
@@ -266,7 +292,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	if (content.width() < 4 || content.height() < 4)
 		return;
 	painter.setPen(Qt::white);
-	painter.setFont(QFont("Silom", title_size, QFont::Bold));
+	painter.setFont(display_font(title_size, QFont::Bold));
 	constexpr int active_row_height = 80;
 	const int active_title_height = title_size + dashboard_padding / 2;
 	const int active_top = content.top();
@@ -290,10 +316,10 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		const QRect key_rect(x, active_row.top() + count_height, key_width, active_row.height() - count_height);
 		painter.drawRoundedRect(key_rect, 6, 6);
 		painter.setPen(Qt::white);
-		painter.setFont(QFont("Silom", subtitle_size));
+		painter.setFont(data_font(subtitle_size));
 		lol_dashboard_draw_shadowed_text(painter, QRect(x, active_row.top(), key_width, count_height),
 						 Qt::AlignHCenter | Qt::AlignVCenter, QString::number(key.count));
-		painter.setFont(QFont("Silom", text_size, QFont::Bold));
+		painter.setFont(data_font(text_size, QFont::Bold));
 		lol_dashboard_draw_shadowed_text(painter, key_rect, Qt::AlignCenter, key.label);
 	}
 	std::vector<active_key> keys;
@@ -307,7 +333,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 					   return a.count < b.count;
 				   })->count;
 	const int chart_title_height = title_size + dashboard_padding / 2;
-	painter.setFont(QFont("Silom", title_size, QFont::Bold));
+	painter.setFont(display_font(title_size, QFont::Bold));
 	const int chart_top = active_top + active_title_height + active_row_height + dashboard_padding;
 	lol_dashboard_draw_shadowed_text(painter, QRect(content.left(), chart_top, content.width(), chart_title_height),
 					 edge | Qt::AlignVCenter,
@@ -326,7 +352,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		painter.setPen(Qt::NoPen);
 		painter.drawRoundedRect(bar_rect, 3, 3);
 		painter.setPen(Qt::white);
-		painter.setFont(QFont("Silom", subtitle_size));
+		painter.setFont(data_font(subtitle_size));
 		const QRect label_rect(right_aligned ? chart.right() - chart.width() / 3 + 1 : chart.left(), y,
 				       chart.width() / 3, text_height);
 		const QRect count_rect(right_aligned ? bar_rect.left() : bar_rect.right() - chart.width() / 3 + 1, y,
@@ -372,20 +398,20 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.setPen(QPen(theme_.active, 3));
 		painter.drawLine(x(current), y - 13, x(current), y + 13);
 		painter.setPen(Qt::white);
-		painter.setFont(QFont("Silom", subtitle_size));
+		painter.setFont(data_font(subtitle_size));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
 						 Qt::AlignLeft, QString::number(min, 'f', min < 10 ? 1 : 0));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
 						 Qt::AlignRight, QString::number(max, 'f', max < 10 ? 1 : 0));
-		painter.setFont(QFont("Silom", title_size, QFont::Bold));
+		painter.setFont(display_font(title_size, QFont::Bold));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left(), y + 14 + subtitle_size, card.width(), title_size),
 						 Qt::AlignHCenter,
 						 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
 									: "LoLPerformanceDashboard.MouseVelocity"));
-		painter.setFont(QFont("Silom", text_size, QFont::Bold));
+		painter.setFont(data_font(text_size, QFont::Bold));
 		painter.setPen(theme_.active);
 		lol_dashboard_draw_shadowed_text(
 			painter, QRect(card.left(), y + 14 + subtitle_size + title_size, card.width(), text_size),
@@ -396,6 +422,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary,
 				 const QRect &keys, bool right_aligned) const
 {
+	ensure_dashboard_fonts_registered();
 	painter.fillRect(QRect(0, 0, std::max({header.right(), heatmap.right(), summary.right(), keys.right()}) + 1,
 			       std::max({header.bottom(), heatmap.bottom(), summary.bottom(), keys.bottom()}) + 1),
 			 theme_.background);

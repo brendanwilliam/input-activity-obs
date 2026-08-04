@@ -10,6 +10,9 @@ const QByteArray &html()
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>League Game Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Science+Gothic:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/recap.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   </head>
@@ -35,28 +38,34 @@ const QByteArray &css()
   --gold: #e8bb5a;
   --win: #61d59b;
   --loss: #f07886;
+  --font-display: "Science Gothic", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 16px Inter, ui-sans-serif, system-ui, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px var(--font-display); }
 main { max-width: 1500px; margin: auto; padding: 32px; }
 h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { font-family: var(--font-display); }
 h1 { font-size: clamp(28px, 4vw, 52px); color: var(--blue); }
 h2 { margin-bottom: 18px; font-size: 22px; }
 h3 { color: var(--muted); font-size: 16px; }
 .loading, .sub, .muted, .notice, .footer { color: var(--muted); }
 .sub, .muted { margin-top: 8px; }
 .hero, .section { margin-bottom: 20px; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.outcome, .sub { font-family: var(--font-data); }
 .outcome { color: var(--win); font-weight: 800; }
 .outcome.Defeat { color: var(--loss); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 22px; }
 .metric { padding: 14px; border-radius: 10px; background: #101827; }
-.metric strong { display: block; margin-top: 4px; font-size: 22px; }
+.metric strong { display: block; margin-top: 4px; font-family: var(--font-data); font-size: 22px; }
 .split { display: grid; grid-template-columns: minmax(260px, 1fr) 2fr; gap: 20px; }
 .chart { min-height: 380px; }
 .controls, .build, .abilities { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .controls { margin-bottom: 12px; }
 .controls label, .notice { font-size: 14px; }
+button, select { font-family: var(--font-display); }
+input { font-family: var(--font-data); }
 button, select, input { padding: 7px 10px; border: 1px solid #3b4b67; border-radius: 7px; background: #24324a; color: var(--text); }
 button.active { border-color: var(--blue); background: #3779b8; }
 .heatmap { position: relative; height: 330px; overflow: hidden; border-radius: 10px; background: radial-gradient(circle at 50% 50%, #172a42, #101827); }
@@ -67,6 +76,7 @@ button.active { border-color: var(--blue); background: #3779b8; }
 .event span { display: none; position: absolute; top: 16px; left: -45px; z-index: 2; width: 110px; padding: 6px; border: 1px solid var(--line); border-radius: 5px; background: #101827; font-size: 12px; }
 .event:hover span { display: block; }
 .build-item, .ability { min-width: 76px; color: var(--muted); text-align: center; font-size: 13px; }
+.build-item small, .ability b { font-family: var(--font-data); }
 .build-item img, .champion { width: 48px; height: 48px; border-radius: 8px; background: #101827; object-fit: cover; }
 .ability b { display: block; color: var(--text); font-size: 20px; }
 .insight { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--blue); background: #111a29; }
@@ -140,6 +150,7 @@ function render(report) {
   const update = () => {
     const keys = [...document.querySelectorAll('[data-series].active')].map(button => button.dataset.series), mode = $('#norm').value;
     if (!window.Chart) { $('.chart').innerHTML = '<p class="notice">Charts need the configured Chart.js CDN connection. Metrics and event data remain available.</p>'; return; }
+    Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
     chart?.destroy();
     chart = new Chart($('#chart'), { type: 'line', data: { datasets: keys.map((key, index) => ({ label: key === 'gold' ? 'estimated gold' : key, data: normalized(series(report, key), mode), borderColor: ['#86c5ff', '#e8bb5a', '#61d59b', '#f07886', '#af8cf5'][index], pointRadius: 0, tension: .25 })) }, options: { responsive: true, maintainAspectRatio: false, parsing: false, scales: { x: { type: 'linear', title: { display: true, text: 'Game time (seconds)' } }, y: { title: { display: true, text: mode === 'average' ? 'ratio to game average' : 'normalized value' } } }, plugins: { tooltip: { callbacks: { title: values => fmt(values[0].parsed.x) } } } } });
   };
