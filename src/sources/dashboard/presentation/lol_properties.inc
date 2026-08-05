@@ -63,7 +63,7 @@ bool minimap_cover_changed(obs_properties_t *props, obs_property_t *, obs_data_t
 }
 bool typography_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
-	for (const char *role : {"numbers", "number_labels", "button_labels"}) {
+	for (const char *role : {"numbers", "numbers_secondary", "number_labels", "button_labels"}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;
 		const bool science_gothic = std::string(obs_data_get_string(settings, (prefix + ".family").c_str())) ==
 					    "Science Gothic";
@@ -136,6 +136,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.intensity_padding", 120);
 	for (const auto &[role, family, size] :
 	     std::initializer_list<std::tuple<const char *, const char *, int>>{{"numbers", "Inter", 30},
+										{"numbers_secondary", "Inter", 18},
 										{"number_labels", "Inter", 18},
 										{"button_labels", "Inter", 30}}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;
@@ -301,7 +302,8 @@ obs_properties_t *properties(void *data)
 						    OBS_GROUP_NORMAL, obs_properties_create());
 	auto *typography_properties = obs_property_group_content(typography);
 	for (const auto &[role, title] : std::initializer_list<std::tuple<const char *, const char *>>{
-		     {"numbers", "LoLPerformanceDashboard.Numbers"},
+		     {"numbers", "LoLPerformanceDashboard.NumberPrimary"},
+		     {"numbers_secondary", "LoLPerformanceDashboard.NumbersSecondary"},
 		     {"number_labels", "LoLPerformanceDashboard.NumberLabels"},
 		     {"button_labels", "LoLPerformanceDashboard.LiveKeysLabels"}}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;

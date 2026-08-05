@@ -34,7 +34,6 @@ QColor obs_color(uint32_t value)
 {
 	return {int(value & 0xff), int((value >> 8) & 0xff), int((value >> 16) & 0xff), int((value >> 24) & 0xff)};
 }
-
 QRect qrect(const lol_dashboard_rect &rect)
 {
 	return {rect.x(), rect.y(), rect.width(), rect.height()};
@@ -159,6 +158,7 @@ public:
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.label_spacing")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.intensity_padding")), 0, 500),
 			  dashboard_font_style(settings, "numbers"),
+			  dashboard_font_style(settings, "numbers_secondary"),
 			  dashboard_font_style(settings, "number_labels"),
 			  dashboard_font_style(settings, "button_labels")};
 		reload();
