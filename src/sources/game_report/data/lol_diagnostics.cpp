@@ -1,4 +1,4 @@
-#include "lol_game_report_diagnostics.hpp"
+#include "lol_diagnostics.hpp"
 
 #include <QDateTime>
 #include <QDir>

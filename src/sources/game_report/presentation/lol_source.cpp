@@ -1,9 +1,9 @@
-#include "lol_game_report_source.hpp"
+#include "lol_source.hpp"
 
-#include "lol_game_report_collector.hpp"
-#include "lol_game_report_riot_api.hpp"
-#include "lol_game_report_store.hpp"
-#include "../league/league_safe_area_layout.hpp"
+#include "../collection/lol_collector.hpp"
+#include "../data/lol_store.hpp"
+#include "../integration/lol_riot_api.hpp"
+#include "../../hud_layout/lol_layout.hpp"
 
 #include <QBuffer>
 #include <QDir>

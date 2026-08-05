@@ -1,8 +1,8 @@
-#include "lol_game_report_web.hpp"
+#include "lol_web.hpp"
 
-#include "lol_game_report_ddragon.hpp"
-#include "lol_game_report_store.hpp"
-#include "lol_game_report_web_assets.hpp"
+#include "../data/lol_store.hpp"
+#include "../integration/lol_ddragon.hpp"
+#include "lol_web_assets.hpp"
 
 #include <QCoreApplication>
 #include <QDesktopServices>

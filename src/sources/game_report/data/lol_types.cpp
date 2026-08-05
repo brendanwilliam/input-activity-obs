@@ -1,4 +1,4 @@
-#include "lol_game_report_types.hpp"
+#include "lol_types.hpp"
 
 #include <QJsonArray>
 #include <algorithm>

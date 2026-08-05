@@ -5,7 +5,7 @@
 #include <QString>
 #include <QVector>
 
-#include "lol_report_hexbin.hpp"
+#include "../collection/lol_hexbin.hpp"
 
 namespace sources::lol_game_report {
 

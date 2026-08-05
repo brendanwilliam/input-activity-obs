@@ -1,4 +1,4 @@
-#include "lol_report_hexbin.hpp"
+#include "lol_hexbin.hpp"
 
 #include <algorithm>
 #include <cmath>

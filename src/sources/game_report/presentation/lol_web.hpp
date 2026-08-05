@@ -1,7 +1,7 @@
 #pragma once
 
-#include "lol_game_report_riot_api.hpp"
-#include "lol_game_report_types.hpp"
+#include "../data/lol_types.hpp"
+#include "../integration/lol_riot_api.hpp"
 
 #include <QObject>
 #include <QNetworkAccessManager>

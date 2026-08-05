@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lol_game_report_types.hpp"
+#include "../data/lol_types.hpp"
 
 #include "../../input/input_data.hpp"
 

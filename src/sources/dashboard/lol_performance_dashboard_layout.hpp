@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../league/league_safe_area_layout.hpp"
+#include "../hud_layout/lol_layout.hpp"
 
 namespace sources {
 

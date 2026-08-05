@@ -1,4 +1,4 @@
-#include "lol_game_report_ddragon.hpp"
+#include "lol_ddragon.hpp"
 
 #include <QJsonArray>
 

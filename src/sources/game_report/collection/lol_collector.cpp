@@ -1,10 +1,10 @@
-#include "lol_game_report_collector.hpp"
+#include "lol_collector.hpp"
 
-#include "lol_game_report_diagnostics.hpp"
-#include "lol_report_input_telemetry.hpp"
-#include "lol_game_report_riot_api.hpp"
-#include "lol_game_report_store.hpp"
-#include "lol_game_report_web.hpp"
+#include "../data/lol_diagnostics.hpp"
+#include "../data/lol_store.hpp"
+#include "../integration/lol_riot_api.hpp"
+#include "../presentation/lol_web.hpp"
+#include "lol_input_telemetry.hpp"
 
 #include "../../hook/uiohook_helper.hpp"
 #include "../../input/input_broker.hpp"

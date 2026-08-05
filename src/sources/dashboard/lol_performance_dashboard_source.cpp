@@ -1,6 +1,6 @@
 #include "../../hook/uiohook_helper.hpp"
 #include "../../input/input_broker.hpp"
-#include "../league/league_safe_area_layout.hpp"
+#include "../hud_layout/lol_layout.hpp"
 #include "league_capture_switcher.hpp"
 #include "lol_dashboard_game_config_watcher.hpp"
 #include "lol_dashboard_game_start_watcher.hpp"
