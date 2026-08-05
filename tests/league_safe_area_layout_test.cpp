@@ -81,6 +81,8 @@ int main()
 	auto default_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, {});
 	auto edge_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, {}, 0);
 	auto max_minimap_panels = sources::lol_dashboard_panel_rectangles(max_model, {}, {});
+	auto widescreen_heatmap = sources::lol_dashboard_aspect_fit({0, 0, 112, 28}, 16.0 / 9.0);
+	auto ultrawide_heatmap = sources::lol_dashboard_aspect_fit({0, 0, 112, 28}, 21.0 / 9.0);
 	if (!require(!default_panels.camera_visible) || !require(edge_panels.header.top() == 0) ||
 	    !require(edge_panels.keys.right() == min_model.game.width - 1) ||
 	    !require(edge_panels.heatmap.left() == 0) || !require(edge_panels.summary.left() >= 0) ||
@@ -88,7 +90,9 @@ int main()
 	    !require(default_panels.minimap_cover_mask.right() == min_model.game.width - 1) ||
 	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1) ||
 	    !require(max_minimap_panels.minimap_cover_mask.width() > default_panels.minimap_cover_mask.width()) ||
-	    !require(max_minimap_panels.minimap_cover_mask.height() > default_panels.minimap_cover_mask.height()))
+	    !require(max_minimap_panels.minimap_cover_mask.height() > default_panels.minimap_cover_mask.height()) ||
+	    !require(widescreen_heatmap.width() == 50) || !require(widescreen_heatmap.height() == 28) ||
+	    !require(ultrawide_heatmap.width() == 65) || !require(ultrawide_heatmap.height() == 28))
 		return 1;
 	sources::lol_dashboard_camera_layout camera{true, 16.0 / 9.0, 67, 100, 100, 0, 0};
 	auto camera_panels = sources::lol_dashboard_panel_rectangles(min_model, camera, {});

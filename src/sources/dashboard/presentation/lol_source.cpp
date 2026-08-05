@@ -184,10 +184,7 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		const int heatmap_inset = style_.section_padding + style_.element_padding;
-		const QRect heatmap_bounds =
-			qrect(panels.heatmap).adjusted(heatmap_inset, heatmap_inset, -heatmap_inset, -heatmap_inset);
-		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, heatmap_bounds, style_);
+		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap), style_);
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
 			return;
@@ -247,8 +244,10 @@ public:
 		if (!file.open(QIODevice::ReadOnly))
 			return;
 		const auto parsed = league_safe_area::parse_game_config(file.readAll().toStdString());
-		if (parsed.value)
+		if (parsed.value) {
 			layout_ = league_safe_area::make_model(*parsed.value);
+			frame_.setSize({layout_->game.width, layout_->game.height});
+		}
 	}
 	void auto_detect()
 	{

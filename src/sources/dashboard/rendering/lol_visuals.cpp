@@ -56,9 +56,22 @@ void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lo
 	style_ = style;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
-	if (heatmap_bounds != heatmap_bounds_ || hex_size_changed)
-		resize_heatmap(heatmap_bounds);
+	const QRect content_bounds = heatmap_content_bounds(heatmap_bounds);
+	if (content_bounds != heatmap_bounds_ || hex_size_changed)
+		resize_heatmap(content_bounds);
 }
+
+QRect lol_dashboard_visuals::heatmap_content_bounds(const QRect &bounds) const
+{
+	const int inset = style_.section_padding + style_.element_padding;
+	const QRect content = bounds.adjusted(inset, inset, -inset, -inset);
+	if (content.isEmpty() || game_frame_.width() < 1 || game_frame_.height() < 1)
+		return {};
+	const auto fitted = lol_dashboard_aspect_fit({content.x(), content.y(), content.width(), content.height()},
+						     double(game_frame_.width()) / game_frame_.height());
+	return {fitted.x(), fitted.y(), fitted.width(), fitted.height()};
+}
+
 void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 {
 	heatmap_bounds_ = bounds;
@@ -334,10 +347,7 @@ void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const Q
 	if (regions_.intensity)
 		draw_intensity(painter, header);
 	if (regions_.mouse_activity)
-		draw_heatmap(painter, heatmap.adjusted(style_.section_padding + style_.element_padding,
-						       style_.section_padding + style_.element_padding,
-						       -style_.section_padding - style_.element_padding,
-						       -style_.section_padding - style_.element_padding));
+		draw_heatmap(painter, heatmap_content_bounds(heatmap));
 	painter.setClipping(false);
 	if (regions_.mouse_activity)
 		draw_summary(painter, summary, right_aligned);

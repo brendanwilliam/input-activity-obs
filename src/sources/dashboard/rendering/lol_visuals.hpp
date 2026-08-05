@@ -1,6 +1,7 @@
 #pragma once
 
 #include "input/input_data.hpp"
+#include "sources/dashboard/rendering/lol_layout.hpp"
 
 #include <QColor>
 #include <QPointF>
@@ -89,6 +90,7 @@ private:
 	void advance(uint64_t now);
 	void resize_heatmap(const QRect &bounds);
 	void on_event(const input_data::trace_event &event);
+	QRect heatmap_content_bounds(const QRect &bounds) const;
 	void draw_heatmap(QPainter &painter, const QRect &bounds) const;
 	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
