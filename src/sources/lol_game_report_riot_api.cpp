@@ -10,6 +10,8 @@
 #include <QNetworkRequest>
 #include <QStandardPaths>
 
+#include <cstdlib>
+
 #include <obs-module.h>
 
 extern "C" {
@@ -168,9 +170,12 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 					     .arg(routing_for(value.game_id), value.game_id)));
 	request.setRawHeader("X-Riot-Token", key.toUtf8());
 	request.setTransferTimeout(8000);
+	const int local_duration_seconds = value.duration_seconds;
+	const bool automatic_lookup = value.enrichment["automatic_match_lookup"].toBool();
 	auto *reply = manager_->get(request);
 	connect(reply, &QNetworkReply::finished, reply,
-		[this, reply, key, value = std::move(value), complete = std::move(complete)]() mutable {
+		[this, reply, key, local_duration_seconds, automatic_lookup, value = std::move(value),
+		 complete = std::move(complete)]() mutable {
 			auto diagnose = [this](QJsonObject fields) {
 				if (diagnostics_)
 					diagnostics_(fields);
@@ -180,6 +185,7 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 				const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
 				const QJsonObject info = root["info"].toObject();
 				const QJsonArray players = info["participants"].toArray();
+				const int match_duration_seconds = int(info["gameDuration"].toDouble());
 				int self_team{}, participant_id{};
 				QJsonObject self_player;
 				for (const auto entry : players) {
@@ -205,6 +211,18 @@ void riot_api::enrich(report value, std::function<void(report, QString)> complet
 				}
 				if (self_team == 0)
 					status = "Riot match found, but the report player was not a participant.";
+				else if (automatic_lookup && local_duration_seconds > 0 &&
+					 std::abs(match_duration_seconds - local_duration_seconds) > 120) {
+					diagnose({{"request", "match"},
+						  {"outcome", "duration_mismatch"},
+						  {"local_duration_seconds", local_duration_seconds},
+						  {"match_duration_seconds", match_duration_seconds}});
+					reply->deleteLater();
+					complete(
+						std::move(value),
+						"Automatic Riot lookup found a different recent match; enrichment remains pending.");
+					return;
+				}
 				diagnose({{"request", "match"},
 					  {"outcome", "success"},
 					  {"http_status",
@@ -358,6 +376,7 @@ void riot_api::enrich_latest(report value, std::function<void(report, QString)> 
 						return;
 					}
 					value.game_id = ids.first().toString();
+					value.enrichment["automatic_match_lookup"] = true;
 					enrich(std::move(value), std::move(complete));
 				});
 		});

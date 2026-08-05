@@ -80,6 +80,8 @@ target_sources(
     src/sources/lol_game_report_riot_api.cpp
     src/sources/lol_game_report_collector.hpp
     src/sources/lol_game_report_collector.cpp
+    src/sources/lol_report_input_telemetry.hpp
+    src/sources/lol_report_input_telemetry.cpp
     src/sources/lol_game_report_source.hpp
     src/sources/lol_game_report_source.cpp
     src/sources/lol_performance_dashboard_source.cpp
@@ -145,11 +147,12 @@ if(BUILD_TESTING)
     lol-game-report-test
     tests/lol_game_report_test.cpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_report_input_telemetry.cpp
     src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_ddragon.cpp
   )
-  target_link_libraries(lol-game-report-test PRIVATE Qt6::Core)
-  target_include_directories(lol-game-report-test PRIVATE src)
+  target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui)
+  target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
   if(APPLE)

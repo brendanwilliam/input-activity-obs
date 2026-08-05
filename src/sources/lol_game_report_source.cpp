@@ -3,6 +3,7 @@
 #include "lol_game_report_collector.hpp"
 #include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_store.hpp"
+#include "league_safe_area_layout.hpp"
 
 #include <QBuffer>
 #include <QDir>
@@ -31,6 +32,9 @@ constexpr const char *events_key = "lol_game_report.event_categories";
 constexpr const char *dpi_key = "lol_game_report.mouse_dpi";
 constexpr const char *auto_open_key = "lol_game_report.auto_open";
 constexpr const char *development_logs_key = "lol_game_report.development_logs";
+constexpr const char *game_cfg_key = "lol_game_report.game_cfg";
+constexpr const char *frame_left_key = "lol_game_report.frame_left";
+constexpr const char *frame_top_key = "lol_game_report.frame_top";
 
 class game_report_source {
 public:
@@ -58,6 +62,10 @@ public:
 		event_categories_ = QString::fromUtf8(obs_data_get_string(settings, events_key));
 		dpi_ = int(obs_data_get_int(settings, dpi_key));
 		collector_.set_dpi(dpi_);
+		game_cfg_path_ = QString::fromUtf8(obs_data_get_string(settings, game_cfg_key));
+		frame_left_ = int(obs_data_get_int(settings, frame_left_key));
+		frame_top_ = int(obs_data_get_int(settings, frame_top_key));
+		collector_.set_game_frame(game_frame());
 		collector_.set_auto_open(obs_data_get_bool(settings, auto_open_key));
 		collector_.set_development_logs(obs_data_get_bool(settings, development_logs_key));
 	}
@@ -127,6 +135,30 @@ public:
 	}
 
 private:
+	QRect game_frame() const
+	{
+		QString path = game_cfg_path_;
+#ifdef __APPLE__
+		if (path.isEmpty()) {
+			for (const QString &candidate :
+			     {QString("/Applications/League of Legends.app/Contents/LoL/Config/game.cfg"),
+			      QDir::homePath() + "/Applications/League of Legends.app/Contents/LoL/Config/game.cfg"}) {
+				if (QFile::exists(candidate)) {
+					path = candidate;
+					break;
+				}
+			}
+		}
+#endif
+		QFile file(path);
+		if (!file.open(QIODevice::ReadOnly))
+			return {frame_left_, frame_top_, 1920, 1080};
+		const auto parsed = league_safe_area::parse_game_config(file.readAll().toStdString());
+		if (!parsed.value)
+			return {frame_left_, frame_top_, 1920, 1080};
+		const auto model = league_safe_area::make_model(*parsed.value);
+		return {frame_left_, frame_top_, model.game.width, model.game.height};
+	}
 	std::optional<lol_game_report::report> selected_report() const
 	{
 		const auto reports = store_.reports();
@@ -250,6 +282,8 @@ private:
 		event_categories_{"kill,objective,tower,level"};
 	bool normalize_average_{};
 	int dpi_{800};
+	QString game_cfg_path_;
+	int frame_left_{}, frame_top_{};
 	QString riot_status_{"Riot enrichment has not run."};
 	gs_texture_t *texture_{};
 };
@@ -306,6 +340,12 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_text(general, events_key, obs_module_text("LoLGameReport.EventCategories"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
+	obs_properties_add_path(general, game_cfg_key, obs_module_text("LeagueSafeArea.GameCfg"), OBS_PATH_FILE,
+				"League game.cfg (game.cfg)", nullptr);
+	obs_properties_add_int(general, frame_left_key, obs_module_text("LoLPerformanceDashboard.Left"), -32768, 32767,
+			       1);
+	obs_properties_add_int(general, frame_top_key, obs_module_text("LoLPerformanceDashboard.Top"), -32768, 32767,
+			       1);
 	obs_properties_add_bool(general, auto_open_key, obs_module_text("LoLGameReport.AutoOpen"));
 	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_text(general, "lol_game_report.development_logs_warning",
@@ -361,6 +401,8 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, series_key, "gold");
 	obs_data_set_default_string(settings, events_key, "kill,objective,tower,level");
 	obs_data_set_default_int(settings, dpi_key, 800);
+	obs_data_set_default_int(settings, frame_left_key, 0);
+	obs_data_set_default_int(settings, frame_top_key, 0);
 	obs_data_set_default_bool(settings, auto_open_key, true);
 	obs_data_set_default_bool(settings, development_logs_key, false);
 	obs_data_set_default_string(

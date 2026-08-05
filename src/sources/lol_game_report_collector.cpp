@@ -1,6 +1,7 @@
 #include "lol_game_report_collector.hpp"
 
 #include "lol_game_report_diagnostics.hpp"
+#include "lol_report_input_telemetry.hpp"
 #include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_store.hpp"
 #include "lol_game_report_web.hpp"
@@ -31,6 +32,7 @@
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <vector>
 #include <obs-module.h>
 
@@ -75,46 +77,35 @@ public:
 	QString development_log_path() const { return diagnostics_.path(); }
 	void log_riot_diagnostic(QJsonObject fields) { diagnostics_.write("riot_enrichment", "request", fields); }
 	QString recap_url() { return web_.url(QString()); }
+	void set_game_frame(const QRect &frame)
+	{
+		if (!active_)
+			pending_game_frame_ = frame;
+	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
 		if (!active_ || events.empty())
 			return;
 		const int seconds = last_game_seconds_;
-		if (report_.input_samples.isEmpty() || report_.input_samples.last().seconds != seconds)
-			report_.input_samples.append({seconds});
-		auto &sample = report_.input_samples.last();
 		int movement_count{};
-		double batch_distance{};
-		for (const auto &event : events) {
-			++sample.actions;
-			if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
-				++movement_count;
-				if (has_mouse_) {
-					const double dx = event.x - last_mouse_x_, dy = event.y - last_mouse_y_;
-					const double distance = std::sqrt(dx * dx + dy * dy);
-					sample.mouse_distance_pixels += distance;
-					batch_distance += distance;
-				}
-				last_mouse_x_ = event.x;
-				last_mouse_y_ = event.y;
-				has_mouse_ = true;
-				const int x = std::clamp(int(event.x) / 64, 0, 29),
-					  y = std::clamp(int(event.y) / 64, 0, 16);
-				auto bin = std::find_if(report_.heatmap.begin(), report_.heatmap.end(),
-							[x, y](const auto &value) {
-								return value.x == x && value.y == y;
-							});
-				if (bin == report_.heatmap.end())
-					report_.heatmap.append({x, y, 1});
-				else
-					++bin->count;
-			}
-		}
+		for (const auto &event : events)
+			movement_count += event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED;
+		const double before_distance =
+			report_.input_samples.isEmpty()
+				? 0.0
+				: std::accumulate(report_.input_samples.cbegin(), report_.input_samples.cend(), 0.0,
+						  [](double total, const auto &sample) {
+							  return total + sample.mouse_distance_pixels;
+						  });
+		telemetry_.consume(events, seconds, report_.input_samples, report_.heatmap);
+		const double after_distance = std::accumulate(
+			report_.input_samples.cbegin(), report_.input_samples.cend(), 0.0,
+			[](double total, const auto &sample) { return total + sample.mouse_distance_pixels; });
 		diagnostics_.write("input", seconds <= 0 ? "input_accepted_zero_clock" : "input_accepted",
 				   {{"sample_seconds", seconds},
 				    {"action_count", int(events.size())},
 				    {"movement_count", movement_count},
-				    {"distance_pixels", batch_distance},
+				    {"distance_pixels", after_distance - before_distance},
 				    {"clock_aligned", seconds > 0}});
 	}
 
@@ -210,6 +201,8 @@ private:
 			report_.champion = name.value("championName").toString();
 			report_.dpi = pending_dpi_;
 			player_aliases_ = {riot_id, game_name, name.value("summonerName").toString()};
+			telemetry_.set_game_frame(pending_game_frame_);
+			telemetry_.reset();
 			state_ = collection_state::recording;
 			diagnostics_.write("collector", "report_started", {{"has_riot_id", !riot_id.isEmpty()}});
 		}
@@ -324,7 +317,7 @@ private:
 		seen_.clear();
 		last_items_.clear();
 		ability_levels_.clear();
-		has_mouse_ = false;
+		telemetry_.reset();
 		last_logged_game_seconds_ = -1;
 		state_ = collection_state::empty;
 	}
@@ -343,8 +336,8 @@ private:
 	QStringList last_items_;
 	QHash<QString, int> ability_levels_;
 	int pending_dpi_{800}, last_game_seconds_{};
-	int16_t last_mouse_x_{}, last_mouse_y_{};
-	bool has_mouse_{};
+	QRect pending_game_frame_{0, 0, 1920, 1080};
+	input_telemetry telemetry_;
 	bool auto_open_{true};
 	int last_logged_game_seconds_{-1};
 	diagnostic_log diagnostics_;
@@ -386,6 +379,11 @@ struct shared_collector {
 	void set_dpi(int dpi)
 	{
 		QMetaObject::invokeMethod(worker, [this, dpi] { worker->set_dpi(dpi); }, Qt::QueuedConnection);
+	}
+	void set_game_frame(const QRect &frame)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, frame] { worker->set_game_frame(frame); }, Qt::QueuedConnection);
 	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
@@ -465,6 +463,10 @@ collection_state collector::state() const
 void collector::set_dpi(int dpi)
 {
 	shared().set_dpi(dpi);
+}
+void collector::set_game_frame(const QRect &frame)
+{
+	shared().set_game_frame(frame);
 }
 void collector::tick(int dpi)
 {

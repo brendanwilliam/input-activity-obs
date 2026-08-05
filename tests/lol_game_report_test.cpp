@@ -1,6 +1,7 @@
 #include "sources/lol_game_report_types.hpp"
 #include "sources/lol_game_report_ddragon.hpp"
 #include "sources/lol_game_report_diagnostics.hpp"
+#include "sources/lol_report_input_telemetry.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -79,6 +80,26 @@ int main()
 	out_of_range_metadata["data"] = data;
 	assert(ability_icon_filename(out_of_range_metadata, "Ahri", 'Q').isEmpty());
 	assert(ability_icon_filename(ability_metadata, "Ahri", 'X').isEmpty());
+	input_telemetry telemetry;
+	telemetry.set_game_frame({1000, 100, 1000, 500});
+	QVector<input_sample> input_samples;
+	QVector<heatmap_bin> heatmap;
+	std::vector<input_data::trace_event> input_events{
+		{1, 1000000000ULL, EVENT_KEY_PRESSED, 12},
+		{2, 1100000000ULL, EVENT_KEY_RELEASED, 12},
+		{3, 1200000000ULL, EVENT_MOUSE_PRESSED, 1},
+		{4, 1300000000ULL, EVENT_MOUSE_MOVED, 0, 1100, 200},
+		{5, 2300000000ULL, EVENT_MOUSE_MOVED, 0, 1500, 200},
+		{6, 2400000000ULL, EVENT_MOUSE_MOVED, 0, 500, 200},
+		{7, 2500000000ULL, EVENT_MOUSE_MOVED, 0, 1600, 200},
+	};
+	telemetry.consume(input_events, 60, input_samples, heatmap);
+	assert(input_samples.size() == 2);
+	assert(input_samples[0].actions == 2 && input_samples[1].actions == 0);
+	assert(input_samples[1].mouse_distance_pixels == 400.0);
+	assert(input_samples[1].max_velocity_pixels_per_second == 400.0);
+	assert(heatmap.size() == 3);
+	assert(heatmap[0].x == 3 && heatmap[0].y == 3);
 	QJsonObject missing_image_metadata = ability_metadata;
 	data = missing_image_metadata.value("data").toObject();
 	champion = data.value("Ahri").toObject();
