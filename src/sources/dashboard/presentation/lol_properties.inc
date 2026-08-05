@@ -269,22 +269,22 @@ obs_properties_t *properties(void *data)
 						 obs_module_text("LoLPerformanceDashboard.Spacing"), OBS_GROUP_NORMAL,
 						 obs_properties_create());
 	auto *spacing_properties = obs_property_group_content(spacing);
-	for (const auto &[key, label, description] :
-	     std::initializer_list<std::tuple<const char *, const char *, const char *>>{
+	for (const auto &[key, label, description, maximum] :
+	     std::initializer_list<std::tuple<const char *, const char *, const char *, int>>{
 		     {"lol_dashboard.section_padding", "LoLPerformanceDashboard.SectionPadding",
-		      "LoLPerformanceDashboard.SectionPadding.Tooltip"},
+		      "LoLPerformanceDashboard.SectionPadding.Tooltip", 100},
 		     {"lol_dashboard.element_padding", "LoLPerformanceDashboard.ElementPadding",
-		      "LoLPerformanceDashboard.ElementPadding.Tooltip"},
+		      "LoLPerformanceDashboard.ElementPadding.Tooltip", 100},
 		     {"lol_dashboard.element_x_gap", "LoLPerformanceDashboard.ElementXGap",
-		      "LoLPerformanceDashboard.ElementXGap.Tooltip"},
+		      "LoLPerformanceDashboard.ElementXGap.Tooltip", 100},
 		     {"lol_dashboard.element_y_gap", "LoLPerformanceDashboard.ElementYGap",
-		      "LoLPerformanceDashboard.ElementYGap.Tooltip"},
+		      "LoLPerformanceDashboard.ElementYGap.Tooltip", 100},
 		     {"lol_dashboard.within_element_gap", "LoLPerformanceDashboard.WithinElementGap",
-		      "LoLPerformanceDashboard.WithinElementGap.Tooltip"},
+		      "LoLPerformanceDashboard.WithinElementGap.Tooltip", 100},
 		     {"lol_dashboard.intensity_padding", "LoLPerformanceDashboard.IntensityPadding",
-		      "LoLPerformanceDashboard.IntensityPadding.Tooltip"}}) {
+		      "LoLPerformanceDashboard.IntensityPadding.Tooltip", 400}}) {
 		auto *property =
-			obs_properties_add_int_slider(spacing_properties, key, obs_module_text(label), 0, 100, 1);
+			obs_properties_add_int_slider(spacing_properties, key, obs_module_text(label), 0, maximum, 1);
 		obs_property_set_long_description(property, obs_module_text(description));
 	}
 	auto *typography = obs_properties_add_group(properties, "lol_dashboard.typography",
