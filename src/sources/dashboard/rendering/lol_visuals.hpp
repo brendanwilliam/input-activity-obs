@@ -44,6 +44,7 @@ struct lol_dashboard_font_style {
 	float width{100.0F};
 	float slant{0.0F};
 	int size{22};
+	bool all_caps{false};
 };
 
 // Camera and minimap placement deliberately live in lol_layout and are not
@@ -54,9 +55,10 @@ struct lol_dashboard_style {
 	int element_x_gap{10};
 	int element_y_gap{10};
 	int within_element_gap{10};
+	int label_spacing{10};
 	int intensity_padding{120};
-	lol_dashboard_font_style labels{};
-	lol_dashboard_font_style numbers{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
+	lol_dashboard_font_style number_primary{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
+	lol_dashboard_font_style numbers_secondary{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
 	lol_dashboard_font_style number_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
 	lol_dashboard_font_style button_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
 };

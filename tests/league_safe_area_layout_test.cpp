@@ -33,6 +33,7 @@ int main()
 	    !require(sources::lol_dashboard_key_label(VC_DOWN) == "↓") ||
 	    !require(sources::lol_dashboard_key_label(VC_LEFT) == "←") ||
 	    !require(sources::lol_dashboard_key_label(VC_RIGHT) == "→") ||
+	    !require(sources::lol_dashboard_key_label(VC_BACKSPACE) == "⌫") ||
 	    !require(sources::lol_dashboard_key_label(VC_META_L) == "⌘") ||
 	    !require(sources::lol_dashboard_key_label(VC_META_R) == "⌘"))
 		return 1;

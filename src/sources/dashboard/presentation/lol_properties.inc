@@ -63,7 +63,7 @@ bool minimap_cover_changed(obs_properties_t *props, obs_property_t *, obs_data_t
 }
 bool typography_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
-	for (const char *role : {"labels", "numbers", "number_labels", "button_labels"}) {
+	for (const char *role : {"numbers", "numbers_secondary", "number_labels", "button_labels"}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;
 		const bool science_gothic = std::string(obs_data_get_string(settings, (prefix + ".family").c_str())) ==
 					    "Science Gothic";
@@ -132,10 +132,11 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.element_x_gap", 10);
 	obs_data_set_default_int(settings, "lol_dashboard.element_y_gap", 10);
 	obs_data_set_default_int(settings, "lol_dashboard.within_element_gap", 10);
+	obs_data_set_default_int(settings, "lol_dashboard.label_spacing", 10);
 	obs_data_set_default_int(settings, "lol_dashboard.intensity_padding", 120);
 	for (const auto &[role, family, size] :
-	     std::initializer_list<std::tuple<const char *, const char *, int>>{{"labels", "Science Gothic", 22},
-										{"numbers", "Inter", 30},
+	     std::initializer_list<std::tuple<const char *, const char *, int>>{{"numbers", "Inter", 30},
+										{"numbers_secondary", "Inter", 18},
 										{"number_labels", "Inter", 18},
 										{"button_labels", "Inter", 30}}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;
@@ -145,6 +146,7 @@ void defaults(obs_data_t *settings)
 		obs_data_set_default_double(settings, (prefix + ".width").c_str(), 100.0);
 		obs_data_set_default_double(settings, (prefix + ".slant").c_str(), 0.0);
 		obs_data_set_default_int(settings, (prefix + ".size").c_str(), size);
+		obs_data_set_default_bool(settings, (prefix + ".all_caps").c_str(), false);
 	}
 }
 
@@ -287,6 +289,8 @@ obs_properties_t *properties(void *data)
 		      "LoLPerformanceDashboard.ElementYGap.Tooltip", 100},
 		     {"lol_dashboard.within_element_gap", "LoLPerformanceDashboard.WithinElementGap",
 		      "LoLPerformanceDashboard.WithinElementGap.Tooltip", 100},
+		     {"lol_dashboard.label_spacing", "LoLPerformanceDashboard.LabelSpacing",
+		      "LoLPerformanceDashboard.LabelSpacing.Tooltip", 100},
 		     {"lol_dashboard.intensity_padding", "LoLPerformanceDashboard.IntensityPadding",
 		      "LoLPerformanceDashboard.IntensityPadding.Tooltip", 400}}) {
 		auto *property =
@@ -298,10 +302,10 @@ obs_properties_t *properties(void *data)
 						    OBS_GROUP_NORMAL, obs_properties_create());
 	auto *typography_properties = obs_property_group_content(typography);
 	for (const auto &[role, title] : std::initializer_list<std::tuple<const char *, const char *>>{
-		     {"labels", "LoLPerformanceDashboard.Labels"},
-		     {"numbers", "LoLPerformanceDashboard.Numbers"},
+		     {"numbers", "LoLPerformanceDashboard.NumberPrimary"},
+		     {"numbers_secondary", "LoLPerformanceDashboard.NumbersSecondary"},
 		     {"number_labels", "LoLPerformanceDashboard.NumberLabels"},
-		     {"button_labels", "LoLPerformanceDashboard.ButtonLabels"}}) {
+		     {"button_labels", "LoLPerformanceDashboard.LiveKeysLabels"}}) {
 		const std::string prefix = std::string("lol_dashboard.typography.") + role;
 		auto *group = obs_properties_add_group(typography_properties, prefix.c_str(), obs_module_text(title),
 						       OBS_GROUP_NORMAL, obs_properties_create());
@@ -320,6 +324,8 @@ obs_properties_t *properties(void *data)
 			     {"slant", "LoLPerformanceDashboard.FontSlant", -20, 20}})
 			obs_properties_add_float_slider(group_properties, (prefix + "." + axis).c_str(),
 							obs_module_text(label), minimum, maximum, 1.0);
+		obs_properties_add_bool(group_properties, (prefix + ".all_caps").c_str(),
+					obs_module_text("LoLPerformanceDashboard.AllCaps"));
 		obs_properties_add_int_slider(group_properties, (prefix + ".size").c_str(),
 					      obs_module_text("LoLPerformanceDashboard.FontSize"), 8, 100, 1);
 	}

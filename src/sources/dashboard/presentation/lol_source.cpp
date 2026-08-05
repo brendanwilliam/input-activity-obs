@@ -34,12 +34,10 @@ QColor obs_color(uint32_t value)
 {
 	return {int(value & 0xff), int((value >> 8) & 0xff), int((value >> 16) & 0xff), int((value >> 24) & 0xff)};
 }
-
 QRect qrect(const lol_dashboard_rect &rect)
 {
 	return {rect.x(), rect.y(), rect.width(), rect.height()};
 }
-
 lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *role)
 {
 	const std::string prefix = std::string("lol_dashboard.typography.") + role;
@@ -48,7 +46,8 @@ lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *
 		float(obs_data_get_double(settings, (prefix + ".weight").c_str())),
 		float(obs_data_get_double(settings, (prefix + ".width").c_str())),
 		float(obs_data_get_double(settings, (prefix + ".slant").c_str())),
-		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100)};
+		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100),
+		obs_data_get_bool(settings, (prefix + ".all_caps").c_str())};
 }
 
 class dashboard_source {
@@ -156,9 +155,10 @@ public:
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_y_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.within_element_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.label_spacing")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.intensity_padding")), 0, 500),
-			  dashboard_font_style(settings, "labels"),
 			  dashboard_font_style(settings, "numbers"),
+			  dashboard_font_style(settings, "numbers_secondary"),
 			  dashboard_font_style(settings, "number_labels"),
 			  dashboard_font_style(settings, "button_labels")};
 		reload();
