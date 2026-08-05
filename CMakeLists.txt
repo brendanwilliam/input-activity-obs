@@ -66,6 +66,8 @@ target_sources(
     src/sources/league_capture_switcher.cpp
     src/sources/lol_game_report_types.hpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_report_hexbin.hpp
+    src/sources/lol_report_hexbin.cpp
     src/sources/lol_game_report_diagnostics.hpp
     src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_store.hpp
@@ -149,6 +151,7 @@ if(BUILD_TESTING)
     lol-game-report-test
     tests/lol_game_report_test.cpp
     src/sources/lol_game_report_types.cpp
+    src/sources/lol_report_hexbin.cpp
     src/sources/lol_report_input_telemetry.cpp
     src/sources/lol_game_report_diagnostics.cpp
     src/sources/lol_game_report_ddragon.cpp
