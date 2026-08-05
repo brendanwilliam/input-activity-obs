@@ -1,5 +1,6 @@
 #include "sources/league_safe_area_layout.hpp"
 #include "sources/lol_performance_dashboard_layout.hpp"
+#include "sources/lol_dashboard_game_start_watcher.hpp"
 
 #include <cmath>
 #include <string>
@@ -25,6 +26,11 @@ bool require(bool value)
 
 int main()
 {
+	sources::lol_game_start_detector starts;
+	if (!require(starts.observe(true) == 0) || !require(starts.observe(false) == 0) ||
+	    !require(starts.observe(true) == 1) || !require(starts.observe(true) == 1) ||
+	    !require(starts.observe(false) == 1) || !require(starts.observe(true) == 2))
+		return 1;
 	auto minimum = parse_game_config(config_text(0, 0, 0, 0, 0));
 	auto maximum = parse_game_config(config_text(1, 3, 100, 0, 0));
 	if (!require(minimum.value && maximum.value))
