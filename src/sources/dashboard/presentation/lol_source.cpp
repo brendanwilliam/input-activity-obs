@@ -186,6 +186,7 @@ public:
 							panels.camera.width(), panels.camera.height());
 		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap), style_);
 		if (!game_is_frontmost) {
+			visuals_.clear_live_keys();
 			discard_backlog_ = true;
 			return;
 		}

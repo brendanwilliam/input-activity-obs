@@ -21,12 +21,21 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	const int key_width = std::max(1, (content.width() - (visible - 1) * gap) / 4);
 	const int count_height = style_.number_labels.size + style_.within_element_gap;
 	const QRect active_row(content.left(), active_top + active_title_height, content.width(), active_row_height);
+	const uint64_t now = os_gettime_ns();
 	for (int index = 0; index < visible; ++index) {
 		const auto &key = active_keys_[active_keys_.size() - visible + index];
 		const int x = right_aligned ? active_row.right() - (visible - index) * key_width -
 						      (visible - index - 1) * gap + 1
 					    : active_row.left() + index * (key_width + gap);
 		QColor fill = held_.count(key.code) && held_.at(key.code) ? theme_.active : theme_.inactive;
+		const qreal elapsed =
+			key.fade_until
+				? std::clamp(qreal(now - key.fade_started) / qreal(key.fade_until - key.fade_started),
+					     0.0, 1.0)
+				: 0.0;
+		const qreal opacity = std::pow(1.0 - elapsed, 2.0);
+		painter.save();
+		painter.setOpacity(opacity);
 		painter.setBrush(fill);
 		painter.setPen(Qt::NoPen);
 		const QRect key_rect(x, active_row.top() + count_height, key_width, active_row.height() - count_height);
@@ -41,10 +50,11 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		lol_dashboard_draw_shadowed_text(
 			painter, key_rect, Qt::AlignCenter,
 			QFontMetrics(painter.font()).elidedText(key.label, Qt::ElideRight, key_rect.width()));
+		painter.restore();
 	}
 	std::vector<active_key> keys;
 	for (const auto &[code, count] : press_counts_)
-		keys.push_back({code, lol_dashboard_key_label(code), 0, count});
+		keys.push_back({code, lol_dashboard_key_label(code), 0, 0, count});
 	std::sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) { return a.count > b.count; });
 	if (keys.size() > 8)
 		keys.resize(8);

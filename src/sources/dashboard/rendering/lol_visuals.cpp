@@ -15,6 +15,7 @@ namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
+constexpr uint64_t live_key_fade_ns = 1500000000ULL;
 
 void ensure_dashboard_fonts_registered()
 {
@@ -100,15 +101,28 @@ void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &
 		const auto found = keyboard.find(it->code);
 		if (found != keyboard.end() && found->second) {
 			held_[it->code] = true;
+			it->fade_started = it->fade_until = 0;
 			++it;
-		} else if (it->fade_until && it->fade_until <= now) {
-			held_[it->code] = false;
-			it = active_keys_.erase(it);
 		} else {
-			++it;
+			held_[it->code] = false;
+			if (!it->fade_until) {
+				it->fade_started = now;
+				it->fade_until = now + live_key_fade_ns;
+			}
+			if (it->fade_until <= now)
+				it = active_keys_.erase(it);
+			else
+				++it;
 		}
 	}
 }
+
+void lol_dashboard_visuals::clear_live_keys()
+{
+	held_.clear();
+	active_keys_.clear();
+}
+
 void lol_dashboard_visuals::advance(uint64_t now)
 {
 	if (!bucket_start_)
@@ -131,13 +145,15 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 						  [&](const auto &key) { return key.code == event.code; }),
 				   active_keys_.end());
 		active_keys_.push_back(
-			{event.code, lol_dashboard_key_label(event.code), 0, ++press_counts_[event.code]});
+			{event.code, lol_dashboard_key_label(event.code), 0, 0, ++press_counts_[event.code]});
 		++current_[1];
 	} else if (event.type == EVENT_KEY_RELEASED) {
 		held_[event.code] = false;
 		for (auto &key : active_keys_)
-			if (key.code == event.code)
-				key.fade_until = event.time_ns + 2000000000ULL;
+			if (key.code == event.code) {
+				key.fade_started = event.time_ns;
+				key.fade_until = event.time_ns + live_key_fade_ns;
+			}
 	} else if (event.type == EVENT_MOUSE_PRESSED) {
 		++current_[1];
 		++total_clicks_;
