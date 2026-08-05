@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../input/input_data.hpp"
+#include "../../../input/input_data.hpp"
 
 #include <QColor>
 #include <QPointF>

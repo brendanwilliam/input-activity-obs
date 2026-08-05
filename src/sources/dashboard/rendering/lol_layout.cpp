@@ -1,4 +1,4 @@
-#include "lol_performance_dashboard_layout.hpp"
+#include "lol_layout.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -1,4 +1,4 @@
-#include "league_capture_switcher.hpp"
+#include "lol_capture_switcher.hpp"
 
 #include <algorithm>
 #include <cctype>

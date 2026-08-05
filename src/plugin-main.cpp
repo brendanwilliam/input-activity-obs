@@ -5,7 +5,7 @@
  */
 
 #include "hook/uiohook_helper.hpp"
-#include "sources/dashboard/lol_performance_dashboard_source.hpp"
+#include "sources/dashboard/presentation/lol_source.hpp"
 #include "sources/game_report/presentation/lol_source.hpp"
 
 #include <obs-module.h>

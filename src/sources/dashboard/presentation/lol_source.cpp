@@ -1,13 +1,13 @@
-#include "../../hook/uiohook_helper.hpp"
-#include "../../input/input_broker.hpp"
-#include "../hud_layout/lol_layout.hpp"
-#include "league_capture_switcher.hpp"
-#include "lol_dashboard_game_config_watcher.hpp"
-#include "lol_dashboard_game_start_watcher.hpp"
-#include "lol_performance_dashboard_camera_visibility.hpp"
-#include "lol_performance_dashboard_layout.hpp"
-#include "lol_performance_dashboard_source.hpp"
-#include "lol_performance_dashboard_visuals.hpp"
+#include "../../../hook/uiohook_helper.hpp"
+#include "../../../input/input_broker.hpp"
+#include "../../capture/lol_capture_switcher.hpp"
+#include "../../detection/lol_game_config_watcher.hpp"
+#include "../../detection/lol_game_start_watcher.hpp"
+#include "../../hud_layout/lol_layout.hpp"
+#include "../rendering/lol_camera_visibility.hpp"
+#include "../rendering/lol_layout.hpp"
+#include "../rendering/lol_visuals.hpp"
+#include "lol_source.hpp"
 #include <QDir>
 #include <QFile>
 #include <QImage>
@@ -327,8 +327,8 @@ private:
 	obs_hotkey_id reset_hotkey_{OBS_INVALID_HOTKEY_ID};
 };
 
-#include "lol_performance_dashboard_camera_render.inc"
-#include "lol_performance_dashboard_properties.inc"
+#include "../rendering/lol_camera_render.inc"
+#include "lol_properties.inc"
 } // namespace
 
 void register_lol_performance_dashboard_source()

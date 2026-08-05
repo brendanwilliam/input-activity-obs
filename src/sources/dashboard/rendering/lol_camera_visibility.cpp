@@ -1,4 +1,4 @@
-#include "lol_performance_dashboard_camera_visibility.hpp"
+#include "lol_camera_visibility.hpp"
 
 #include <obs-module.h>
 #include <graphics/matrix4.h>

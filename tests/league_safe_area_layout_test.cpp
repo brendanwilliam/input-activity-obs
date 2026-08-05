@@ -1,5 +1,5 @@
-#include "sources/dashboard/lol_dashboard_game_start_watcher.hpp"
-#include "sources/dashboard/lol_performance_dashboard_layout.hpp"
+#include "sources/dashboard/detection/lol_game_start_watcher.hpp"
+#include "sources/dashboard/rendering/lol_layout.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
 
 #include <cmath>

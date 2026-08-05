@@ -60,23 +60,23 @@ target_sources(
     src/input/input_broker.hpp
     src/input/input_broker.cpp
     src/input/keycodes.h
-    src/sources/dashboard/league_capture_switcher.hpp
-    src/sources/dashboard/league_capture_switcher.cpp
-    src/sources/dashboard/lol_dashboard_game_config_watcher.hpp
-    src/sources/dashboard/lol_dashboard_game_config_watcher.cpp
-    src/sources/dashboard/lol_dashboard_game_start_watcher.hpp
-    src/sources/dashboard/lol_dashboard_game_start_watcher.cpp
-    src/sources/dashboard/lol_performance_dashboard_camera_render.inc
-    src/sources/dashboard/lol_performance_dashboard_camera_visibility.hpp
-    src/sources/dashboard/lol_performance_dashboard_camera_visibility.cpp
-    src/sources/dashboard/lol_performance_dashboard_properties.inc
-    src/sources/dashboard/lol_performance_dashboard_layout.hpp
-    src/sources/dashboard/lol_performance_dashboard_layout.cpp
-    src/sources/dashboard/lol_performance_dashboard_source.hpp
-    src/sources/dashboard/lol_performance_dashboard_source.cpp
-    src/sources/dashboard/lol_performance_dashboard_visuals.hpp
-    src/sources/dashboard/lol_performance_dashboard_visuals.cpp
-    src/sources/dashboard/lol_performance_dashboard_heatmap.cpp
+    src/sources/dashboard/capture/lol_capture_switcher.hpp
+    src/sources/dashboard/capture/lol_capture_switcher.cpp
+    src/sources/dashboard/detection/lol_game_config_watcher.hpp
+    src/sources/dashboard/detection/lol_game_config_watcher.cpp
+    src/sources/dashboard/detection/lol_game_start_watcher.hpp
+    src/sources/dashboard/detection/lol_game_start_watcher.cpp
+    src/sources/dashboard/rendering/lol_camera_render.inc
+    src/sources/dashboard/rendering/lol_camera_visibility.hpp
+    src/sources/dashboard/rendering/lol_camera_visibility.cpp
+    src/sources/dashboard/presentation/lol_properties.inc
+    src/sources/dashboard/rendering/lol_layout.hpp
+    src/sources/dashboard/rendering/lol_layout.cpp
+    src/sources/dashboard/presentation/lol_source.hpp
+    src/sources/dashboard/presentation/lol_source.cpp
+    src/sources/dashboard/rendering/lol_visuals.hpp
+    src/sources/dashboard/rendering/lol_visuals.cpp
+    src/sources/dashboard/rendering/lol_heatmap.cpp
     src/sources/game_report/collection/lol_collector.hpp
     src/sources/game_report/collection/lol_collector.cpp
     src/sources/game_report/collection/lol_hexbin.hpp
@@ -130,7 +130,7 @@ if(BUILD_TESTING)
     league-safe-area-layout-test
     tests/league_safe_area_layout_test.cpp
     src/sources/hud_layout/lol_layout.cpp
-    src/sources/dashboard/lol_performance_dashboard_layout.cpp
+    src/sources/dashboard/rendering/lol_layout.cpp
   )
   target_include_directories(league-safe-area-layout-test PRIVATE src)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)

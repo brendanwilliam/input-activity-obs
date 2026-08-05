@@ -1,4 +1,4 @@
-#include "lol_dashboard_game_start_watcher.hpp"
+#include "lol_game_start_watcher.hpp"
 
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
