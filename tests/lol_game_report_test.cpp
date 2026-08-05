@@ -55,7 +55,9 @@ int main()
 	assert(!cells.isEmpty() && cells.first().column == 0 && cells.first().row == 0);
 	const QByteArray &report_script = web_assets::script();
 	if (!report_script.contains("frame_aspect_ratio || 16 / 9))} / 1") ||
-	    !report_script.contains("const columns = Math.ceil(width / hexWidth) + 1") ||
+	    !report_script.contains("Math.min(100, Math.max(.1, Number(report.hex_radius_percent || 4)))") ||
+	    !report_script.contains("const columns = Math.max(1, Math.ceil(width / hexWidth) + 1)") ||
+	    !report_script.contains("const rows = Math.max(1, Math.ceil(height / (1.5 * radius)) + 1)") ||
 	    !report_script.contains("const x = hexWidth * (column + offset)") ||
 	    !report_script.contains(", y = radius * (1 + 1.5 * row)"))
 		return 1;

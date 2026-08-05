@@ -28,7 +28,10 @@ function hexagonPoints(x, y, radius) {
 }
 function renderHeatmap(report) {
   const aspect = Math.max(.01, Number(report.frame_aspect_ratio || 16 / 9));
-  const radius = Math.min(20, Math.max(1, Number(report.hex_radius_percent || 4)));
+  // Keep these limits and calculations in lockstep with lol_heatmap::visible_cells.
+  // A shared HUD setting can be below 1% after migration or above the report UI's
+  // historic 20% limit, so narrowing it here shifts every recorded cell.
+  const radius = Math.min(100, Math.max(.1, Number(report.hex_radius_percent || 4)));
   const width = 100, height = width / aspect, hexWidth = Math.sqrt(3) * radius;
   const bins = report.hexbins || [];
   const values = bins.map(bin => Number(bin.dwell_ms || 0)).filter(Boolean).sort((a, b) => a - b);
@@ -39,7 +42,8 @@ function renderHeatmap(report) {
   ] : [0, 0, 0];
   const colors = ['#3b82f6', '#06b6d4', '#facc15', '#ef4444'];
   const populated = new Map(bins.map(bin => [`${bin.column},${bin.row}`, Number(bin.dwell_ms || 0)]));
-  const columns = Math.ceil(width / hexWidth) + 1, rows = Math.ceil(height / (1.5 * radius)) + 1;
+  const columns = Math.max(1, Math.ceil(width / hexWidth) + 1);
+  const rows = Math.max(1, Math.ceil(height / (1.5 * radius)) + 1);
   const polygons = [];
   for (let row = 0; row < rows; ++row) {
     const offset = row & 1 ? .5 : 0;
