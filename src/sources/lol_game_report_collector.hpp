@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QJsonObject>
+#include <QRect>
 
 #include <cstdint>
 
@@ -16,6 +17,7 @@ public:
 	collection_state state() const;
 	void tick(int dpi);
 	void set_dpi(int dpi);
+	void set_game_frame(const QRect &frame);
 	void set_auto_open(bool enabled);
 	void set_development_logs(bool enabled);
 	bool development_logs_enabled() const;
