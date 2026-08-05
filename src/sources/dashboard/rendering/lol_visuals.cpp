@@ -1,4 +1,4 @@
-#include "lol_visuals.hpp"
+#include "sources/dashboard/rendering/lol_visuals.hpp"
 
 #include <QFont>
 #include <QFontDatabase>

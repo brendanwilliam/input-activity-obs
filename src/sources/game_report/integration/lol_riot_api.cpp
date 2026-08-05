@@ -1,4 +1,4 @@
-#include "lol_riot_api.hpp"
+#include "sources/game_report/integration/lol_riot_api.hpp"
 
 #include <QDir>
 #include <QFile>

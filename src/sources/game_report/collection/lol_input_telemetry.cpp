@@ -1,4 +1,4 @@
-#include "lol_input_telemetry.hpp"
+#include "sources/game_report/collection/lol_input_telemetry.hpp"
 
 #include <algorithm>
 #include <cmath>

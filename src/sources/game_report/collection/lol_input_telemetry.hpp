@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../data/lol_types.hpp"
+#include "sources/game_report/data/lol_types.hpp"
 
-#include "../../../input/input_data.hpp"
+#include "input/input_data.hpp"
 
 #include <QRect>
 

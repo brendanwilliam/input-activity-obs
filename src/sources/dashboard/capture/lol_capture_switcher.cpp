@@ -1,4 +1,4 @@
-#include "lol_capture_switcher.hpp"
+#include "sources/dashboard/capture/lol_capture_switcher.hpp"
 
 #include <algorithm>
 #include <cctype>

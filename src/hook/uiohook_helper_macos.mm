@@ -8,9 +8,9 @@
  * the Free Software Foundation, version 2 of the License.
  *************************************************************************/
 
-#include "uiohook_helper.hpp"
+#include "hook/uiohook_helper.hpp"
 
-#include "../input/input_broker.hpp"
+#include "input/input_broker.hpp"
 
 #include <ApplicationServices/ApplicationServices.h>
 #import <AppKit/AppKit.h>

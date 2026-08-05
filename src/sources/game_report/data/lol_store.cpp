@@ -1,4 +1,4 @@
-#include "lol_store.hpp"
+#include "sources/game_report/data/lol_store.hpp"
 
 #include <QDir>
 #include <QFile>

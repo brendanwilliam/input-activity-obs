@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../hud_layout/lol_layout.hpp"
+#include "sources/hud_layout/lol_layout.hpp"
 
 namespace sources {
 

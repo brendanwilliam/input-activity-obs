@@ -1,4 +1,4 @@
-#include "lol_game_config_watcher.hpp"
+#include "sources/dashboard/detection/lol_game_config_watcher.hpp"
 
 #include <QFileInfo>
 

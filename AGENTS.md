@@ -37,6 +37,11 @@ feature or shared-responsibility subdirectory; do not add implementation files d
 module; do not duplicate them across mode files. Use `skills/check-code-size` before handing off a
 refactor or adding a substantial implementation file.
 
+Use project-root-relative paths for internal C, C++, and Objective-C++ includes. The build exposes
+`src` as an include root, so write paths such as `sources/dashboard/rendering/lol_visuals.hpp`,
+`input/input_data.hpp`, and `hook/uiohook_helper.hpp`; never use filesystem-absolute paths or
+relative traversal such as `../` in internal includes.
+
 ## Validation
 
 Format edited C, C++, and Objective-C++ files with clang-format 19. Format CMake and YAML with gersemi. Run the CI-equivalent configuration on macOS:

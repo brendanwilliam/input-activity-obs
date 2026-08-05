@@ -1,13 +1,13 @@
-#include "lol_collector.hpp"
+#include "sources/game_report/collection/lol_collector.hpp"
 
-#include "../data/lol_diagnostics.hpp"
-#include "../data/lol_store.hpp"
-#include "../integration/lol_riot_api.hpp"
-#include "../presentation/lol_web.hpp"
-#include "lol_input_telemetry.hpp"
+#include "sources/game_report/collection/lol_input_telemetry.hpp"
+#include "sources/game_report/data/lol_diagnostics.hpp"
+#include "sources/game_report/data/lol_store.hpp"
+#include "sources/game_report/integration/lol_riot_api.hpp"
+#include "sources/game_report/presentation/lol_web.hpp"
 
-#include "../../../hook/uiohook_helper.hpp"
-#include "../../../input/input_broker.hpp"
+#include "hook/uiohook_helper.hpp"
+#include "input/input_broker.hpp"
 
 #include <QDateTime>
 #include <QElapsedTimer>
