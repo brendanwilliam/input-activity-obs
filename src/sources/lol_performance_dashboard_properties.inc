@@ -75,6 +75,7 @@ void defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
 	obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
+	obs_data_set_default_bool(settings, "lol_dashboard.reset_at_game_start", true);
 	obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
 	obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
 	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
@@ -119,6 +120,8 @@ obs_properties_t *properties(void *data)
 				   reload_clicked, data);
 	obs_properties_add_button2(properties, "lol_dashboard.reset",
 				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
+	obs_properties_add_bool(properties, "lol_dashboard.reset_at_game_start",
+				obs_module_text("LoLPerformanceDashboard.ResetAtGameStart"));
 	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
 				obs_module_text("LoLPerformanceDashboard.AlwaysVisible"));
 	auto *capture_switching = obs_properties_add_group(properties, "lol_dashboard.capture_switching",

@@ -4,6 +4,7 @@
 #include "league_safe_area_layout.hpp"
 #include "league_capture_switcher.hpp"
 #include "lol_dashboard_game_config_watcher.hpp"
+#include "lol_dashboard_game_start_watcher.hpp"
 #include "lol_performance_dashboard_camera_visibility.hpp"
 #include "lol_performance_dashboard_layout.hpp"
 #include "lol_performance_dashboard_visuals.hpp"
@@ -69,6 +70,7 @@ public:
 		game_config_watcher_.set_path(path_);
 		advanced_positioning_ = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
 		always_visible_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
+		auto_reset_at_game_start_ = obs_data_get_bool(settings, "lol_dashboard.reset_at_game_start");
 		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
 		client_capture_source_ = obs_data_get_string(settings, league_capture_switcher::client_source_key);
 		show_camera_ = obs_data_get_bool(settings, "lol_dashboard.show_camera");
@@ -147,6 +149,8 @@ public:
 		if (game_config_watcher_.changed(seconds))
 			reload();
 		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
+		if (auto_reset_at_game_start_ && game_start_watcher_.consume_start(game_start_cursor_))
+			reset_statistics();
 		game_visible_ = always_visible_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
 		league_capture_switcher::switch_captures(game_capture_source_, client_capture_source_,
@@ -295,7 +299,8 @@ private:
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
 	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
-		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{};
+		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{},
+		auto_reset_at_game_start_{true};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
 	int camera_width_percent_{133}, camera_height_percent_{100}, camera_scale_percent_{100};
@@ -307,6 +312,8 @@ private:
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_game_start_watcher game_start_watcher_;
+	uint64_t game_start_cursor_{};
 	QImage minimap_cover_;
 	lol_dashboard_game_config_watcher game_config_watcher_;
 	lol_dashboard_camera_visibility camera_visibility_;

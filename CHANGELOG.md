@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- LoL Performance Dashboard now resets its statistics automatically when a new League game begins; the enabled-by-default setting can be turned off for uninterrupted manual sessions.
 - League Game Report now scopes performance telemetry and heatmaps to the configured League game frame, reports press-based actions with real per-second velocity, and labels preliminary game-end gold and team data as pending until Riot enrichment completes.
 - LoL Performance Dashboard and League Game Report now use Science Gothic for labels and controls, and Inter for live keys, metrics, timestamps, and chart data.
 - The LoL Performance Dashboard now keeps its heatmap statistics top-aligned, restores the right-aligned key layout, limits dashboard visuals to the active game client, and renders linked cameras as cropped masks in either League mode. Minimap covers now use the same cropped-mask sizing and image-position controls.
