@@ -1,7 +1,9 @@
 void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
-	const QRect content = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
+	const QRect content = section.adjusted(style_.element_padding, style_.element_padding, -style_.element_padding,
+					       -style_.element_padding);
 	if (content.width() < 4 || content.height() < 4)
 		return;
 	painter.setPen(Qt::white);

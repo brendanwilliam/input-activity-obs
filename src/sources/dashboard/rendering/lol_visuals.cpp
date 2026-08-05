@@ -334,8 +334,10 @@ void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const Q
 	if (regions_.intensity)
 		draw_intensity(painter, header);
 	if (regions_.mouse_activity)
-		draw_heatmap(painter, heatmap.adjusted(style_.section_padding, style_.section_padding,
-						       -style_.section_padding, -style_.section_padding));
+		draw_heatmap(painter, heatmap.adjusted(style_.section_padding + style_.element_padding,
+						       style_.section_padding + style_.element_padding,
+						       -style_.section_padding - style_.element_padding,
+						       -style_.section_padding - style_.element_padding));
 	painter.setClipping(false);
 	if (regions_.mouse_activity)
 		draw_summary(painter, summary, right_aligned);

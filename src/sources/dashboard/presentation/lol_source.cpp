@@ -184,9 +184,9 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		const QRect heatmap_bounds = qrect(panels.heatmap)
-						     .adjusted(style_.section_padding, style_.section_padding,
-							       -style_.section_padding, -style_.section_padding);
+		const int heatmap_inset = style_.section_padding + style_.element_padding;
+		const QRect heatmap_bounds =
+			qrect(panels.heatmap).adjusted(heatmap_inset, heatmap_inset, -heatmap_inset, -heatmap_inset);
 		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, heatmap_bounds, style_);
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
