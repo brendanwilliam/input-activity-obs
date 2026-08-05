@@ -81,8 +81,10 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		const int count_width = metrics.horizontalAdvance(count);
 		const bool count_outside =
 			metrics.horizontalAdvance(keys[index].label) + within_element_gap + count_width > bar;
-		const int label_width = count_outside ? std::max(0, chart.width() - within_element_gap - count_width)
-						      : std::max(0, bar - within_element_gap - count_width);
+		const int label_width =
+			count_outside ? std::max(0, std::min(metrics.horizontalAdvance(keys[index].label),
+							     chart.width() - within_element_gap - count_width))
+				      : std::max(0, bar - within_element_gap - count_width);
 		const QRect label_rect(right_aligned ? bar_rect.right() - label_width + 1 : bar_rect.left(), y,
 				       label_width, text_height);
 		const QRect count_rect =
