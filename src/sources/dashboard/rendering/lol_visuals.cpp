@@ -79,8 +79,8 @@ QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &gam
 	const QRect content = bounds.adjusted(inset, inset, -inset, -inset);
 	if (content.isEmpty() || game_frame.width() < 1 || game_frame.height() < 1)
 		return {};
-	const auto fitted = lol_dashboard_aspect_fit({content.x(), content.y(), content.width(), content.height()},
-						     double(game_frame.width()) / game_frame.height());
+	const auto fitted = lol_dashboard_aspect_fit_left({content.x(), content.y(), content.width(), content.height()},
+							  double(game_frame.width()) / game_frame.height());
 	return {fitted.x(), fitted.y(), fitted.width(), fitted.height()};
 }
 

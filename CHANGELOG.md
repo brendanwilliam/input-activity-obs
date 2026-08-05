@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- League Game Report heatmaps now preserve the configured game frame's aspect ratio and use the same full hex grid as the LoL Performance Dashboard.
 - LoL Performance Dashboard typography now separates primary metric values from secondary key and chart data, with independent font controls for each.
 - LoL Performance Dashboard and League Game Report now share a frame-relative hexbin geometry, including a persisted fractional size setting, matched grid origin and dimensions, and correctly aligned full-grid report rendering.
 - LoL Performance Dashboard typography now provides independent font family, variable-axis, and size controls for labels, numbers, number-labels, and button-labels. Its intensity headings are localized correctly, zero section padding reaches the available HUD edges, and constrained intensity cards keep their text visible.
