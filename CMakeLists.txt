@@ -12,7 +12,11 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 add_subdirectory(deps/libuiohook)
 
 find_package(libobs REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Svg Widgets)
+find_package(
+  Qt6
+  REQUIRED
+  COMPONENTS Core Gui Network Svg Widgets
+)
 find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices REQUIRED)
 find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
 
@@ -129,9 +133,9 @@ if(APPLE)
     TARGET ${CMAKE_PROJECT_NAME}
     POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>/Contents/Resources/tls"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${_qt_tls_backend}"
-            "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>/Contents/Resources/tls/libqsecuretransportbackend.dylib"
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy_if_different "${_qt_tls_backend}"
+      "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>/Contents/Resources/tls/libqsecuretransportbackend.dylib"
     VERBATIM
   )
 endif()
