@@ -78,7 +78,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		painter.setFont(dashboard_font(chart_font));
 		const QFontMetrics metrics(painter.font());
 		const QString count = QString::number(keys[index].count);
-		const int count_width = metrics.horizontalAdvance(count);
+		// QFontMetrics::elidedText can need a little more room than the advance
+		// width because of glyph bearings.
+		const int count_width = metrics.horizontalAdvance(count) + 2;
 		const bool count_outside =
 			metrics.horizontalAdvance(keys[index].label) + within_element_gap + count_width > bar;
 		const int label_width =
