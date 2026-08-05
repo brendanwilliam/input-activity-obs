@@ -6,8 +6,9 @@ Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branc
 Target `develop` through a pull request for ordinary changes; it is the shared integration branch for parallel
 work. Promote `develop` to `main` through a separate pull request only when the integrated set is ready.
 Never push directly to either protected branch, and never bypass `main`'s required checks on the promotion PR.
-Before starting feature work, ensure `develop` contains current `main`; after a main-only change or when first
-adopting this workflow, synchronize `main` into `develop` through a pull request.
+Before starting feature work, fetch `origin` and create the task branch from the latest `origin/develop`.
+Do not block ordinary feature work on `develop` containing `main`; reconcile main-only changes back into
+`develop` through a dedicated pull request when that integration is needed.
 
 For a coordinated group of closely related tasks, use a dated integration branch named
 `chore/updates-YYYY-MM-DD`, created from current `develop`, and target its pull request at `develop`. Use a
@@ -30,9 +31,16 @@ Keep global input capture privacy-safe: preserve the actionable Accessibility wa
 
 Keep new and materially refactored implementation modules under 400 lines. When a file approaches
 that limit, split it by a stable responsibility (shared state, one OBS source type, rendering, or
-properties) rather than by arbitrary line ranges. Put cross-mode setting keys, shared rendering
-helpers, and migrations in one owned module; do not duplicate them across mode files. Use
-`skills/check-code-size` before handing off a refactor or adding a substantial implementation file.
+properties) rather than by arbitrary line ranges. Group every `src/sources/` implementation in a
+feature or shared-responsibility subdirectory; do not add implementation files directly to
+`src/sources/`. Put cross-mode setting keys, shared rendering helpers, and migrations in one owned
+module; do not duplicate them across mode files. Use `skills/check-code-size` before handing off a
+refactor or adding a substantial implementation file.
+
+Use project-root-relative paths for internal C, C++, and Objective-C++ includes. The build exposes
+`src` as an include root, so write paths such as `sources/dashboard/rendering/lol_visuals.hpp`,
+`input/input_data.hpp`, and `hook/uiohook_helper.hpp`; never use filesystem-absolute paths or
+relative traversal such as `../` in internal includes.
 
 ## Validation
 
@@ -85,7 +93,7 @@ reopen OBS after installation; do not control OBS unless explicitly asked.
 - [`skills/release-macos-plugin`](skills/release-macos-plugin/SKILL.md): prepare and validate a signed/notarized release.
 - [`skills/refresh-obs-docs-reference`](skills/refresh-obs-docs-reference/SKILL.md): audit the full OBS documentation site and refresh the local navigation reference.
 - [`skills/use-obs-docs-reference`](skills/use-obs-docs-reference/SKILL.md): locate and verify OBS API documentation during development or review.
-- [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce activity-source module-size and ownership rules.
+- [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce source-module size, ownership, and grouping rules.
 
 Install these into a local Codex skills directory with `./scripts/install-repository-skills.sh`.
 

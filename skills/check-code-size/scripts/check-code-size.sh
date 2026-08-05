@@ -15,14 +15,19 @@ check_file()
   fi
 }
 
-check_file "$source_root/src/sources/activity_sources.cpp"
 while IFS= read -r -d '' path; do
   check_file "$path"
-done < <(find "$source_root/src/sources/activity" -type f \
+done < <(find "$source_root/src/sources" -type f \
+  \( -name '*.inc' -o -name '*.cpp' -o -name '*.hpp' \) -print0)
+
+while IFS= read -r -d '' path; do
+  printf 'error: source implementation must be grouped in a subdirectory: %s\n' "$path" >&2
+  status=1
+done < <(find "$source_root/src/sources" -maxdepth 1 -type f \
   \( -name '*.inc' -o -name '*.cpp' -o -name '*.hpp' \) -print0)
 
 if ((status == 0)); then
-  printf 'Activity source modules are at or below %s lines.\n' "$maximum_lines"
+  printf 'Source modules are grouped and at or below %s lines.\n' "$maximum_lines"
 fi
 
 exit "$status"

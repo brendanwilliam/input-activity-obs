@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *************************************************************************/
 
-#include "input_data.hpp"
+#include "input/input_data.hpp"
 #include <util/platform.h>
 
 #include <utility>
