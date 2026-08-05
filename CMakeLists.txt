@@ -77,12 +77,14 @@ target_sources(
     src/sources/dashboard/rendering/lol_visuals.hpp
     src/sources/dashboard/rendering/lol_visuals.cpp
     src/sources/dashboard/rendering/lol_heatmap.cpp
+    src/sources/dashboard/rendering/lol_keys.inc
     src/sources/game_report/collection/lol_collector.hpp
     src/sources/game_report/collection/lol_collector.cpp
     src/sources/game_report/collection/lol_hexbin.hpp
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.hpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
+    src/sources/game_report/collection/lol_shared.inc
     src/sources/game_report/data/lol_diagnostics.hpp
     src/sources/game_report/data/lol_diagnostics.cpp
     src/sources/game_report/data/lol_store.hpp
@@ -95,6 +97,7 @@ target_sources(
     src/sources/game_report/integration/lol_riot_api.cpp
     src/sources/game_report/presentation/lol_source.hpp
     src/sources/game_report/presentation/lol_source.cpp
+    src/sources/game_report/presentation/lol_properties.inc
     src/sources/game_report/presentation/lol_web.hpp
     src/sources/game_report/presentation/lol_web.cpp
     src/sources/game_report/presentation/lol_web_assets.hpp
