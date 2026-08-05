@@ -39,6 +39,17 @@ QRect qrect(const lol_dashboard_rect &rect)
 	return {rect.x(), rect.y(), rect.width(), rect.height()};
 }
 
+lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *role)
+{
+	const std::string prefix = std::string("lol_dashboard.typography.") + role;
+	return {QString::fromUtf8(obs_data_get_string(settings, (prefix + ".family").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".optical_size").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".weight").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".width").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".slant").c_str())),
+		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100)};
+}
+
 class dashboard_source {
 public:
 	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source)
@@ -139,6 +150,16 @@ public:
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_middle"))),
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high"))),
 			    qreal(std::clamp(int(obs_data_get_int(settings, "lol_dashboard.hex_size")), 2, 100))};
+		style_ = {std::clamp(int(obs_data_get_int(settings, "lol_dashboard.section_padding")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_padding")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_y_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.within_element_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.intensity_padding")), 0, 500),
+			  dashboard_font_style(settings, "labels"),
+			  dashboard_font_style(settings, "numbers"),
+			  dashboard_font_style(settings, "number_labels"),
+			  dashboard_font_style(settings, "button_labels")};
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
@@ -163,8 +184,9 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap));
+		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap), style_);
 		if (!debug_mode_ && !game_is_frontmost) {
+			visuals_.clear_live_keys();
 			discard_backlog_ = true;
 			return;
 		}
@@ -223,8 +245,10 @@ public:
 		if (!file.open(QIODevice::ReadOnly))
 			return;
 		const auto parsed = league_safe_area::parse_game_config(file.readAll().toStdString());
-		if (parsed.value)
+		if (parsed.value) {
 			layout_ = league_safe_area::make_model(*parsed.value);
+			frame_.setSize({layout_->game.width, layout_->game.height});
+		}
 	}
 	void auto_detect()
 	{
@@ -312,6 +336,7 @@ private:
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_style style_;
 	lol_dashboard_game_start_watcher game_start_watcher_;
 	uint64_t game_start_cursor_{};
 	QImage minimap_cover_;

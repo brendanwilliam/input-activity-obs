@@ -61,8 +61,11 @@ struct lol_dashboard_panels {
 	bool camera_visible{};
 };
 
+lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
-						    const lol_dashboard_image_layout &minimap_cover);
+						    const lol_dashboard_image_layout &minimap_cover,
+						    int hud_padding = 20);
 
 } // namespace sources
