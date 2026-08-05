@@ -116,13 +116,12 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 				  std::max(1, mouse_bounds.bottom() - result.heatmap.bottom() - panel_gap)};
 		result.right_aligned = !minimap_left;
 	} else {
-		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
-		result.heatmap = {minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(), heat_top,
-				  heat_width, heat_height};
-		const int summary_width = std::max(1, mouse_bounds.width() / 4 - panel_gap);
-		result.summary = {minimap_left ? result.heatmap.left() - summary_width - panel_gap
-					       : result.heatmap.right() + panel_gap + 1,
-				  mouse_bounds.top(), summary_width, mouse_bounds.height()};
+		const int content_left = mouse_bounds.left();
+		const int heat_top =
+			std::max(header_bounds.bottom() + panel_gap + 1, mouse_bounds.top() - panel_gap - heat_height);
+		result.heatmap = {content_left, heat_top, heat_width, heat_height};
+		result.summary = {content_left, result.heatmap.bottom() + panel_gap + 1, heat_width,
+				  std::max(1, mouse_bounds.bottom() - result.heatmap.bottom() - panel_gap)};
 	}
 	return result;
 }

@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- League Game Report now renders its dwell-time heatmap as an SVG with the LoL Performance Dashboard's hex-grid styling. The dashboard also aligns its heatmap with the Distance and Clicks panel, and labels input-intensity metrics as Mouse Velocity (cm/s) and APM.
 - League Game Report now persists a configurable game-frame-relative hexbin layout and mouse dwell time; older movement-count reports are clearly labelled as approximations.
 - LoL Performance Dashboard now resets its statistics automatically when a new League game begins; the enabled-by-default setting can be turned off for uninterrupted manual sessions.
 - League Game Report now scopes performance telemetry and heatmaps to the configured League game frame, reports press-based actions with real per-second velocity, and labels preliminary game-end gold and team data as pending until Riot enrichment completes.
