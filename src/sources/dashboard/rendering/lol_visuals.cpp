@@ -13,6 +13,7 @@ namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
+constexpr int rolling_window_seconds = 3;
 constexpr int dashboard_padding = 20;
 constexpr int title_size = 22;
 constexpr int subtitle_size = 18;
@@ -45,14 +46,13 @@ QFont data_font(int size, QFont::Weight weight = QFont::Normal)
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-				      const lol_dashboard_regions &regions, int rolling_window_seconds,
-				      const QRect &game_frame, const QRect &heatmap_bounds)
+				      const lol_dashboard_regions &regions, const QRect &game_frame,
+				      const QRect &heatmap_bounds)
 {
 	theme_ = theme;
 	regions_ = regions;
 	const bool hex_size_changed = heatmap_.radius != heatmap.radius;
 	heatmap_ = heatmap;
-	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
 	if (heatmap_bounds != heatmap_bounds_ || hex_size_changed)
 		resize_heatmap(heatmap_bounds);
@@ -101,7 +101,7 @@ void lol_dashboard_visuals::advance(uint64_t now)
 	while (now - bucket_start_ >= second_ns) {
 		samples_.push_back(current_);
 		session_samples_.push_back(current_);
-		if (samples_.size() > size_t(window_))
+		if (samples_.size() > rolling_window_seconds)
 			samples_.pop_front();
 		current_.fill(0.0);
 		bucket_start_ += second_ns;
@@ -300,7 +300,8 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		for (const auto &sample : samples_) {
 			total[metric] += sample[metric];
 		}
-		const double current = metric == 0 ? total[0] / window_ / 2800.0 * 2.54 : total[1] * 60.0 / window_;
+		const double current = metric == 0 ? total[0] / rolling_window_seconds / 2800.0 * 2.54
+						   : total[1] * 60.0 / rolling_window_seconds;
 		values.push_back(current);
 		std::sort(values.begin(), values.end());
 		const double min = values.front(), max = values.back(), range = std::max(0.001, max - min);

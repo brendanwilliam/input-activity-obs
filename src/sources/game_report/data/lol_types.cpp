@@ -51,15 +51,14 @@ QJsonObject to_json(const report &v)
 	for (const auto &i : v.input_samples)
 		input.append(QJsonObject{{"seconds", i.seconds},
 					 {"actions", i.actions},
-					 {"mouse_distance_pixels", i.mouse_distance_pixels},
-					 {"max_velocity_pixels_per_second", i.max_velocity_pixels_per_second}});
+					 {"mouse_distance_pixels", i.mouse_distance_pixels}});
 	for (const auto &h : v.hexbins)
 		hexbins.append(QJsonObject{{"column", h.column}, {"row", h.row}, {"dwell_ms", double(h.dwell_ms)}});
 	for (const auto &c : v.chapters)
 		chapters.append(QJsonObject{{"start_seconds", c.start_seconds},
 					    {"end_seconds", c.end_seconds},
 					    {"summary", c.summary}});
-	return {{"schema_version", 3},
+	return {{"schema_version", 4},
 		{"id", v.id},
 		{"completed_at", v.completed_at.toUTC().toString(Qt::ISODateWithMs)},
 		{"player", v.player},
@@ -94,7 +93,7 @@ QJsonObject to_json(const report &v)
 bool from_json(const QJsonObject &o, report &v)
 {
 	const int version = o["schema_version"].toInt();
-	if ((version < 1 || version > 3) || o["id"].toString().isEmpty())
+	if ((version < 1 || version > 4) || o["id"].toString().isEmpty())
 		return false;
 	v = {};
 	v.schema_version = version;
@@ -136,11 +135,10 @@ bool from_json(const QJsonObject &o, report &v)
 	}
 	for (const auto x : o["input_samples"].toArray()) {
 		const auto i = x.toObject();
-		v.input_samples.append({i["seconds"].toInt(), i["actions"].toInt(),
-					i["mouse_distance_pixels"].toDouble(),
-					i["max_velocity_pixels_per_second"].toDouble()});
+		v.input_samples.append(
+			{i["seconds"].toInt(), i["actions"].toInt(), i["mouse_distance_pixels"].toDouble()});
 	}
-	if (version == 3) {
+	if (version >= 3) {
 		v.hex_geometry.radius_percent =
 			std::clamp(o["hex_radius_percent"].toInt(default_hex_radius_percent), 1, 20);
 		v.hex_geometry.frame_aspect_ratio = std::max(0.01, o["frame_aspect_ratio"].toDouble(16.0 / 9.0));
@@ -158,7 +156,7 @@ bool from_json(const QJsonObject &o, report &v)
 			add_hex_dwell(v.hexbins, nearest_hex(v.hex_geometry, point),
 				      uint64_t(std::max(0, h["count"].toInt())));
 		}
-		v.schema_version = 3;
+		v.schema_version = 4;
 	}
 	for (const auto x : o["chapters"].toArray()) {
 		const auto c = x.toObject();

@@ -18,6 +18,7 @@ public:
 	void set_game_frame(const QRect &frame);
 	void set_hex_radius_percent(int radius_percent);
 	void reset();
+	void advance(uint64_t time_ns, int game_seconds, QVector<input_sample> &samples);
 	void consume(const std::vector<input_data::trace_event> &events, int game_seconds,
 		     QVector<input_sample> &samples, QVector<hexbin> &hexbins);
 

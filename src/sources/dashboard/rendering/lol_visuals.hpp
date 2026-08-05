@@ -43,8 +43,7 @@ void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt
 class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-		       const lol_dashboard_regions &regions, int rolling_window_seconds, const QRect &game_frame,
-		       const QRect &heatmap_bounds);
+		       const lol_dashboard_regions &regions, const QRect &game_frame, const QRect &heatmap_bounds);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void reset();
@@ -89,7 +88,6 @@ private:
 	std::array<double, 2> current_{};
 	uint64_t bucket_start_{}, total_clicks_{};
 	double distance_{};
-	int window_{60};
 };
 
 } // namespace sources

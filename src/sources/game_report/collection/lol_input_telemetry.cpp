@@ -28,12 +28,19 @@ void input_telemetry::reset()
 	held_keys_.clear();
 }
 
+void input_telemetry::advance(uint64_t time_ns, int game_seconds, QVector<input_sample> &samples)
+{
+	(void)sample_for(time_ns, game_seconds, samples);
+}
+
 input_sample &input_telemetry::sample_for(uint64_t time_ns, int game_seconds, QVector<input_sample> &samples)
 {
 	if (!session_start_ns_) {
 		session_start_ns_ = time_ns;
 		session_start_seconds_ = std::max(0, game_seconds);
 	}
+	if (time_ns < session_start_ns_)
+		return samples.first();
 	const int seconds = session_start_seconds_ + int((time_ns - session_start_ns_) / second_ns);
 	if (samples.isEmpty()) {
 		samples.append({seconds});
@@ -79,9 +86,6 @@ void input_telemetry::consume(const std::vector<input_data::trace_event> &events
 				const uint64_t elapsed = event.time_ns - last_motion_time_ns_;
 				add_hex_dwell(hexbins, nearest_hex(hex_grid_, canonical_point(*last_motion_)),
 					      std::min(elapsed / 1000000ULL, dwell_gap_limit_ms));
-				if (elapsed)
-					sample.max_velocity_pixels_per_second = std::max(
-						sample.max_velocity_pixels_per_second, distance * second_ns / elapsed);
 			}
 		}
 		last_motion_ = point;

@@ -127,7 +127,6 @@ public:
 		const int left = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_left"))
 						       : 0;
 		const int top = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
-		window_ = std::clamp(int(obs_data_get_int(settings, "lol_dashboard.window")), 1, 60);
 		regions_ = {obs_data_get_bool(settings, "lol_dashboard.show_intensity"),
 			    obs_data_get_bool(settings, "lol_dashboard.show_keys"),
 			    obs_data_get_bool(settings, "lol_dashboard.show_mouse_activity")};
@@ -163,7 +162,7 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap));
+		visuals_.configure(theme_, heatmap_, regions_, frame_, qrect(panels.heatmap));
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
 			return;
@@ -297,7 +296,6 @@ private:
 	obs_source_t *source_{};
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
-	int window_{60};
 	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
 		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{},
 		auto_reset_at_game_start_{true};

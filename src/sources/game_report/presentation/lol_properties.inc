@@ -44,8 +44,6 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_bool(general, normalize_key, obs_module_text("LoLGameReport.NormalizeAverage"));
 	auto *series = obs_properties_add_list(general, series_key, obs_module_text("LoLGameReport.ChartSeries"),
 					       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(series, "Estimated gold", "gold");
-	obs_property_list_add_string(series, "CS", "cs");
 	obs_property_list_add_string(series, "Level progression", "level");
 	obs_properties_add_text(general, events_key, obs_module_text("LoLGameReport.EventCategories"),
 				OBS_TEXT_DEFAULT);
@@ -109,7 +107,7 @@ void defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, latest_key, true);
 	obs_data_set_default_string(settings, page_key, "summary");
-	obs_data_set_default_string(settings, series_key, "gold");
+	obs_data_set_default_string(settings, series_key, "level");
 	obs_data_set_default_string(settings, events_key, "kill,objective,tower,level");
 	obs_data_set_default_int(settings, dpi_key, 800);
 	obs_data_set_default_int(settings, hex_radius_key, lol_game_report::default_hex_radius_percent);

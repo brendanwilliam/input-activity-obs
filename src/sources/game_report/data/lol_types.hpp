@@ -43,7 +43,6 @@ struct input_sample {
 	int seconds{};
 	int actions{};
 	double mouse_distance_pixels{};
-	double max_velocity_pixels_per_second{};
 };
 struct heatmap_bin {
 	int x{};
@@ -57,7 +56,7 @@ struct chapter {
 };
 
 struct report {
-	int schema_version{3};
+	int schema_version{4};
 	QString id;
 	QDateTime completed_at;
 	QString player;

@@ -35,11 +35,10 @@ bool heatmap_gradient_changed(obs_properties_t *props, obs_property_t *, obs_dat
 bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool visible = obs_data_get_bool(settings, "lol_dashboard.show_camera");
-	for (const char *name :
-	     {"lol_dashboard.camera_source", "lol_dashboard.camera_width_percent",
-	      "lol_dashboard.camera_height_percent", "lol_dashboard.camera_scale_percent",
-	      "lol_dashboard.camera_translate_x_percent", "lol_dashboard.camera_translate_y_percent",
-	      "lol_dashboard.camera_background_color"})
+	for (const char *name : {"lol_dashboard.camera_source", "lol_dashboard.camera_width_percent",
+				 "lol_dashboard.camera_height_percent", "lol_dashboard.camera_scale_percent",
+				 "lol_dashboard.camera_translate_x_percent", "lol_dashboard.camera_translate_y_percent",
+				 "lol_dashboard.camera_background_color"})
 		obs_property_set_visible(obs_properties_get(props, name), visible);
 	return true;
 }
@@ -52,7 +51,8 @@ bool minimap_cover_changed(obs_properties_t *props, obs_property_t *, obs_data_t
 	      "lol_dashboard.minimap_cover_height_percent", "lol_dashboard.minimap_cover_scale_percent",
 	      "lol_dashboard.minimap_cover_translate_x_percent", "lol_dashboard.minimap_cover_translate_y_percent"})
 		obs_property_set_visible(obs_properties_get(props, name), visible);
-	for (const char *name : {"lol_dashboard.minimap_cover_path", "lol_dashboard.minimap_cover_alpha_padding_percent"})
+	for (const char *name :
+	     {"lol_dashboard.minimap_cover_path", "lol_dashboard.minimap_cover_alpha_padding_percent"})
 		obs_property_set_visible(obs_properties_get(props, name), custom_image);
 	return true;
 }
@@ -78,7 +78,6 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "lol_dashboard.reset_at_game_start", true);
 	obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
 	obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
-	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_intensity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_keys", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_mouse_activity", true);
@@ -125,18 +124,18 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
 				obs_module_text("LoLPerformanceDashboard.AlwaysVisible"));
 	auto *capture_switching = obs_properties_add_group(properties, "lol_dashboard.capture_switching",
-						   obs_module_text("LoLPerformanceDashboard.CaptureSwitching"),
-						   OBS_GROUP_NORMAL, obs_properties_create());
+							   obs_module_text("LoLPerformanceDashboard.CaptureSwitching"),
+							   OBS_GROUP_NORMAL, obs_properties_create());
 	auto *capture_properties = obs_property_group_content(capture_switching);
 	obs_properties_add_button2(capture_properties, "lol_dashboard.auto_link_captures",
-				   obs_module_text("LoLPerformanceDashboard.AutoLinkCaptures"), auto_link_captures_clicked,
-				   data);
+				   obs_module_text("LoLPerformanceDashboard.AutoLinkCaptures"),
+				   auto_link_captures_clicked, data);
 	auto *game_capture = obs_properties_add_list(capture_properties, league_capture_switcher::game_source_key,
-					      obs_module_text("LoLPerformanceDashboard.GameCapture"), OBS_COMBO_TYPE_LIST,
-					      OBS_COMBO_FORMAT_STRING);
+						     obs_module_text("LoLPerformanceDashboard.GameCapture"),
+						     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	auto *client_capture = obs_properties_add_list(capture_properties, league_capture_switcher::client_source_key,
-						obs_module_text("LoLPerformanceDashboard.ClientCapture"), OBS_COMBO_TYPE_LIST,
-						OBS_COMBO_FORMAT_STRING);
+						       obs_module_text("LoLPerformanceDashboard.ClientCapture"),
+						       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (obs_property_t *property : {game_capture, client_capture})
 		obs_property_list_add_string(property, obs_module_text("LoLPerformanceDashboard.NoCapture"), "");
 	for (const auto &[name, uuid] : league_capture_switcher::capture_sources()) {
@@ -154,11 +153,9 @@ obs_properties_t *properties(void *data)
 			       obs_module_text("LoLPerformanceDashboard.Left"), -32768, 32767, 1);
 	obs_properties_add_int(frame_properties, "lol_dashboard.frame_top",
 			       obs_module_text("LoLPerformanceDashboard.Top"), -32768, 32767, 1);
-	obs_properties_add_int_slider(properties, "lol_dashboard.window",
-				      obs_module_text("LoLPerformanceDashboard.Window"), 1, 60, 1);
 	auto *regions = obs_properties_add_group(properties, "lol_dashboard.regions",
-					 obs_module_text("LoLPerformanceDashboard.Regions"), OBS_GROUP_NORMAL,
-					 obs_properties_create());
+						 obs_module_text("LoLPerformanceDashboard.Regions"), OBS_GROUP_NORMAL,
+						 obs_properties_create());
 	auto *region_properties = obs_property_group_content(regions);
 	obs_properties_add_bool(region_properties, "lol_dashboard.show_intensity",
 				obs_module_text("LoLPerformanceDashboard.ShowIntensity"));
@@ -193,7 +190,7 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_translate_y_percent",
 				      obs_module_text("LoLPerformanceDashboard.TranslateYPercent"), -200, 200, 1);
 	obs_properties_add_color_alpha(camera_properties, "lol_dashboard.camera_background_color",
-				      obs_module_text("LoLPerformanceDashboard.CameraBackgroundColor"));
+				       obs_module_text("LoLPerformanceDashboard.CameraBackgroundColor"));
 
 	auto *cover = obs_properties_add_group(properties, "lol_dashboard.minimap_cover",
 					       obs_module_text("LoLPerformanceDashboard.MinimapCover"),
@@ -202,8 +199,9 @@ obs_properties_t *properties(void *data)
 	auto *show_cover = obs_properties_add_bool(cover_properties, "lol_dashboard.show_minimap_cover",
 						   obs_module_text("LoLPerformanceDashboard.ShowMinimapCover"));
 	obs_property_set_modified_callback(show_cover, minimap_cover_changed);
-	auto *use_custom_cover = obs_properties_add_bool(cover_properties, "lol_dashboard.use_custom_minimap_cover",
-						      obs_module_text("LoLPerformanceDashboard.UseCustomMinimapCover"));
+	auto *use_custom_cover =
+		obs_properties_add_bool(cover_properties, "lol_dashboard.use_custom_minimap_cover",
+					obs_module_text("LoLPerformanceDashboard.UseCustomMinimapCover"));
 	obs_property_set_modified_callback(use_custom_cover, minimap_cover_changed);
 	obs_properties_add_path(cover_properties, "lol_dashboard.minimap_cover_path",
 				obs_module_text("LoLPerformanceDashboard.MinimapCoverImage"), OBS_PATH_FILE,

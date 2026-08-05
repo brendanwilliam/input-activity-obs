@@ -12,6 +12,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <algorithm>
+#include <deque>
 #include <optional>
 #include <obs-module.h>
 
@@ -59,7 +60,7 @@ public:
 		export_directory_ = QString::fromUtf8(obs_data_get_string(settings, directory_key));
 		page_ = QString::fromUtf8(obs_data_get_string(settings, page_key));
 		normalize_average_ = obs_data_get_bool(settings, normalize_key);
-		series_ = QString::fromUtf8(obs_data_get_string(settings, series_key));
+		series_ = "level";
 		event_categories_ = QString::fromUtf8(obs_data_get_string(settings, events_key));
 		dpi_ = int(obs_data_get_int(settings, dpi_key));
 		collector_.set_dpi(dpi_);
@@ -201,16 +202,25 @@ private:
 		const auto last = report->samples.isEmpty() ? lol_game_report::stat_sample{} : report->samples.last();
 		if (page == "performance") {
 			int actions{};
-			double distance{}, max_velocity{};
+			double distance{}, max_velocity{}, rolling_distance{};
+			std::deque<double> velocity_samples;
 			for (const auto &sample : report->input_samples) {
 				actions += sample.actions;
 				distance += sample.mouse_distance_pixels;
-				max_velocity = std::max(max_velocity, sample.max_velocity_pixels_per_second);
+				velocity_samples.push_back(sample.mouse_distance_pixels);
+				rolling_distance += sample.mouse_distance_pixels;
+				if (velocity_samples.size() > 3) {
+					rolling_distance -= velocity_samples.front();
+					velocity_samples.pop_front();
+				}
+				max_velocity = std::max(max_velocity, rolling_distance / velocity_samples.size());
 			}
 			text({120, 395, 1600, 75}, 42,
 			     QString("%1 actions  •  %2 px estimated mouse distance").arg(actions).arg(int(distance)));
 			text({120, 485, 1600, 50}, 25,
-			     QString("DPI snapshot: %1   Max velocity: %2 px/s").arg(report->dpi).arg(int(max_velocity)),
+			     QString("DPI snapshot: %1   Peak 3-second velocity: %2 px/s")
+				     .arg(report->dpi)
+				     .arg(int(max_velocity)),
 			     QColor("#b9c7d9"));
 			painter.setPen(Qt::NoPen);
 			QVector<uint64_t> dwell_values;
@@ -253,9 +263,7 @@ private:
 		if (page == "game") {
 			QVector<double> values;
 			for (const auto &sample : report->samples)
-				values.append(series == "cs"     ? sample.cs
-					      : series == "gold" ? sample.estimated_gold
-								 : sample.level);
+				values.append(sample.level);
 			const auto normalized = lol_game_report::normalized_series(values, average_normalization);
 			const int point_count = int(normalized.size());
 			const int divisor = std::max(1, point_count - 1);
@@ -284,14 +292,14 @@ private:
 			     QColor("#b9c7d9"));
 			return image;
 		}
+		const bool has_match_data = report->enrichment["riot_match_v5"].toBool();
 		text({120, 385, 1500, 80}, 50,
-		     QString("%1 / %2 / %3").arg(last.kills).arg(last.deaths).arg(last.assists), QColor("#ffffff"));
+		     has_match_data ? QString("%1 / %2 / %3").arg(last.kills).arg(last.deaths).arg(last.assists)
+				    : "Combat and economy data pending Riot enrichment.",
+		     QColor("#ffffff"));
 		text({120, 475, 1500, 45}, 24,
-		     QString("CS %1   Level %2   Current gold %3   Ward score %4")
-			     .arg(last.cs)
-			     .arg(last.level)
-			     .arg(last.gold)
-			     .arg(last.ward_score),
+		     QString("Level %1   •   Local level samples are saved only when the level changes.")
+			     .arg(last.level),
 		     QColor("#b9c7d9"));
 		text({120, 580, 1600, 45}, 26, "Insights", QColor("#8fc8ff"));
 		int y = 645;

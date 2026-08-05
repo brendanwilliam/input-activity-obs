@@ -28,7 +28,7 @@ int main()
 	input.hexbins = {{2, 3, 250}, {4, 5, 1000}};
 	assert(from_json(QJsonDocument(to_json(input)).object(), recovered));
 	assert(recovered.id == input.id && recovered.samples.size() == 2);
-	assert(recovered.schema_version == 3 && recovered.hex_geometry.radius_percent == 7);
+	assert(recovered.schema_version == 4 && recovered.hex_geometry.radius_percent == 7);
 	assert(recovered.hex_geometry.frame_aspect_ratio == 1.6 && recovered.hexbins.size() == 2 &&
 	       recovered.hexbins.last().dwell_ms == 1000);
 	assert(classify_event("TurretKilled") == "tower");
@@ -44,7 +44,7 @@ int main()
 	legacy["heatmap"] = QJsonArray{QJsonObject{{"x", 5}, {"y", 4}, {"count", 24}}};
 	legacy.remove("champion");
 	assert(from_json(legacy, recovered));
-	assert(recovered.schema_version == 3 && recovered.champion.isEmpty());
+	assert(recovered.schema_version == 4 && recovered.champion.isEmpty());
 	assert(recovered.hexbin_estimated && recovered.hexbins.size() == 1 && recovered.hexbins.first().dwell_ms == 24);
 	const hex_grid grid{1.6, 4};
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).column == 3);
@@ -94,6 +94,11 @@ int main()
 	assert(ability_icon_filename(ability_metadata, "Ahri", 'X').isEmpty());
 	input_telemetry telemetry;
 	telemetry.set_game_frame({1000, 100, 1000, 500});
+	QVector<input_sample> timed_samples;
+	telemetry.advance(1000000000ULL, 60, timed_samples);
+	telemetry.advance(2000000000ULL, 61, timed_samples);
+	assert(timed_samples.size() == 2 && timed_samples[0].seconds == 60 && timed_samples[1].seconds == 61);
+	telemetry.reset();
 	QVector<input_sample> input_samples;
 	QVector<hexbin> hexbins;
 	std::vector<input_data::trace_event> input_events{
@@ -109,7 +114,6 @@ int main()
 	assert(input_samples.size() == 2);
 	assert(input_samples[0].actions == 2 && input_samples[1].actions == 0);
 	assert(input_samples[1].mouse_distance_pixels == 400.0);
-	assert(input_samples[1].max_velocity_pixels_per_second == 400.0);
 	assert(hexbins.size() == 1 && hexbins.first().dwell_ms == dwell_gap_limit_ms);
 	QJsonObject missing_image_metadata = ability_metadata;
 	data = missing_image_metadata.value("data").toObject();

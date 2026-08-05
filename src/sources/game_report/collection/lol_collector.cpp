@@ -38,6 +38,7 @@
 
 extern "C" {
 #include <util/bmem.h>
+#include <util/platform.h>
 }
 
 namespace sources::lol_game_report {
@@ -51,7 +52,7 @@ public:
 		manager_ = new QNetworkAccessManager(this);
 		timer_ = new QTimer(this);
 		QObject::connect(timer_, &QTimer::timeout, this, [this] { poll(); });
-		timer_->start(2000);
+		timer_->start(1000);
 		poll();
 	}
 	void stop()
@@ -174,10 +175,17 @@ private:
 		if (pending_)
 			return;
 		diagnostics_.write("collector", "poll_started");
-		pending_ = 7;
 		batch_ = {};
-		for (const QString &endpoint : {"activeplayer", "activeplayerscores", "activeplayeritems",
-						"activeplayerrunes", "eventdata", "gamestats", "playerlist"})
+		QStringList endpoints{"activeplayer", "activeplayerscores", "gamestats"};
+		if (!active_ || poll_count_ % 2 == 0)
+			endpoints.append("eventdata");
+		if (!active_ || poll_count_ % 5 == 0)
+			endpoints.append("activeplayeritems");
+		if (!active_ || !runes_captured_)
+			endpoints.append("activeplayerrunes");
+		++poll_count_;
+		pending_ = endpoints.size();
+		for (const QString &endpoint : endpoints)
 			get(endpoint, [this, endpoint](const QJsonObject &object) {
 				batch_[endpoint] = object;
 				if (--pending_ == 0)
@@ -220,46 +228,45 @@ private:
 		report_.map = game.value("mapName").toString();
 		report_.duration_seconds = int(std::floor(game.value("gameTime").toDouble()));
 		last_game_seconds_ = report_.duration_seconds;
+		telemetry_.advance(os_gettime_ns(), last_game_seconds_, report_.input_samples);
 		if (last_logged_game_seconds_ != last_game_seconds_) {
 			diagnostics_.write("collector", "game_clock_changed",
 					   {{"game_seconds", last_game_seconds_},
 					    {"clock_aligned", last_game_seconds_ > 0}});
 			last_logged_game_seconds_ = last_game_seconds_;
 		}
-		const QJsonObject scores = batch_.value("activeplayerscores").toObject();
-		stat_sample sample;
-		sample.seconds = int(std::floor(game.value("gameTime").toDouble()));
-		sample.kills = scores.value("kills").toInt();
-		sample.deaths = scores.value("deaths").toInt();
-		sample.assists = scores.value("assists").toInt();
-		sample.cs = scores.value("creepScore").toInt();
-		sample.ward_score = scores.value("wardScore").toInt();
-		sample.level = scores.value("level").toInt();
-		sample.gold = scores.value("currentGold").toInt();
-		report_.samples.append(sample);
-		report_.items.clear();
-		const auto items = batch_.value("activeplayeritems").toObject().value("items").toArray();
-		QStringList current_items;
-		for (const QJsonValue item : items)
-			current_items.append(item.toObject().value("displayName").toString());
-		for (const auto &item : current_items)
-			if (!last_items_.contains(item) && !item.isEmpty())
-				report_.item_events.append({item, 0, sample.seconds});
-		report_.items = current_items;
-		last_items_ = current_items;
+		const int sample_seconds = int(std::floor(game.value("gameTime").toDouble()));
+		const int level = batch_.value("activeplayerscores").toObject().value("level").toInt();
+		if (level > 0 && (report_.samples.isEmpty() || report_.samples.last().level != level))
+			report_.samples.append({sample_seconds, 0, 0, 0, 0, level});
+		if (batch_.contains("activeplayeritems")) {
+			const auto items = batch_.value("activeplayeritems").toObject().value("items").toArray();
+			QStringList current_items;
+			for (const QJsonValue item : items)
+				current_items.append(item.toObject().value("displayName").toString());
+			for (const auto &item : current_items)
+				if (!last_items_.contains(item) && !item.isEmpty())
+					report_.item_events.append({item, 0, sample_seconds});
+			report_.items = current_items;
+			last_items_ = current_items;
+		}
 		const auto abilities = name.value("abilities").toObject();
 		for (const QString &slot : {"Q", "W", "E", "R"}) {
 			const auto ability = abilities.value(slot).toObject();
 			const int level = ability.value("abilityLevel").toInt();
 			if (level > ability_levels_.value(slot)) {
-				report_.abilities.append({slot, level, sample.seconds});
+				report_.abilities.append({slot, level, sample_seconds});
 				ability_levels_[slot] = level;
 			}
 		}
-		report_.runes.clear();
-		const auto runes = batch_.value("activeplayerrunes").toObject();
-		if (!runes.value("keystone").toObject().value("displayName").toString().isEmpty())
-			report_.runes.append(runes.value("keystone").toObject().value("displayName").toString());
+		if (batch_.contains("activeplayerrunes")) {
+			const auto runes = batch_.value("activeplayerrunes").toObject();
+			const QString keystone = runes.value("keystone").toObject().value("displayName").toString();
+			if (!keystone.isEmpty()) {
+				report_.runes = {keystone};
+				runes_captured_ = true;
+			}
+		}
 		const auto events = batch_.value("eventdata").toObject().value("Events").toArray();
 		for (const QJsonValue item : events) {
 			const auto event = item.toObject();
@@ -326,6 +333,7 @@ private:
 		seen_.clear();
 		last_items_.clear();
 		ability_levels_.clear();
+		runes_captured_ = false;
 		telemetry_.reset();
 		last_logged_game_seconds_ = -1;
 		state_ = collection_state::empty;
@@ -344,6 +352,8 @@ private:
 	QStringList player_aliases_;
 	QStringList last_items_;
 	QHash<QString, int> ability_levels_;
+	uint64_t poll_count_{};
+	bool runes_captured_{};
 	int pending_dpi_{800}, pending_hex_radius_percent_{default_hex_radius_percent}, last_game_seconds_{};
 	QRect pending_game_frame_{0, 0, 1920, 1080};
 	input_telemetry telemetry_;

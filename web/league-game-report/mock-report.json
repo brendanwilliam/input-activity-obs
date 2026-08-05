@@ -25,14 +25,14 @@
     { "seconds": 1876, "kills": 12, "deaths": 3, "assists": 16, "cs": 276, "level": 18, "estimated_gold": 21150 }
   ],
   "input_samples": [
-    { "seconds": 60, "actions": 2.6, "mouse_distance_pixels": 14320, "max_velocity_pixels_per_second": 1010 },
-    { "seconds": 360, "actions": 3.2, "mouse_distance_pixels": 21840, "max_velocity_pixels_per_second": 1240 },
-    { "seconds": 660, "actions": 3.9, "mouse_distance_pixels": 26700, "max_velocity_pixels_per_second": 1450 },
-    { "seconds": 960, "actions": 4.1, "mouse_distance_pixels": 29190, "max_velocity_pixels_per_second": 1580 },
-    { "seconds": 1260, "actions": 3.7, "mouse_distance_pixels": 24220, "max_velocity_pixels_per_second": 1360 },
-    { "seconds": 1560, "actions": 4.4, "mouse_distance_pixels": 31560, "max_velocity_pixels_per_second": 1760 }
+    { "seconds": 60, "actions": 2, "mouse_distance_pixels": 420 },
+    { "seconds": 61, "actions": 3, "mouse_distance_pixels": 510 },
+    { "seconds": 62, "actions": 4, "mouse_distance_pixels": 600 },
+    { "seconds": 63, "actions": 4, "mouse_distance_pixels": 570 },
+    { "seconds": 64, "actions": 3, "mouse_distance_pixels": 490 },
+    { "seconds": 65, "actions": 5, "mouse_distance_pixels": 620 }
   ],
-  "schema_version": 3,
+  "schema_version": 4,
   "hex_radius_percent": 4,
   "frame_aspect_ratio": 1.7777778,
   "hexbins": [{ "column": 2, "row": 2, "dwell_ms": 2400 }, { "column": 6, "row": 5, "dwell_ms": 6100 }, { "column": 9, "row": 6, "dwell_ms": 7800 }, { "column": 12, "row": 9, "dwell_ms": 4200 }, { "column": 15, "row": 4, "dwell_ms": 3000 }],
