@@ -156,7 +156,7 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_bool(properties, "lol_dashboard.reset_at_game_start",
 				obs_module_text("LoLPerformanceDashboard.ResetAtGameStart"));
 	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
-				obs_module_text("LoLPerformanceDashboard.AlwaysVisible"));
+				obs_module_text("LoLPerformanceDashboard.DebugMode"));
 	auto *capture_switching = obs_properties_add_group(properties, "lol_dashboard.capture_switching",
 							   obs_module_text("LoLPerformanceDashboard.CaptureSwitching"),
 							   OBS_GROUP_NORMAL, obs_properties_create());
