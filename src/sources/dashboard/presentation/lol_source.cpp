@@ -155,6 +155,7 @@ public:
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_y_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.within_element_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.intensity_padding")), 0, 500),
 			  dashboard_font_style(settings, "labels"),
 			  dashboard_font_style(settings, "numbers"),
 			  dashboard_font_style(settings, "number_labels"),

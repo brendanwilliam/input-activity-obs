@@ -252,11 +252,11 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 {
 	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
-	constexpr int intensity_gap = 200;
-	const int card_width = std::max(1, (section.width() - intensity_gap) / 2);
+	const int intensity_padding = std::min(style_.intensity_padding, std::max(0, (section.width() - 2) / 3));
+	const int card_width = std::max(1, (section.width() - 3 * intensity_padding) / 2);
 	for (int metric = 0; metric < 2; ++metric) {
-		const QRect card(section.left() + metric * (card_width + intensity_gap), section.top(), card_width,
-				 section.height());
+		const QRect card(section.left() + intensity_padding + metric * (card_width + intensity_padding),
+				 section.top(), card_width, section.height());
 		const QRect content = card.adjusted(style_.element_padding, style_.element_padding,
 						    -style_.element_padding, -style_.element_padding);
 		if (content.width() < 1 || content.height() < 1)

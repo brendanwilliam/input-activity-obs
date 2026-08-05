@@ -126,6 +126,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.element_x_gap", 10);
 	obs_data_set_default_int(settings, "lol_dashboard.element_y_gap", 10);
 	obs_data_set_default_int(settings, "lol_dashboard.within_element_gap", 10);
+	obs_data_set_default_int(settings, "lol_dashboard.intensity_padding", 120);
 	for (const auto &[role, family, size] :
 	     std::initializer_list<std::tuple<const char *, const char *, int>>{{"labels", "Science Gothic", 22},
 										{"numbers", "Inter", 30},
@@ -279,7 +280,9 @@ obs_properties_t *properties(void *data)
 		     {"lol_dashboard.element_y_gap", "LoLPerformanceDashboard.ElementYGap",
 		      "LoLPerformanceDashboard.ElementYGap.Tooltip"},
 		     {"lol_dashboard.within_element_gap", "LoLPerformanceDashboard.WithinElementGap",
-		      "LoLPerformanceDashboard.WithinElementGap.Tooltip"}}) {
+		      "LoLPerformanceDashboard.WithinElementGap.Tooltip"},
+		     {"lol_dashboard.intensity_padding", "LoLPerformanceDashboard.IntensityPadding",
+		      "LoLPerformanceDashboard.IntensityPadding.Tooltip"}}) {
 		auto *property =
 			obs_properties_add_int_slider(spacing_properties, key, obs_module_text(label), 0, 100, 1);
 		obs_property_set_long_description(property, obs_module_text(description));

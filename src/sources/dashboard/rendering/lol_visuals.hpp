@@ -53,6 +53,7 @@ struct lol_dashboard_style {
 	int element_x_gap{10};
 	int element_y_gap{10};
 	int within_element_gap{10};
+	int intensity_padding{120};
 	lol_dashboard_font_style labels{};
 	lol_dashboard_font_style numbers{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
 	lol_dashboard_font_style number_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
