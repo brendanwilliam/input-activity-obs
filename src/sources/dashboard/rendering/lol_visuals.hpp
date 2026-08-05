@@ -36,23 +36,27 @@ struct lol_dashboard_regions {
 	bool mouse_activity{true};
 };
 
-// The dashboard has one style shared by every HUD section. Camera and minimap
-// placement deliberately live in lol_layout and are not affected by this style.
+struct lol_dashboard_font_style {
+	QString family{"Science Gothic"};
+	float optical_size{22.0F};
+	float weight{700.0F};
+	float width{100.0F};
+	float slant{0.0F};
+	int size{22};
+};
+
+// Camera and minimap placement deliberately live in lol_layout and are not
+// affected by this HUD style.
 struct lol_dashboard_style {
 	int section_padding{20};
 	int element_padding{20};
 	int element_x_gap{10};
 	int element_y_gap{10};
 	int within_element_gap{10};
-	QString font_family{"Science Gothic"};
-	float optical_size{22.0F};
-	float weight{700.0F};
-	float width{100.0F};
-	float slant{0.0F};
-	int label_size{22};
-	int number_size{30};
-	int number_label_size{18};
-	int button_label_size{30};
+	lol_dashboard_font_style labels{};
+	lol_dashboard_font_style numbers{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
+	lol_dashboard_font_style number_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
+	lol_dashboard_font_style button_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
 };
 
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);

@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- LoL Performance Dashboard typography now provides independent font family, variable-axis, and size controls for labels, numbers, number-labels, and button-labels. Its intensity headings are localized correctly, and zero section padding reaches the available HUD edges.
 - League Game Report now persists a configurable game-frame-relative hexbin layout and mouse dwell time; older movement-count reports are clearly labelled as approximations.
 - LoL Performance Dashboard now resets its statistics automatically when a new League game begins; the enabled-by-default setting can be turned off for uninterrupted manual sessions.
 - League Game Report now scopes performance telemetry and heatmaps to the configured League game frame, reports press-based actions with real per-second velocity, and labels preliminary game-end gold and team data as pending until Riot enrichment completes.

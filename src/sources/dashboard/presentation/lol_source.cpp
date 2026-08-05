@@ -39,6 +39,17 @@ QRect qrect(const lol_dashboard_rect &rect)
 	return {rect.x(), rect.y(), rect.width(), rect.height()};
 }
 
+lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *role)
+{
+	const std::string prefix = std::string("lol_dashboard.typography.") + role;
+	return {QString::fromUtf8(obs_data_get_string(settings, (prefix + ".family").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".optical_size").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".weight").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".width").c_str())),
+		float(obs_data_get_double(settings, (prefix + ".slant").c_str())),
+		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100)};
+}
+
 class dashboard_source {
 public:
 	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source)
@@ -144,15 +155,10 @@ public:
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_y_gap")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.within_element_gap")), 0, 100),
-			  QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.font_family")),
-			  float(obs_data_get_double(settings, "lol_dashboard.font_optical_size")),
-			  float(obs_data_get_double(settings, "lol_dashboard.font_weight")),
-			  float(obs_data_get_double(settings, "lol_dashboard.font_width")),
-			  float(obs_data_get_double(settings, "lol_dashboard.font_slant")),
-			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.label_size")), 8, 100),
-			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.number_size")), 8, 100),
-			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.number_label_size")), 8, 100),
-			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.button_label_size")), 8, 100)};
+			  dashboard_font_style(settings, "labels"),
+			  dashboard_font_style(settings, "numbers"),
+			  dashboard_font_style(settings, "number_labels"),
+			  dashboard_font_style(settings, "button_labels")};
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};

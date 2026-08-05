@@ -31,12 +31,12 @@ void ensure_dashboard_fonts_registered()
 	Q_UNUSED(registered);
 }
 
-QFont dashboard_font(const lol_dashboard_style &style, int size, QFont::Weight weight = QFont::Normal)
+QFont dashboard_font(const lol_dashboard_font_style &style, QFont::Weight weight = QFont::Normal)
 {
-	QFont font(style.font_family, size, weight);
+	QFont font(style.family, style.size, weight);
 	font.setVariableAxis(QFont::Tag("opsz"), style.optical_size);
 	font.setVariableAxis(QFont::Tag("wght"), style.weight);
-	if (style.font_family == "Science Gothic") {
+	if (style.family == "Science Gothic") {
 		font.setVariableAxis(QFont::Tag("wdth"), style.width);
 		font.setVariableAxis(QFont::Tag("slnt"), style.slant);
 	}
@@ -216,9 +216,9 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 	painter.setPen(Qt::white);
 	const QRect content = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
-	painter.setFont(dashboard_font(style_, style_.number_label_size, QFont::Bold));
-	const int label_height = style_.number_label_size + style_.within_element_gap;
-	const int value_height = style_.number_size + style_.within_element_gap;
+	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+	const int label_height = style_.number_labels.size + style_.within_element_gap;
+	const int value_height = style_.numbers.size + style_.within_element_gap;
 	int top = content.top() + style_.element_padding;
 	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
 	lol_dashboard_draw_shadowed_text(painter,
@@ -226,7 +226,7 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 					       content.width() - 2 * style_.element_padding, label_height),
 					 alignment, obs_module_text("MouseActivity.Distance"));
 	top += label_height;
-	painter.setFont(dashboard_font(style_, style_.number_size, QFont::Bold));
+	painter.setFont(dashboard_font(style_.numbers, QFont::Bold));
 	painter.setPen(theme_.active);
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left() + style_.element_padding, top,
@@ -234,13 +234,13 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 					 alignment, distance_label());
 	top += value_height + style_.element_y_gap;
 	painter.setPen(Qt::white);
-	painter.setFont(dashboard_font(style_, style_.number_label_size, QFont::Bold));
+	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left() + style_.element_padding, top,
 					       content.width() - 2 * style_.element_padding, label_height),
 					 alignment, obs_module_text("MouseActivity.Clicks"));
 	top += label_height;
-	painter.setFont(dashboard_font(style_, style_.number_size, QFont::Bold));
+	painter.setFont(dashboard_font(style_.numbers, QFont::Bold));
 	painter.setPen(theme_.active);
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left() + style_.element_padding, top,
@@ -281,29 +281,30 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.setPen(QPen(theme_.active, 3));
 		painter.drawLine(x(current), y - 13, x(current), y + 13);
 		painter.setPen(Qt::white);
-		painter.setFont(dashboard_font(style_, style_.number_label_size));
+		painter.setFont(dashboard_font(style_.number_labels));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left() + style_.element_padding, y + 14,
 						       card.width() - 2 * style_.element_padding,
-						       style_.number_label_size),
+						       style_.number_labels.size),
 						 Qt::AlignLeft, QString::number(min, 'f', min < 10 ? 1 : 0));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left() + style_.element_padding, y + 14,
 						       card.width() - 2 * style_.element_padding,
-						       style_.number_label_size),
+						       style_.number_labels.size),
 						 Qt::AlignRight, QString::number(max, 'f', max < 10 ? 1 : 0));
-		painter.setFont(dashboard_font(style_, style_.label_size, QFont::Bold));
-		lol_dashboard_draw_shadowed_text(
-			painter, QRect(card.left(), y + 14 + style_.number_label_size, card.width(), style_.label_size),
-			Qt::AlignHCenter,
-			obs_module_text(metric ? "LoLPerformanceDashboard.APM"
-					       : "LoLPerformanceDashboard.MouseVelocity"));
-		painter.setFont(dashboard_font(style_, style_.number_size, QFont::Bold));
+		painter.setFont(dashboard_font(style_.labels, QFont::Bold));
+		lol_dashboard_draw_shadowed_text(painter,
+						 QRect(card.left(), y + 14 + style_.number_labels.size, card.width(),
+						       style_.labels.size),
+						 Qt::AlignHCenter,
+						 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
+									: "LoLPerformanceDashboard.MouseVelocity"));
+		painter.setFont(dashboard_font(style_.numbers, QFont::Bold));
 		painter.setPen(theme_.active);
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left(),
-						       y + 14 + style_.number_label_size + style_.label_size,
-						       card.width(), style_.number_size),
+						       y + 14 + style_.number_labels.size + style_.labels.size,
+						       card.width(), style_.numbers.size),
 						 Qt::AlignHCenter, QString::number(current, 'f', current < 10 ? 1 : 0));
 	}
 }

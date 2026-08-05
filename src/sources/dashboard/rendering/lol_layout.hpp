@@ -63,6 +63,7 @@ struct lol_dashboard_panels {
 
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
-						    const lol_dashboard_image_layout &minimap_cover);
+						    const lol_dashboard_image_layout &minimap_cover,
+						    int hud_padding = 20);
 
 } // namespace sources
