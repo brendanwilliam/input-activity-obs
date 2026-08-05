@@ -35,7 +35,7 @@ QJsonArray strings_json(const QStringList &values)
 
 QJsonObject to_json(const report &v)
 {
-	QJsonArray samples, events, abilities, item_events, input, heatmap, chapters;
+	QJsonArray samples, events, abilities, item_events, input, hexbins, chapters;
 	for (const auto &s : v.samples)
 		samples.append(sample_json(s));
 	for (const auto &e : v.events)
@@ -53,13 +53,13 @@ QJsonObject to_json(const report &v)
 					 {"actions", i.actions},
 					 {"mouse_distance_pixels", i.mouse_distance_pixels},
 					 {"max_velocity_pixels_per_second", i.max_velocity_pixels_per_second}});
-	for (const auto &h : v.heatmap)
-		heatmap.append(QJsonObject{{"x", h.x}, {"y", h.y}, {"count", h.count}});
+	for (const auto &h : v.hexbins)
+		hexbins.append(QJsonObject{{"column", h.column}, {"row", h.row}, {"dwell_ms", double(h.dwell_ms)}});
 	for (const auto &c : v.chapters)
 		chapters.append(QJsonObject{{"start_seconds", c.start_seconds},
 					    {"end_seconds", c.end_seconds},
 					    {"summary", c.summary}});
-	return {{"schema_version", 2},
+	return {{"schema_version", 3},
 		{"id", v.id},
 		{"completed_at", v.completed_at.toUTC().toString(Qt::ISODateWithMs)},
 		{"player", v.player},
@@ -81,7 +81,10 @@ QJsonObject to_json(const report &v)
 		{"abilities", abilities},
 		{"item_events", item_events},
 		{"input_samples", input},
-		{"heatmap", heatmap},
+		{"hex_radius_percent", v.hex_geometry.radius_percent},
+		{"frame_aspect_ratio", v.hex_geometry.frame_aspect_ratio},
+		{"hexbins", hexbins},
+		{"hexbin_estimated", v.hexbin_estimated},
 		{"dpi", v.dpi},
 		{"assets", v.assets},
 		{"chapters", chapters},
@@ -91,7 +94,7 @@ QJsonObject to_json(const report &v)
 bool from_json(const QJsonObject &o, report &v)
 {
 	const int version = o["schema_version"].toInt();
-	if ((version != 1 && version != 2) || o["id"].toString().isEmpty())
+	if ((version < 1 || version > 3) || o["id"].toString().isEmpty())
 		return false;
 	v = {};
 	v.schema_version = version;
@@ -137,9 +140,25 @@ bool from_json(const QJsonObject &o, report &v)
 					i["mouse_distance_pixels"].toDouble(),
 					i["max_velocity_pixels_per_second"].toDouble()});
 	}
-	for (const auto x : o["heatmap"].toArray()) {
-		const auto h = x.toObject();
-		v.heatmap.append({h["x"].toInt(), h["y"].toInt(), h["count"].toInt()});
+	if (version == 3) {
+		v.hex_geometry.radius_percent =
+			std::clamp(o["hex_radius_percent"].toInt(default_hex_radius_percent), 1, 20);
+		v.hex_geometry.frame_aspect_ratio = std::max(0.01, o["frame_aspect_ratio"].toDouble(16.0 / 9.0));
+		v.hexbin_estimated = o["hexbin_estimated"].toBool();
+		for (const auto x : o["hexbins"].toArray()) {
+			const auto h = x.toObject();
+			v.hexbins.append({h["column"].toInt(), h["row"].toInt(), uint64_t(h["dwell_ms"].toDouble())});
+		}
+	} else {
+		v.hexbin_estimated = true;
+		for (const auto x : o["heatmap"].toArray()) {
+			const auto h = x.toObject();
+			const QPointF point((h["x"].toInt() + 0.5) * 100.0 / 30.0,
+					    (h["y"].toInt() + 0.5) * canonical_height(v.hex_geometry) / 17.0);
+			add_hex_dwell(v.hexbins, nearest_hex(v.hex_geometry, point),
+				      uint64_t(std::max(0, h["count"].toInt())));
+		}
+		v.schema_version = 3;
 	}
 	for (const auto x : o["chapters"].toArray()) {
 		const auto c = x.toObject();

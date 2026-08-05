@@ -67,6 +67,11 @@ public:
 			return;
 		pending_dpi_ = std::clamp(dpi, 100, 32000);
 	}
+	void set_hex_radius_percent(int radius_percent)
+	{
+		if (!active_)
+			pending_hex_radius_percent_ = std::clamp(radius_percent, 1, 20);
+	}
 	void set_auto_open(bool enabled) { auto_open_ = enabled; }
 	void set_development_logs(bool enabled)
 	{
@@ -97,7 +102,7 @@ public:
 						  [](double total, const auto &sample) {
 							  return total + sample.mouse_distance_pixels;
 						  });
-		telemetry_.consume(events, seconds, report_.input_samples, report_.heatmap);
+		telemetry_.consume(events, seconds, report_.input_samples, report_.hexbins);
 		const double after_distance = std::accumulate(
 			report_.input_samples.cbegin(), report_.input_samples.cend(), 0.0,
 			[](double total, const auto &sample) { return total + sample.mouse_distance_pixels; });
@@ -200,8 +205,12 @@ private:
 			report_.player = player;
 			report_.champion = name.value("championName").toString();
 			report_.dpi = pending_dpi_;
+			report_.hex_geometry.radius_percent = pending_hex_radius_percent_;
+			report_.hex_geometry.frame_aspect_ratio =
+				double(pending_game_frame_.width()) / std::max(1, pending_game_frame_.height());
 			player_aliases_ = {riot_id, game_name, name.value("summonerName").toString()};
 			telemetry_.set_game_frame(pending_game_frame_);
+			telemetry_.set_hex_radius_percent(report_.hex_geometry.radius_percent);
 			telemetry_.reset();
 			state_ = collection_state::recording;
 			diagnostics_.write("collector", "report_started", {{"has_riot_id", !riot_id.isEmpty()}});
@@ -335,7 +344,7 @@ private:
 	QStringList player_aliases_;
 	QStringList last_items_;
 	QHash<QString, int> ability_levels_;
-	int pending_dpi_{800}, last_game_seconds_{};
+	int pending_dpi_{800}, pending_hex_radius_percent_{default_hex_radius_percent}, last_game_seconds_{};
 	QRect pending_game_frame_{0, 0, 1920, 1080};
 	input_telemetry telemetry_;
 	bool auto_open_{true};
@@ -379,6 +388,12 @@ struct shared_collector {
 	void set_dpi(int dpi)
 	{
 		QMetaObject::invokeMethod(worker, [this, dpi] { worker->set_dpi(dpi); }, Qt::QueuedConnection);
+	}
+	void set_hex_radius_percent(int radius_percent)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, radius_percent] { worker->set_hex_radius_percent(radius_percent); },
+			Qt::QueuedConnection);
 	}
 	void set_game_frame(const QRect &frame)
 	{
@@ -464,13 +479,18 @@ void collector::set_dpi(int dpi)
 {
 	shared().set_dpi(dpi);
 }
+void collector::set_hex_radius_percent(int radius_percent)
+{
+	shared().set_hex_radius_percent(radius_percent);
+}
 void collector::set_game_frame(const QRect &frame)
 {
 	shared().set_game_frame(frame);
 }
-void collector::tick(int dpi)
+void collector::tick(int dpi, int hex_radius_percent)
 {
 	set_dpi(dpi);
+	set_hex_radius_percent(hex_radius_percent);
 	if (!uiohook::league_game_is_frontmost()) {
 		discard_backlog_ = true;
 		return;

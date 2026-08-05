@@ -30,6 +30,7 @@ constexpr const char *normalize_key = "lol_game_report.normalize_average";
 constexpr const char *series_key = "lol_game_report.chart_series";
 constexpr const char *events_key = "lol_game_report.event_categories";
 constexpr const char *dpi_key = "lol_game_report.mouse_dpi";
+constexpr const char *hex_radius_key = "lol_game_report.hex_radius_percent";
 constexpr const char *auto_open_key = "lol_game_report.auto_open";
 constexpr const char *development_logs_key = "lol_game_report.development_logs";
 constexpr const char *game_cfg_key = "lol_game_report.game_cfg";
@@ -62,6 +63,8 @@ public:
 		event_categories_ = QString::fromUtf8(obs_data_get_string(settings, events_key));
 		dpi_ = int(obs_data_get_int(settings, dpi_key));
 		collector_.set_dpi(dpi_);
+		hex_radius_percent_ = int(obs_data_get_int(settings, hex_radius_key));
+		collector_.set_hex_radius_percent(hex_radius_percent_);
 		game_cfg_path_ = QString::fromUtf8(obs_data_get_string(settings, game_cfg_key));
 		frame_left_ = int(obs_data_get_int(settings, frame_left_key));
 		frame_top_ = int(obs_data_get_int(settings, frame_top_key));
@@ -85,7 +88,7 @@ public:
 		gs_draw_sprite(texture_, 0, 1920, 1080);
 		gs_blend_state_pop();
 	}
-	void tick() { collector_.tick(dpi_); }
+	void tick() { collector_.tick(dpi_, hex_radius_percent_); }
 	bool export_selected()
 	{
 		const auto report = selected_report();
@@ -210,11 +213,38 @@ private:
 			     QString("DPI snapshot: %1   Max velocity: %2 px/s").arg(report->dpi).arg(int(max_velocity)),
 			     QColor("#b9c7d9"));
 			painter.setPen(Qt::NoPen);
-			for (const auto &bin : report->heatmap) {
-				const int alpha = std::min(220, 30 + bin.count * 20);
-				painter.setBrush(QColor(80, 190, 255, alpha));
-				painter.drawEllipse(180 + bin.x * 12, 600 + bin.y * 12, 18, 18);
+			QVector<uint64_t> dwell_values;
+			for (const auto &bin : report->hexbins)
+				dwell_values.append(bin.dwell_ms);
+			std::sort(dwell_values.begin(), dwell_values.end());
+			const QRectF frame(180, 580, 1260, 1260 / report->hex_geometry.frame_aspect_ratio);
+			for (const auto &bin : report->hexbins) {
+				const auto center =
+					lol_game_report::hex_center(report->hex_geometry, bin.column, bin.row);
+				const double scale = frame.width() / 100.0;
+				const double radius = report->hex_geometry.radius_percent * scale;
+				const int rank =
+					int(std::upper_bound(dwell_values.cbegin(), dwell_values.cend(), bin.dwell_ms) -
+					    dwell_values.cbegin()) -
+					1;
+				const int band =
+					dwell_values.isEmpty() ? 0 : std::min(3, 4 * rank / int(dwell_values.size()));
+				static const QColor colors[] = {QColor("#3b82f6"), QColor("#06b6d4"), QColor("#facc15"),
+								QColor("#ef4444")};
+				QPolygonF polygon;
+				for (int n = 0; n != 6; ++n) {
+					const double angle = M_PI / 6.0 + n * M_PI / 3.0;
+					polygon << QPointF(frame.left() + center.x() * scale + radius * std::cos(angle),
+							   frame.top() + center.y() * scale + radius * std::sin(angle));
+				}
+				painter.setBrush(colors[band]);
+				painter.drawPolygon(polygon);
 			}
+			text({120, 920, 1600, 36}, 18,
+			     report->hexbin_estimated ? "Legacy movement-density approximation"
+						      : QString("Mouse dwell time · %1% frame-width hex radius")
+								.arg(report->hex_geometry.radius_percent),
+			     QColor("#b9c7d9"));
 			text({120, 990, 1600, 36}, 16,
 			     "Mouse metrics are estimates from display-coordinate movement. Data stays on this device.",
 			     QColor("#8492a5"));
@@ -282,6 +312,7 @@ private:
 		event_categories_{"kill,objective,tower,level"};
 	bool normalize_average_{};
 	int dpi_{800};
+	int hex_radius_percent_{lol_game_report::default_hex_radius_percent};
 	QString game_cfg_path_;
 	int frame_left_{}, frame_top_{};
 	QString riot_status_{"Riot enrichment has not run."};
@@ -340,6 +371,7 @@ obs_properties_t *properties(void *data)
 	obs_properties_add_text(general, events_key, obs_module_text("LoLGameReport.EventCategories"),
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
+	obs_properties_add_int(general, hex_radius_key, obs_module_text("LoLGameReport.HexSize"), 1, 20, 1);
 	obs_properties_add_path(general, game_cfg_key, obs_module_text("LeagueSafeArea.GameCfg"), OBS_PATH_FILE,
 				"League game.cfg (game.cfg)", nullptr);
 	obs_properties_add_int(general, frame_left_key, obs_module_text("LoLPerformanceDashboard.Left"), -32768, 32767,
@@ -401,6 +433,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, series_key, "gold");
 	obs_data_set_default_string(settings, events_key, "kill,objective,tower,level");
 	obs_data_set_default_int(settings, dpi_key, 800);
+	obs_data_set_default_int(settings, hex_radius_key, lol_game_report::default_hex_radius_percent);
 	obs_data_set_default_int(settings, frame_left_key, 0);
 	obs_data_set_default_int(settings, frame_top_key, 0);
 	obs_data_set_default_bool(settings, auto_open_key, true);

@@ -2,6 +2,7 @@
 #include "sources/lol_game_report_ddragon.hpp"
 #include "sources/lol_game_report_diagnostics.hpp"
 #include "sources/lol_report_input_telemetry.hpp"
+#include "sources/lol_report_hexbin.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -23,9 +24,13 @@ int main()
 	assert(!input.chapters.first().summary.contains("victory", Qt::CaseInsensitive));
 	assert(!input.chapters.first().summary.contains("decisive", Qt::CaseInsensitive));
 	report recovered;
+	input.hex_geometry = {1.6, 7};
+	input.hexbins = {{2, 3, 250}, {4, 5, 1000}};
 	assert(from_json(QJsonDocument(to_json(input)).object(), recovered));
 	assert(recovered.id == input.id && recovered.samples.size() == 2);
-	assert(recovered.schema_version == 2);
+	assert(recovered.schema_version == 3 && recovered.hex_geometry.radius_percent == 7);
+	assert(recovered.hex_geometry.frame_aspect_ratio == 1.6 && recovered.hexbins.size() == 2 &&
+	       recovered.hexbins.last().dwell_ms == 1000);
 	assert(classify_event("TurretKilled") == "tower");
 	assert(classify_event("DragonKill") == "objective");
 	const auto normalized = normalized_series({2.0, 4.0}, false);
@@ -35,9 +40,16 @@ int main()
 	assert(classify_event("RiftScuttlerKill") == "objective");
 	QJsonObject legacy = to_json(input);
 	legacy["schema_version"] = 1;
+	legacy.remove("hexbins");
+	legacy["heatmap"] = QJsonArray{QJsonObject{{"x", 5}, {"y", 4}, {"count", 24}}};
 	legacy.remove("champion");
 	assert(from_json(legacy, recovered));
-	assert(recovered.schema_version == 1 && recovered.champion.isEmpty());
+	assert(recovered.schema_version == 3 && recovered.champion.isEmpty());
+	assert(recovered.hexbin_estimated && recovered.hexbins.size() == 1 && recovered.hexbins.first().dwell_ms == 24);
+	const hex_grid grid{1.6, 4};
+	assert(nearest_hex(grid, hex_center(grid, 3, 2)).column == 3);
+	assert(nearest_hex(grid, hex_center(grid, 3, 2)).row == 2);
+	(void)grid;
 	QJsonObject raw_event{{"EventName", "ChampionKill"},
 			      {"KillerName", "Self"},
 			      {"VictimName", "Other"},
@@ -83,7 +95,7 @@ int main()
 	input_telemetry telemetry;
 	telemetry.set_game_frame({1000, 100, 1000, 500});
 	QVector<input_sample> input_samples;
-	QVector<heatmap_bin> heatmap;
+	QVector<hexbin> hexbins;
 	std::vector<input_data::trace_event> input_events{
 		{1, 1000000000ULL, EVENT_KEY_PRESSED, 12},
 		{2, 1100000000ULL, EVENT_KEY_RELEASED, 12},
@@ -93,13 +105,12 @@ int main()
 		{6, 2400000000ULL, EVENT_MOUSE_MOVED, 0, 500, 200},
 		{7, 2500000000ULL, EVENT_MOUSE_MOVED, 0, 1600, 200},
 	};
-	telemetry.consume(input_events, 60, input_samples, heatmap);
+	telemetry.consume(input_events, 60, input_samples, hexbins);
 	assert(input_samples.size() == 2);
 	assert(input_samples[0].actions == 2 && input_samples[1].actions == 0);
 	assert(input_samples[1].mouse_distance_pixels == 400.0);
 	assert(input_samples[1].max_velocity_pixels_per_second == 400.0);
-	assert(heatmap.size() == 3);
-	assert(heatmap[0].x == 3 && heatmap[0].y == 3);
+	assert(hexbins.size() == 1 && hexbins.first().dwell_ms == dwell_gap_limit_ms);
 	QJsonObject missing_image_metadata = ability_metadata;
 	data = missing_image_metadata.value("data").toObject();
 	champion = data.value("Ahri").toObject();

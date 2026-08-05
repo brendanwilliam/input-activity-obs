@@ -5,6 +5,8 @@
 #include <QString>
 #include <QVector>
 
+#include "lol_report_hexbin.hpp"
+
 namespace sources::lol_game_report {
 
 struct stat_sample {
@@ -55,7 +57,7 @@ struct chapter {
 };
 
 struct report {
-	int schema_version{2};
+	int schema_version{3};
 	QString id;
 	QDateTime completed_at;
 	QString player;
@@ -78,6 +80,9 @@ struct report {
 	QVector<item_event> item_events;
 	QVector<input_sample> input_samples;
 	QVector<heatmap_bin> heatmap;
+	hex_grid hex_geometry;
+	QVector<hexbin> hexbins;
+	bool hexbin_estimated{};
 	int dpi{800};
 	QJsonObject assets;
 	QVector<chapter> chapters;
