@@ -72,6 +72,8 @@ target_sources(
     src/sources/dashboard/presentation/lol_properties.inc
     src/sources/dashboard/rendering/lol_layout.hpp
     src/sources/dashboard/rendering/lol_layout.cpp
+    src/sources/dashboard/rendering/lol_key_labels.hpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
     src/sources/dashboard/presentation/lol_source.hpp
     src/sources/dashboard/presentation/lol_source.cpp
     src/sources/dashboard/rendering/lol_visuals.hpp
@@ -139,6 +141,15 @@ if(BUILD_TESTING)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
   add_test(NAME league-safe-area-layout COMMAND league-safe-area-layout-test)
   add_executable(
+    dashboard-key-labels-test
+    tests/dashboard_key_labels_test.cpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
+  )
+  target_link_libraries(dashboard-key-labels-test PRIVATE Qt6::Core)
+  target_include_directories(dashboard-key-labels-test PRIVATE src deps/libuiohook/include)
+  target_compile_features(dashboard-key-labels-test PRIVATE cxx_std_17)
+  add_test(NAME dashboard-key-labels COMMAND dashboard-key-labels-test)
+  add_executable(
     lol-game-report-test
     tests/lol_game_report_test.cpp
     src/sources/game_report/data/lol_types.cpp
@@ -152,6 +163,8 @@ if(BUILD_TESTING)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
   if(APPLE)
+    target_link_options(dashboard-key-labels-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(dashboard-key-labels-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()

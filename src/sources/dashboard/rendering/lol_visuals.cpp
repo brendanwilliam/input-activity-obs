@@ -1,7 +1,9 @@
 #include "sources/dashboard/rendering/lol_visuals.hpp"
+#include "sources/dashboard/rendering/lol_key_labels.hpp"
 
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QPolygonF>
 #include <algorithm>
@@ -41,6 +43,16 @@ QFont display_font(int size, QFont::Weight weight = QFont::Normal)
 QFont data_font(int size, QFont::Weight weight = QFont::Normal)
 {
 	return {"Inter", size, weight};
+}
+
+QFont fitting_display_font(const QString &text, int width)
+{
+	for (int size = title_size; size >= 12; --size) {
+		const QFont font = display_font(size, QFont::Bold);
+		if (QFontMetrics(font).horizontalAdvance(text) <= width)
+			return font;
+	}
+	return display_font(12, QFont::Bold);
 }
 } // namespace
 
@@ -164,53 +176,7 @@ size_t lol_dashboard_visuals::nearest_hex(const QPointF &point) const
 }
 QString lol_dashboard_visuals::key_label(uint16_t code) const
 {
-	if (code >= VC_A && code <= VC_Z)
-		return QString(QChar('A' + code - VC_A));
-	if (code >= VC_0 && code <= VC_9)
-		return QString(QChar('0' + code - VC_0));
-	if (code >= VC_F1 && code <= VC_F12)
-		return QString("F%1").arg(code - VC_F1 + 1);
-	switch (code) {
-	case VC_SPACE:
-		return "␣";
-	case VC_SHIFT_L:
-	case VC_SHIFT_R:
-		return "⇧";
-	case VC_CONTROL_L:
-	case VC_CONTROL_R:
-		return "⌃";
-	case VC_ALT_L:
-	case VC_ALT_R:
-		return "⌥";
-	case VC_TAB:
-		return "⇥";
-	case VC_ENTER:
-		return "↵";
-	case VC_ESCAPE:
-		return "⎋";
-	case VC_MINUS:
-		return "-";
-	case VC_EQUALS:
-		return "=";
-	case VC_OPEN_BRACKET:
-		return "[";
-	case VC_CLOSE_BRACKET:
-		return "]";
-	case VC_SEMICOLON:
-		return ";";
-	case VC_QUOTE:
-		return "'";
-	case VC_COMMA:
-		return ",";
-	case VC_PERIOD:
-		return ".";
-	case VC_SLASH:
-		return "/";
-	case VC_BACK_QUOTE:
-		return "`";
-	default:
-		return "?";
-	}
+	return lol_dashboard_key_label(code);
 }
 QString lol_dashboard_visuals::distance_label() const
 {
@@ -325,12 +291,12 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
 						 Qt::AlignRight, QString::number(max, 'f', max < 10 ? 1 : 0));
-		painter.setFont(display_font(title_size, QFont::Bold));
+		const QString label = obs_module_text(metric ? "LoLPerformanceDashboard.APM"
+							     : "LoLPerformanceDashboard.MouseVelocity");
+		painter.setFont(fitting_display_font(label, std::max(1, card.width() - 12)));
 		lol_dashboard_draw_shadowed_text(painter,
 						 QRect(card.left(), y + 14 + subtitle_size, card.width(), title_size),
-						 Qt::AlignHCenter,
-						 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
-									: "LoLPerformanceDashboard.MouseVelocity"));
+						 Qt::AlignHCenter, label);
 		painter.setFont(data_font(text_size, QFont::Bold));
 		painter.setPen(theme_.active);
 		lol_dashboard_draw_shadowed_text(
