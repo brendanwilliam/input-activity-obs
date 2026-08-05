@@ -1,6 +1,8 @@
 #include "sources/dashboard/detection/lol_game_start_watcher.hpp"
 #include "sources/dashboard/rendering/lol_layout.hpp"
+#include "sources/dashboard/rendering/lol_key_labels.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
+#include "input/keycodes.h"
 
 #include <cmath>
 #include <string>
@@ -27,6 +29,13 @@ bool require(bool value)
 int main()
 {
 	sources::lol_game_start_detector starts;
+	if (!require(sources::lol_dashboard_key_label(VC_UP) == "↑") ||
+	    !require(sources::lol_dashboard_key_label(VC_DOWN) == "↓") ||
+	    !require(sources::lol_dashboard_key_label(VC_LEFT) == "←") ||
+	    !require(sources::lol_dashboard_key_label(VC_RIGHT) == "→") ||
+	    !require(sources::lol_dashboard_key_label(VC_META_L) == "⌘") ||
+	    !require(sources::lol_dashboard_key_label(VC_META_R) == "⌘"))
+		return 1;
 	if (!require(starts.observe(true) == 0) || !require(starts.observe(false) == 0) ||
 	    !require(starts.observe(true) == 1) || !require(starts.observe(true) == 1) ||
 	    !require(starts.observe(false) == 1) || !require(starts.observe(true) == 2))

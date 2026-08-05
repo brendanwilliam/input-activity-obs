@@ -76,6 +76,8 @@ target_sources(
     src/sources/dashboard/presentation/lol_source.cpp
     src/sources/dashboard/rendering/lol_visuals.hpp
     src/sources/dashboard/rendering/lol_visuals.cpp
+    src/sources/dashboard/rendering/lol_key_labels.hpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
     src/sources/dashboard/rendering/lol_heatmap.cpp
     src/sources/dashboard/rendering/lol_keys.inc
     src/sources/game_report/collection/lol_collector.hpp
@@ -134,8 +136,10 @@ if(BUILD_TESTING)
     tests/league_safe_area_layout_test.cpp
     src/sources/hud_layout/lol_layout.cpp
     src/sources/dashboard/rendering/lol_layout.cpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
   )
-  target_include_directories(league-safe-area-layout-test PRIVATE src)
+  target_link_libraries(league-safe-area-layout-test PRIVATE Qt6::Core)
+  target_include_directories(league-safe-area-layout-test PRIVATE src deps/libuiohook/include)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
   add_test(NAME league-safe-area-layout COMMAND league-safe-area-layout-test)
   add_executable(
@@ -152,7 +156,9 @@ if(BUILD_TESTING)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
   if(APPLE)
+    target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()
 endif()

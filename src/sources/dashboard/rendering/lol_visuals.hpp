@@ -36,6 +36,25 @@ struct lol_dashboard_regions {
 	bool mouse_activity{true};
 };
 
+// The dashboard has one style shared by every HUD section. Camera and minimap
+// placement deliberately live in lol_layout and are not affected by this style.
+struct lol_dashboard_style {
+	int section_padding{20};
+	int element_padding{20};
+	int element_x_gap{10};
+	int element_y_gap{10};
+	int within_element_gap{10};
+	QString font_family{"Science Gothic"};
+	float optical_size{22.0F};
+	float weight{700.0F};
+	float width{100.0F};
+	float slant{0.0F};
+	int label_size{22};
+	int number_size{30};
+	int number_label_size{18};
+	int button_label_size{30};
+};
+
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
@@ -44,7 +63,7 @@ class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
 		       const lol_dashboard_regions &regions, int rolling_window_seconds, const QRect &game_frame,
-		       const QRect &heatmap_bounds);
+		       const QRect &heatmap_bounds, const lol_dashboard_style &style);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void reset();
@@ -70,12 +89,12 @@ private:
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds) const;
 	QString distance_label() const;
-	QString key_label(uint16_t code) const;
 	size_t nearest_hex(const QPointF &point) const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
 	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_style style_;
 	QRect game_frame_{0, 0, 1920, 1080}, heatmap_bounds_;
 	std::vector<hex_bin> hex_bins_;
 	std::optional<QPointF> last_heat_point_;

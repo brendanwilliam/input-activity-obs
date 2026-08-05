@@ -139,6 +139,20 @@ public:
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_middle"))),
 			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high"))),
 			    qreal(std::clamp(int(obs_data_get_int(settings, "lol_dashboard.hex_size")), 2, 100))};
+		style_ = {std::clamp(int(obs_data_get_int(settings, "lol_dashboard.section_padding")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_padding")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_y_gap")), 0, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.within_element_gap")), 0, 100),
+			  QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.font_family")),
+			  float(obs_data_get_double(settings, "lol_dashboard.font_optical_size")),
+			  float(obs_data_get_double(settings, "lol_dashboard.font_weight")),
+			  float(obs_data_get_double(settings, "lol_dashboard.font_width")),
+			  float(obs_data_get_double(settings, "lol_dashboard.font_slant")),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.label_size")), 8, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.number_size")), 8, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.number_label_size")), 8, 100),
+			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.button_label_size")), 8, 100)};
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
@@ -163,7 +177,10 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap));
+		const QRect heatmap_bounds = qrect(panels.heatmap)
+						     .adjusted(style_.section_padding, style_.section_padding,
+							       -style_.section_padding, -style_.section_padding);
+		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, heatmap_bounds, style_);
 		if (!game_is_frontmost) {
 			discard_backlog_ = true;
 			return;
@@ -312,6 +329,7 @@ private:
 	lol_dashboard_theme theme_;
 	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_style style_;
 	lol_dashboard_game_start_watcher game_start_watcher_;
 	uint64_t game_start_cursor_{};
 	QImage minimap_cover_;

@@ -56,6 +56,14 @@ bool minimap_cover_changed(obs_properties_t *props, obs_property_t *, obs_data_t
 		obs_property_set_visible(obs_properties_get(props, name), custom_image);
 	return true;
 }
+bool typography_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const bool science_gothic = std::string(obs_data_get_string(settings, "lol_dashboard.font_family")) ==
+				     "Science Gothic";
+	for (const char *name : {"lol_dashboard.font_width", "lol_dashboard.font_slant"})
+		obs_property_set_visible(obs_properties_get(props, name), science_gothic);
+	return true;
+}
 
 struct camera_option_context {
 	obs_source_t *dashboard;
@@ -107,6 +115,20 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
 	obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
 	obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
+	obs_data_set_default_int(settings, "lol_dashboard.section_padding", 20);
+	obs_data_set_default_int(settings, "lol_dashboard.element_padding", 20);
+	obs_data_set_default_int(settings, "lol_dashboard.element_x_gap", 10);
+	obs_data_set_default_int(settings, "lol_dashboard.element_y_gap", 10);
+	obs_data_set_default_int(settings, "lol_dashboard.within_element_gap", 10);
+	obs_data_set_default_string(settings, "lol_dashboard.font_family", "Science Gothic");
+	obs_data_set_default_double(settings, "lol_dashboard.font_optical_size", 22.0);
+	obs_data_set_default_double(settings, "lol_dashboard.font_weight", 700.0);
+	obs_data_set_default_double(settings, "lol_dashboard.font_width", 100.0);
+	obs_data_set_default_double(settings, "lol_dashboard.font_slant", 0.0);
+	obs_data_set_default_int(settings, "lol_dashboard.label_size", 22);
+	obs_data_set_default_int(settings, "lol_dashboard.number_size", 30);
+	obs_data_set_default_int(settings, "lol_dashboard.number_label_size", 18);
+	obs_data_set_default_int(settings, "lol_dashboard.button_label_size", 30);
 }
 
 obs_properties_t *properties(void *data)
@@ -231,6 +253,61 @@ obs_properties_t *properties(void *data)
 				       obs_module_text("Activity.ActiveColor"));
 	obs_properties_add_color_alpha(theme_properties, "activity.background_color",
 				       obs_module_text("Activity.BackgroundColor"));
+	auto *spacing = obs_properties_add_group(properties, "lol_dashboard.spacing",
+					 obs_module_text("LoLPerformanceDashboard.Spacing"), OBS_GROUP_NORMAL,
+					 obs_properties_create());
+	auto *spacing_properties = obs_property_group_content(spacing);
+	for (const auto &[key, label, description] :
+	     std::initializer_list<std::tuple<const char *, const char *, const char *>>{
+		     {"lol_dashboard.section_padding", "LoLPerformanceDashboard.SectionPadding",
+		      "LoLPerformanceDashboard.SectionPadding.Tooltip"},
+		     {"lol_dashboard.element_padding", "LoLPerformanceDashboard.ElementPadding",
+		      "LoLPerformanceDashboard.ElementPadding.Tooltip"},
+		     {"lol_dashboard.element_x_gap", "LoLPerformanceDashboard.ElementXGap",
+		      "LoLPerformanceDashboard.ElementXGap.Tooltip"},
+		     {"lol_dashboard.element_y_gap", "LoLPerformanceDashboard.ElementYGap",
+		      "LoLPerformanceDashboard.ElementYGap.Tooltip"},
+		     {"lol_dashboard.within_element_gap", "LoLPerformanceDashboard.WithinElementGap",
+		      "LoLPerformanceDashboard.WithinElementGap.Tooltip"}}) {
+		auto *property = obs_properties_add_int_slider(spacing_properties, key, obs_module_text(label), 0, 100, 1);
+		obs_property_set_long_description(property, obs_module_text(description));
+	}
+	auto *typography = obs_properties_add_group(properties, "lol_dashboard.typography",
+					    obs_module_text("LoLPerformanceDashboard.Typography"), OBS_GROUP_NORMAL,
+					    obs_properties_create());
+	auto *typography_properties = obs_property_group_content(typography);
+	auto *family = obs_properties_add_list(typography_properties, "lol_dashboard.font_family",
+					       obs_module_text("LoLPerformanceDashboard.FontFamily"), OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(family, "Science Gothic", "Science Gothic");
+	obs_property_list_add_string(family, "Inter", "Inter");
+	obs_property_set_long_description(family, obs_module_text("LoLPerformanceDashboard.FontFamily.Tooltip"));
+	obs_property_set_modified_callback(family, typography_changed);
+	for (const auto &[key, label, description, minimum, maximum] :
+	     std::initializer_list<std::tuple<const char *, const char *, const char *, double, double>>{
+		     {"lol_dashboard.font_optical_size", "LoLPerformanceDashboard.FontOpticalSize",
+		      "LoLPerformanceDashboard.FontOpticalSize.Tooltip", 8, 144},
+		     {"lol_dashboard.font_weight", "LoLPerformanceDashboard.FontWeight",
+		      "LoLPerformanceDashboard.FontWeight.Tooltip", 100, 900},
+		     {"lol_dashboard.font_width", "LoLPerformanceDashboard.FontWidth",
+		      "LoLPerformanceDashboard.FontWidth.Tooltip", 50, 200},
+		     {"lol_dashboard.font_slant", "LoLPerformanceDashboard.FontSlant",
+		      "LoLPerformanceDashboard.FontSlant.Tooltip", -20, 20}}) {
+		auto *property = obs_properties_add_float_slider(typography_properties, key, obs_module_text(label), minimum,
+								 maximum, 1.0);
+		obs_property_set_long_description(property, obs_module_text(description));
+	}
+	for (const auto &[key, label, description] :
+	     std::initializer_list<std::tuple<const char *, const char *, const char *>>{
+		     {"lol_dashboard.label_size", "LoLPerformanceDashboard.LabelSize", "LoLPerformanceDashboard.LabelSize.Tooltip"},
+		     {"lol_dashboard.number_size", "LoLPerformanceDashboard.NumberSize", "LoLPerformanceDashboard.NumberSize.Tooltip"},
+		     {"lol_dashboard.number_label_size", "LoLPerformanceDashboard.NumberLabelSize",
+		      "LoLPerformanceDashboard.NumberLabelSize.Tooltip"},
+		     {"lol_dashboard.button_label_size", "LoLPerformanceDashboard.ButtonLabelSize",
+		      "LoLPerformanceDashboard.ButtonLabelSize.Tooltip"}}) {
+		auto *property = obs_properties_add_int_slider(typography_properties, key, obs_module_text(label), 8, 100, 1);
+		obs_property_set_long_description(property, obs_module_text(description));
+	}
 	auto *heatmap = obs_properties_add_group(properties, "lol_dashboard.heatmap",
 						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_GROUP_NORMAL,
 						 obs_properties_create());
@@ -257,6 +334,7 @@ obs_properties_t *properties(void *data)
 		heatmap_gradient_changed(heatmap_properties, nullptr, settings);
 		camera_changed(camera_properties, nullptr, settings);
 		minimap_cover_changed(cover_properties, nullptr, settings);
+		typography_changed(typography_properties, nullptr, settings);
 		obs_data_release(settings);
 	}
 	obs_property_set_visible(frame, data && static_cast<dashboard_source *>(data)->uses_advanced_positioning());
