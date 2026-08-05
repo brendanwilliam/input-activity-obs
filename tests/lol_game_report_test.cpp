@@ -3,6 +3,7 @@
 #include "sources/game_report/data/lol_diagnostics.hpp"
 #include "sources/game_report/data/lol_types.hpp"
 #include "sources/game_report/integration/lol_ddragon.hpp"
+#include "sources/game_report/presentation/lol_web_assets.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -52,6 +53,12 @@ int main()
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).row == 2);
 	const auto cells = sources::lol_heatmap::visible_cells(grid);
 	assert(!cells.isEmpty() && cells.first().column == 0 && cells.first().row == 0);
+	const QByteArray &report_script = web_assets::script();
+	if (!report_script.contains("frame_aspect_ratio || 16 / 9))} / 1") ||
+	    !report_script.contains("const columns = Math.ceil(width / hexWidth) + 1") ||
+	    !report_script.contains("const x = hexWidth * (column + offset)") ||
+	    !report_script.contains(", y = radius * (1 + 1.5 * row)"))
+		return 1;
 	(void)grid;
 	QJsonObject raw_event{{"EventName", "ChampionKill"},
 			      {"KillerName", "Self"},

@@ -155,6 +155,7 @@ if(BUILD_TESTING)
     src/sources/game_report/collection/lol_input_telemetry.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
     src/sources/game_report/integration/lol_ddragon.cpp
+    src/sources/game_report/presentation/lol_web_assets.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)

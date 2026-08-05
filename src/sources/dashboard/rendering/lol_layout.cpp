@@ -49,6 +49,16 @@ lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, do
 	return result;
 }
 
+lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect)
+{
+	if (bounds.isEmpty() || aspect <= 0.0)
+		return {};
+	lol_dashboard_rect result = fit(bounds, aspect, 1.0);
+	result.moveLeft(bounds.left());
+	result.moveTop(bounds.top() + (bounds.height() - result.height()) / 2);
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
 						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)
