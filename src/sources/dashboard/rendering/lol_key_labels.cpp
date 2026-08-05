@@ -22,6 +22,8 @@ QString lol_dashboard_key_label(uint16_t code)
 		return "→";
 	case VC_SPACE:
 		return "␣";
+	case VC_BACKSPACE:
+		return "⌫";
 	case VC_SHIFT_L:
 	case VC_SHIFT_R:
 		return "⇧";

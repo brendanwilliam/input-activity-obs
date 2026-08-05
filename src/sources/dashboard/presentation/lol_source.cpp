@@ -39,7 +39,6 @@ QRect qrect(const lol_dashboard_rect &rect)
 {
 	return {rect.x(), rect.y(), rect.width(), rect.height()};
 }
-
 lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *role)
 {
 	const std::string prefix = std::string("lol_dashboard.typography.") + role;
@@ -48,7 +47,8 @@ lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *
 		float(obs_data_get_double(settings, (prefix + ".weight").c_str())),
 		float(obs_data_get_double(settings, (prefix + ".width").c_str())),
 		float(obs_data_get_double(settings, (prefix + ".slant").c_str())),
-		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100)};
+		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100),
+		obs_data_get_bool(settings, (prefix + ".all_caps").c_str())};
 }
 
 class dashboard_source {

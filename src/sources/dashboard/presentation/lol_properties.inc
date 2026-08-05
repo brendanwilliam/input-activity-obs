@@ -145,6 +145,7 @@ void defaults(obs_data_t *settings)
 		obs_data_set_default_double(settings, (prefix + ".width").c_str(), 100.0);
 		obs_data_set_default_double(settings, (prefix + ".slant").c_str(), 0.0);
 		obs_data_set_default_int(settings, (prefix + ".size").c_str(), size);
+		obs_data_set_default_bool(settings, (prefix + ".all_caps").c_str(), false);
 	}
 }
 
@@ -321,6 +322,8 @@ obs_properties_t *properties(void *data)
 			     {"slant", "LoLPerformanceDashboard.FontSlant", -20, 20}})
 			obs_properties_add_float_slider(group_properties, (prefix + "." + axis).c_str(),
 							obs_module_text(label), minimum, maximum, 1.0);
+		obs_properties_add_bool(group_properties, (prefix + ".all_caps").c_str(),
+					obs_module_text("LoLPerformanceDashboard.AllCaps"));
 		obs_properties_add_int_slider(group_properties, (prefix + ".size").c_str(),
 					      obs_module_text("LoLPerformanceDashboard.FontSize"), 8, 100, 1);
 	}

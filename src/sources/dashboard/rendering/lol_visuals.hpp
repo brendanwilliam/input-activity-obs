@@ -44,6 +44,7 @@ struct lol_dashboard_font_style {
 	float width{100.0F};
 	float slant{0.0F};
 	int size{22};
+	bool all_caps{false};
 };
 
 // Camera and minimap placement deliberately live in lol_layout and are not
