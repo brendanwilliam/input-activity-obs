@@ -1,8 +1,8 @@
-#include "sources/lol_game_report_types.hpp"
-#include "sources/lol_game_report_ddragon.hpp"
-#include "sources/lol_game_report_diagnostics.hpp"
-#include "sources/lol_report_input_telemetry.hpp"
-#include "sources/lol_report_hexbin.hpp"
+#include "sources/game_report/lol_game_report_ddragon.hpp"
+#include "sources/game_report/lol_game_report_diagnostics.hpp"
+#include "sources/game_report/lol_game_report_types.hpp"
+#include "sources/game_report/lol_report_hexbin.hpp"
+#include "sources/game_report/lol_report_input_telemetry.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>

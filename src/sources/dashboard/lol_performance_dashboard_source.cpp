@@ -1,12 +1,12 @@
-#include "activity_sources.hpp"
-#include "../hook/uiohook_helper.hpp"
-#include "../input/input_broker.hpp"
-#include "league_safe_area_layout.hpp"
+#include "../../hook/uiohook_helper.hpp"
+#include "../../input/input_broker.hpp"
+#include "../league/league_safe_area_layout.hpp"
 #include "league_capture_switcher.hpp"
 #include "lol_dashboard_game_config_watcher.hpp"
 #include "lol_dashboard_game_start_watcher.hpp"
 #include "lol_performance_dashboard_camera_visibility.hpp"
 #include "lol_performance_dashboard_layout.hpp"
+#include "lol_performance_dashboard_source.hpp"
 #include "lol_performance_dashboard_visuals.hpp"
 #include <QDir>
 #include <QFile>

@@ -6,8 +6,8 @@
 #include "lol_game_report_store.hpp"
 #include "lol_game_report_web.hpp"
 
-#include "../hook/uiohook_helper.hpp"
-#include "../input/input_broker.hpp"
+#include "../../hook/uiohook_helper.hpp"
+#include "../../input/input_broker.hpp"
 
 #include <QDateTime>
 #include <QElapsedTimer>

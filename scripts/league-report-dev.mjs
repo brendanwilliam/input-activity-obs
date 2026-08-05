@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const webRoot = resolve(root, 'web/league-game-report');
-const assetSource = resolve(root, 'src/sources/lol_game_report_web_assets.cpp');
+const assetSource = resolve(root, 'src/sources/game_report/lol_game_report_web_assets.cpp');
 const files = {
   html: resolve(webRoot, 'index.html'),
   css: resolve(webRoot, 'recap.css'),

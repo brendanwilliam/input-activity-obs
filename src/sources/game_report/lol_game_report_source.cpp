@@ -3,7 +3,7 @@
 #include "lol_game_report_collector.hpp"
 #include "lol_game_report_riot_api.hpp"
 #include "lol_game_report_store.hpp"
-#include "league_safe_area_layout.hpp"
+#include "../league/league_safe_area_layout.hpp"
 
 #include <QBuffer>
 #include <QDir>
