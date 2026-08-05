@@ -64,6 +64,8 @@ struct lol_dashboard_style {
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
+QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
+					   const lol_dashboard_style &style);
 
 class lol_dashboard_visuals {
 public:
@@ -92,7 +94,6 @@ private:
 	void advance(uint64_t now);
 	void resize_heatmap(const QRect &bounds);
 	void on_event(const input_data::trace_event &event);
-	QRect heatmap_content_bounds(const QRect &bounds) const;
 	void draw_heatmap(QPainter &painter, const QRect &bounds) const;
 	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;

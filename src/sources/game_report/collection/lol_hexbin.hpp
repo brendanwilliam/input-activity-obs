@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sources/heatmap/lol_geometry.hpp"
+
 #include <QPointF>
 #include <QVector>
 
@@ -13,13 +15,10 @@ struct hexbin {
 	uint64_t dwell_ms{};
 };
 
-constexpr int default_hex_radius_percent = 4;
+constexpr double default_hex_radius_percent = lol_heatmap::default_radius_percent;
 constexpr uint64_t dwell_gap_limit_ms = 250;
 
-struct hex_grid {
-	double frame_aspect_ratio{16.0 / 9.0};
-	int radius_percent{default_hex_radius_percent};
-};
+using hex_grid = lol_heatmap::grid;
 
 double canonical_height(const hex_grid &grid);
 QPointF hex_center(const hex_grid &grid, int column, int row);

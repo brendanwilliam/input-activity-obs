@@ -7,6 +7,7 @@
 #include "sources/dashboard/rendering/lol_camera_visibility.hpp"
 #include "sources/dashboard/rendering/lol_layout.hpp"
 #include "sources/dashboard/rendering/lol_visuals.hpp"
+#include "sources/heatmap/lol_settings.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
 #include <QDir>
 #include <QFile>

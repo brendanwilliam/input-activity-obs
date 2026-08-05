@@ -67,10 +67,10 @@ public:
 			return;
 		pending_dpi_ = std::clamp(dpi, 100, 32000);
 	}
-	void set_hex_radius_percent(int radius_percent)
+	void set_hex_radius_percent(double radius_percent)
 	{
 		if (!active_)
-			pending_hex_radius_percent_ = std::clamp(radius_percent, 1, 20);
+			pending_hex_radius_percent_ = std::clamp(radius_percent, 0.1, 100.0);
 	}
 	void set_auto_open(bool enabled) { auto_open_ = enabled; }
 	void set_development_logs(bool enabled)
@@ -344,7 +344,8 @@ private:
 	QStringList player_aliases_;
 	QStringList last_items_;
 	QHash<QString, int> ability_levels_;
-	int pending_dpi_{800}, pending_hex_radius_percent_{default_hex_radius_percent}, last_game_seconds_{};
+	int pending_dpi_{800}, last_game_seconds_{};
+	double pending_hex_radius_percent_{default_hex_radius_percent};
 	QRect pending_game_frame_{0, 0, 1920, 1080};
 	input_telemetry telemetry_;
 	bool auto_open_{true};

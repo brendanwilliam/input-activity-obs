@@ -59,7 +59,7 @@ QJsonObject to_json(const report &v)
 		chapters.append(QJsonObject{{"start_seconds", c.start_seconds},
 					    {"end_seconds", c.end_seconds},
 					    {"summary", c.summary}});
-	return {{"schema_version", 3},
+	return {{"schema_version", 4},
 		{"id", v.id},
 		{"completed_at", v.completed_at.toUTC().toString(Qt::ISODateWithMs)},
 		{"player", v.player},
@@ -94,7 +94,7 @@ QJsonObject to_json(const report &v)
 bool from_json(const QJsonObject &o, report &v)
 {
 	const int version = o["schema_version"].toInt();
-	if ((version < 1 || version > 3) || o["id"].toString().isEmpty())
+	if ((version < 1 || version > 4) || o["id"].toString().isEmpty())
 		return false;
 	v = {};
 	v.schema_version = version;
@@ -140,9 +140,9 @@ bool from_json(const QJsonObject &o, report &v)
 					i["mouse_distance_pixels"].toDouble(),
 					i["max_velocity_pixels_per_second"].toDouble()});
 	}
-	if (version == 3) {
+	if (version >= 3) {
 		v.hex_geometry.radius_percent =
-			std::clamp(o["hex_radius_percent"].toInt(default_hex_radius_percent), 1, 20);
+			std::clamp(o["hex_radius_percent"].toDouble(default_hex_radius_percent), 0.1, 100.0);
 		v.hex_geometry.frame_aspect_ratio = std::max(0.01, o["frame_aspect_ratio"].toDouble(16.0 / 9.0));
 		v.hexbin_estimated = o["hexbin_estimated"].toBool();
 		for (const auto x : o["hexbins"].toArray()) {
@@ -154,11 +154,12 @@ bool from_json(const QJsonObject &o, report &v)
 		for (const auto x : o["heatmap"].toArray()) {
 			const auto h = x.toObject();
 			const QPointF point((h["x"].toInt() + 0.5) * 100.0 / 30.0,
-					    (h["y"].toInt() + 0.5) * canonical_height(v.hex_geometry) / 17.0);
+					    (h["y"].toInt() + 0.5) * lol_game_report::canonical_height(v.hex_geometry) /
+						    17.0);
 			add_hex_dwell(v.hexbins, nearest_hex(v.hex_geometry, point),
 				      uint64_t(std::max(0, h["count"].toInt())));
 		}
-		v.schema_version = 3;
+		v.schema_version = 4;
 	}
 	for (const auto x : o["chapters"].toArray()) {
 		const auto c = x.toObject();

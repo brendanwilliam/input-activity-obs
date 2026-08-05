@@ -32,6 +32,11 @@ bool heatmap_gradient_changed(obs_properties_t *props, obs_property_t *, obs_dat
 		obs_property_set_visible(obs_properties_get(props, name), custom);
 	return true;
 }
+bool heatmap_radius_changed(obs_properties_t *, obs_property_t *, obs_data_t *settings)
+{
+	lol_heatmap::set_radius_percent(obs_data_get_double(settings, "lol_dashboard.hex_radius_percent"));
+	return true;
+}
 bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool visible = obs_data_get_bool(settings, "lol_dashboard.show_camera");
@@ -121,6 +126,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
 	obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
 	obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
+	obs_data_set_default_double(settings, "lol_dashboard.hex_radius_percent", lol_heatmap::default_radius_percent);
 	obs_data_set_default_int(settings, "lol_dashboard.section_padding", 20);
 	obs_data_set_default_int(settings, "lol_dashboard.element_padding", 20);
 	obs_data_set_default_int(settings, "lol_dashboard.element_x_gap", 10);
@@ -336,10 +342,12 @@ obs_properties_t *properties(void *data)
 				       obs_module_text("MouseActivity.CustomGradientMiddle"));
 	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_high",
 				       obs_module_text("MouseActivity.CustomGradientHigh"));
-	obs_properties_add_int_slider(heatmap_properties, "lol_dashboard.hex_size",
-				      obs_module_text("MouseActivity.HexSize"), 2, 100, 1);
+	auto *radius = obs_properties_add_float_slider(heatmap_properties, "lol_dashboard.hex_radius_percent",
+						       obs_module_text("MouseActivity.HexSize"), 0.1, 20.0, 0.1);
+	obs_property_set_modified_callback(radius, heatmap_radius_changed);
 	if (data) {
 		auto *settings = obs_source_get_settings(static_cast<dashboard_source *>(data)->source());
+		obs_data_set_double(settings, "lol_dashboard.hex_radius_percent", lol_heatmap::radius_percent());
 		heatmap_gradient_changed(heatmap_properties, nullptr, settings);
 		camera_changed(camera_properties, nullptr, settings);
 		minimap_cover_changed(cover_properties, nullptr, settings);
