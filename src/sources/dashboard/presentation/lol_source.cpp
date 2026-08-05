@@ -69,7 +69,7 @@ public:
 		path_ = QString::fromUtf8(obs_data_get_string(settings, path_key));
 		game_config_watcher_.set_path(path_);
 		advanced_positioning_ = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
-		always_visible_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
+		debug_mode_ = obs_data_get_bool(settings, "lol_dashboard.always_visible");
 		auto_reset_at_game_start_ = obs_data_get_bool(settings, "lol_dashboard.reset_at_game_start");
 		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
 		client_capture_source_ = obs_data_get_string(settings, league_capture_switcher::client_source_key);
@@ -151,7 +151,7 @@ public:
 		const bool game_is_frontmost = uiohook::league_game_is_frontmost();
 		if (auto_reset_at_game_start_ && game_start_watcher_.consume_start(game_start_cursor_))
 			reset_statistics();
-		game_visible_ = always_visible_ || game_is_frontmost;
+		game_visible_ = debug_mode_ || game_is_frontmost;
 		camera_mode_visible_ = show_camera_;
 		league_capture_switcher::switch_captures(game_capture_source_, client_capture_source_,
 							 game_is_frontmost);
@@ -164,7 +164,7 @@ public:
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
 		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap));
-		if (!game_is_frontmost) {
+		if (!debug_mode_ && !game_is_frontmost) {
 			discard_backlog_ = true;
 			return;
 		}
@@ -298,7 +298,7 @@ private:
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	int window_{60};
-	bool advanced_positioning_{}, always_visible_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
+	bool advanced_positioning_{}, debug_mode_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
 		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{},
 		auto_reset_at_game_start_{true};
 	std::string game_capture_source_, client_capture_source_;
