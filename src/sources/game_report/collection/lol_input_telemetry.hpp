@@ -2,7 +2,7 @@
 
 #include "../data/lol_types.hpp"
 
-#include "../../input/input_data.hpp"
+#include "../../../input/input_data.hpp"
 
 #include <QRect>
 
