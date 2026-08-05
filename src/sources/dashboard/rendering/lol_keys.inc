@@ -64,13 +64,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	for (int index = 0; index < int(keys.size()); ++index) {
 		const int y = chart.top() + index * row_height;
 		const int text_height = std::min(style_.number_labels.size, std::max(1, row_height - 8));
-		const int lane_gap = style_.within_element_gap;
-		const int label_lane = std::max(1, chart.width() / 4);
-		const int count_lane = std::max(1, chart.width() / 4);
-		const int bar_lane = std::max(1, chart.width() - label_lane - count_lane - 2 * lane_gap);
-		const int bar = std::max(1, int(bar_lane * keys[index].count / max));
-		const int bar_left = right_aligned ? chart.left() + count_lane + lane_gap + bar_lane - bar
-						   : chart.left() + label_lane + lane_gap;
+		const int within_element_gap = style_.within_element_gap;
+		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
+		const int bar_left = right_aligned ? chart.right() - bar + 1 : chart.left();
 		const QRect bar_rect(bar_left, y + text_height + 2, bar, 12);
 		const auto pressed = held_.find(keys[index].code);
 		painter.setBrush(pressed != held_.end() && pressed->second ? theme_.active : theme_.inactive);
@@ -80,16 +76,32 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		auto chart_font = style_.number_labels;
 		chart_font.size = std::max(10, text_height);
 		painter.setFont(dashboard_font(chart_font));
-		const QRect label_rect(right_aligned ? chart.right() - label_lane + 1 : chart.left(), y, label_lane,
-				       text_height);
-		const QRect count_rect(right_aligned ? chart.left() : chart.right() - count_lane + 1, y, count_lane,
-				       text_height);
-		lol_dashboard_draw_shadowed_text(
-			painter, label_rect, (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
-			QFontMetrics(painter.font()).elidedText(keys[index].label, Qt::ElideRight, label_rect.width()));
-		lol_dashboard_draw_shadowed_text(
-			painter, count_rect, (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,
-			QFontMetrics(painter.font())
-				.elidedText(QString::number(keys[index].count), Qt::ElideLeft, count_rect.width()));
+		const QFontMetrics metrics(painter.font());
+		const QString count = QString::number(keys[index].count);
+		const int count_width = metrics.horizontalAdvance(count);
+		const bool count_outside =
+			metrics.horizontalAdvance(keys[index].label) + within_element_gap + count_width > bar;
+		const int label_width = count_outside ? std::max(0, chart.width() - within_element_gap - count_width)
+						      : std::max(0, bar - within_element_gap - count_width);
+		const QRect label_rect(right_aligned ? bar_rect.right() - label_width + 1 : bar_rect.left(), y,
+				       label_width, text_height);
+		const QRect count_rect =
+			count_outside
+				? (right_aligned ? QRect(bar_rect.right() - label_width - within_element_gap -
+								 count_width + 1,
+							 y, count_width, text_height)
+						 : QRect(bar_rect.left() + label_width + within_element_gap, y,
+							 count_width, text_height))
+				: (right_aligned
+					   ? QRect(bar_rect.left(), y, count_width, text_height)
+					   : QRect(bar_rect.right() - count_width + 1, y, count_width, text_height));
+		if (label_width > 0)
+			lol_dashboard_draw_shadowed_text(
+				painter, label_rect,
+				(right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
+				metrics.elidedText(keys[index].label, Qt::ElideRight, label_rect.width()));
+		lol_dashboard_draw_shadowed_text(painter, count_rect,
+						 (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,
+						 metrics.elidedText(count, Qt::ElideLeft, count_rect.width()));
 	}
 }
