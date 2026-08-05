@@ -15,9 +15,9 @@ public:
 	~collector();
 	collector(const collector &) = delete;
 	collection_state state() const;
-	void tick(int dpi, int hex_radius_percent);
+	void tick(int dpi, double hex_radius_percent);
 	void set_dpi(int dpi);
-	void set_hex_radius_percent(int radius_percent);
+	void set_hex_radius_percent(double radius_percent);
 	void set_game_frame(const QRect &frame);
 	void set_auto_open(bool enabled);
 	void set_development_logs(bool enabled);

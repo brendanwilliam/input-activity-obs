@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- LoL Performance Dashboard and League Game Report now share a frame-relative hexbin geometry, including a persisted fractional size setting, matched grid origin and dimensions, and correctly aligned full-grid report rendering.
 - LoL Performance Dashboard typography now provides independent font family, variable-axis, and size controls for labels, numbers, number-labels, and button-labels. Its intensity headings are localized correctly, zero section padding reaches the available HUD edges, and constrained intensity cards keep their text visible.
 - League Game Report now persists a configurable game-frame-relative hexbin layout and mouse dwell time; older movement-count reports are clearly labelled as approximations.
 - LoL Performance Dashboard now resets its statistics automatically when a new League game begins; the enabled-by-default setting can be turned off for uninterrupted manual sessions.

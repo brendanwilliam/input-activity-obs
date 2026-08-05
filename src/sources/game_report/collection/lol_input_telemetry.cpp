@@ -14,9 +14,9 @@ void input_telemetry::set_game_frame(const QRect &frame)
 	hex_grid_.frame_aspect_ratio = double(game_frame_.width()) / std::max(1, game_frame_.height());
 }
 
-void input_telemetry::set_hex_radius_percent(int radius_percent)
+void input_telemetry::set_hex_radius_percent(double radius_percent)
 {
-	hex_grid_.radius_percent = std::clamp(radius_percent, 1, 20);
+	hex_grid_.radius_percent = std::clamp(radius_percent, 0.1, 100.0);
 }
 
 void input_telemetry::reset()

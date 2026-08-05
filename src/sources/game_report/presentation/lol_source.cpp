@@ -3,10 +3,12 @@
 #include "sources/game_report/collection/lol_collector.hpp"
 #include "sources/game_report/data/lol_store.hpp"
 #include "sources/game_report/integration/lol_riot_api.hpp"
+#include "sources/heatmap/lol_settings.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
 
 #include <QBuffer>
 #include <QDir>
+#include <QHash>
 #include <QImage>
 #include <QPainter>
 #include <QProcess>
@@ -63,7 +65,7 @@ public:
 		event_categories_ = QString::fromUtf8(obs_data_get_string(settings, events_key));
 		dpi_ = int(obs_data_get_int(settings, dpi_key));
 		collector_.set_dpi(dpi_);
-		hex_radius_percent_ = int(obs_data_get_int(settings, hex_radius_key));
+		hex_radius_percent_ = lol_heatmap::radius_percent();
 		collector_.set_hex_radius_percent(hex_radius_percent_);
 		game_cfg_path_ = QString::fromUtf8(obs_data_get_string(settings, game_cfg_key));
 		frame_left_ = int(obs_data_get_int(settings, frame_left_key));
@@ -88,7 +90,7 @@ public:
 		gs_draw_sprite(texture_, 0, 1920, 1080);
 		gs_blend_state_pop();
 	}
-	void tick() { collector_.tick(dpi_, hex_radius_percent_); }
+	void tick() { collector_.tick(dpi_, lol_heatmap::radius_percent()); }
 	bool export_selected()
 	{
 		const auto report = selected_report();
@@ -218,13 +220,19 @@ private:
 				dwell_values.append(bin.dwell_ms);
 			std::sort(dwell_values.begin(), dwell_values.end());
 			const QRectF frame(180, 580, 1260, 1260 / report->hex_geometry.frame_aspect_ratio);
-			for (const auto &bin : report->hexbins) {
+			QHash<quint64, uint64_t> dwell_by_cell;
+			for (const auto &bin : report->hexbins)
+				dwell_by_cell.insert((quint64(uint32_t(bin.column)) << 32) | uint32_t(bin.row),
+						     bin.dwell_ms);
+			for (const auto &cell : lol_heatmap::visible_cells(report->hex_geometry)) {
+				const uint64_t dwell = dwell_by_cell.value((quint64(uint32_t(cell.column)) << 32) |
+									   uint32_t(cell.row));
 				const auto center =
-					lol_game_report::hex_center(report->hex_geometry, bin.column, bin.row);
+					lol_game_report::hex_center(report->hex_geometry, cell.column, cell.row);
 				const double scale = frame.width() / 100.0;
 				const double radius = report->hex_geometry.radius_percent * scale;
 				const int rank =
-					int(std::upper_bound(dwell_values.cbegin(), dwell_values.cend(), bin.dwell_ms) -
+					int(std::upper_bound(dwell_values.cbegin(), dwell_values.cend(), dwell) -
 					    dwell_values.cbegin()) -
 					1;
 				const int band =
@@ -237,7 +245,9 @@ private:
 					polygon << QPointF(frame.left() + center.x() * scale + radius * std::cos(angle),
 							   frame.top() + center.y() * scale + radius * std::sin(angle));
 				}
-				painter.setBrush(colors[band]);
+				QColor color = dwell ? colors[band] : QColor(Qt::black);
+				color.setAlpha(dwell ? 220 : 38);
+				painter.setBrush(color);
 				painter.drawPolygon(polygon);
 			}
 			text({120, 920, 1600, 36}, 18,
@@ -312,7 +322,7 @@ private:
 		event_categories_{"kill,objective,tower,level"};
 	bool normalize_average_{};
 	int dpi_{800};
-	int hex_radius_percent_{lol_game_report::default_hex_radius_percent};
+	double hex_radius_percent_{lol_game_report::default_hex_radius_percent};
 	QString game_cfg_path_;
 	int frame_left_{}, frame_top_{};
 	QString riot_status_{"Riot enrichment has not run."};

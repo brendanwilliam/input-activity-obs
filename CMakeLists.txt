@@ -60,6 +60,10 @@ target_sources(
     src/input/input_broker.hpp
     src/input/input_broker.cpp
     src/input/keycodes.h
+    src/sources/heatmap/lol_geometry.hpp
+    src/sources/heatmap/lol_geometry.cpp
+    src/sources/heatmap/lol_settings.hpp
+    src/sources/heatmap/lol_settings.cpp
     src/sources/dashboard/capture/lol_capture_switcher.hpp
     src/sources/dashboard/capture/lol_capture_switcher.cpp
     src/sources/dashboard/detection/lol_game_config_watcher.hpp
@@ -145,6 +149,7 @@ if(BUILD_TESTING)
   add_executable(
     lol-game-report-test
     tests/lol_game_report_test.cpp
+    src/sources/heatmap/lol_geometry.cpp
     src/sources/game_report/data/lol_types.cpp
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
