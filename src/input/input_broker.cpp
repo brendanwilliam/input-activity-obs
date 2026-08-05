@@ -1,6 +1,6 @@
-#include "input_broker.hpp"
+#include "input/input_broker.hpp"
 
-#include "../hook/uiohook_helper.hpp"
+#include "hook/uiohook_helper.hpp"
 
 #include <algorithm>
 #include <array>

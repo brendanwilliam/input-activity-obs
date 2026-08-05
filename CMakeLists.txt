@@ -60,63 +60,47 @@ target_sources(
     src/input/input_broker.hpp
     src/input/input_broker.cpp
     src/input/keycodes.h
-    src/sources/activity_sources.hpp
-    src/sources/activity_sources.cpp
-    src/sources/league_safe_area_layout.hpp
-    src/sources/league_safe_area_layout.cpp
-    src/sources/league_safe_area_source.hpp
-    src/sources/league_safe_area_source.cpp
-    src/sources/league_capture_switcher.hpp
-    src/sources/league_capture_switcher.cpp
-    src/sources/lol_game_report_types.hpp
-    src/sources/lol_game_report_types.cpp
-    src/sources/lol_report_hexbin.hpp
-    src/sources/lol_report_hexbin.cpp
-    src/sources/lol_game_report_diagnostics.hpp
-    src/sources/lol_game_report_diagnostics.cpp
-    src/sources/lol_game_report_store.hpp
-    src/sources/lol_game_report_store.cpp
-    src/sources/lol_game_report_ddragon.hpp
-    src/sources/lol_game_report_ddragon.cpp
-    src/sources/lol_game_report_web.hpp
-    src/sources/lol_game_report_web.cpp
-    src/sources/lol_game_report_web_assets.hpp
-    src/sources/lol_game_report_web_assets.cpp
-    src/sources/lol_game_report_riot_api.hpp
-    src/sources/lol_game_report_riot_api.cpp
-    src/sources/lol_game_report_collector.hpp
-    src/sources/lol_game_report_collector.cpp
-    src/sources/lol_report_input_telemetry.hpp
-    src/sources/lol_report_input_telemetry.cpp
-    src/sources/lol_game_report_source.hpp
-    src/sources/lol_game_report_source.cpp
-    src/sources/lol_performance_dashboard_source.cpp
-    src/sources/lol_performance_dashboard_camera_visibility.hpp
-    src/sources/lol_performance_dashboard_camera_visibility.cpp
-    src/sources/lol_dashboard_game_config_watcher.hpp
-    src/sources/lol_dashboard_game_config_watcher.cpp
-    src/sources/lol_dashboard_game_start_watcher.hpp
-    src/sources/lol_dashboard_game_start_watcher.cpp
-    src/sources/lol_performance_dashboard_properties.inc
-    src/sources/lol_performance_dashboard_layout.hpp
-    src/sources/lol_performance_dashboard_layout.cpp
-    src/sources/lol_performance_dashboard_visuals.hpp
-    src/sources/lol_performance_dashboard_visuals.cpp
-    src/sources/lol_performance_dashboard_heatmap.cpp
-    src/sources/activity/core.inc
-    src/sources/activity/key_labels.inc
-    src/sources/activity/live_keys.inc
-    src/sources/activity/mouse_events.inc
-    src/sources/activity/mouse_render.inc
-    src/sources/activity/statistics.inc
-    src/sources/activity/intensity_events.inc
-    src/sources/activity/intensity_render.inc
-    src/sources/activity/unified.inc
-    src/sources/activity/common_properties.inc
-    src/sources/activity/live_keys_properties.inc
-    src/sources/activity/mouse_properties.inc
-    src/sources/activity/intensity_properties.inc
-    src/sources/activity/unified_properties.inc
+    src/sources/dashboard/capture/lol_capture_switcher.hpp
+    src/sources/dashboard/capture/lol_capture_switcher.cpp
+    src/sources/dashboard/detection/lol_game_config_watcher.hpp
+    src/sources/dashboard/detection/lol_game_config_watcher.cpp
+    src/sources/dashboard/detection/lol_game_start_watcher.hpp
+    src/sources/dashboard/detection/lol_game_start_watcher.cpp
+    src/sources/dashboard/rendering/lol_camera_render.inc
+    src/sources/dashboard/rendering/lol_camera_visibility.hpp
+    src/sources/dashboard/rendering/lol_camera_visibility.cpp
+    src/sources/dashboard/presentation/lol_properties.inc
+    src/sources/dashboard/rendering/lol_layout.hpp
+    src/sources/dashboard/rendering/lol_layout.cpp
+    src/sources/dashboard/presentation/lol_source.hpp
+    src/sources/dashboard/presentation/lol_source.cpp
+    src/sources/dashboard/rendering/lol_visuals.hpp
+    src/sources/dashboard/rendering/lol_visuals.cpp
+    src/sources/dashboard/rendering/lol_heatmap.cpp
+    src/sources/game_report/collection/lol_collector.hpp
+    src/sources/game_report/collection/lol_collector.cpp
+    src/sources/game_report/collection/lol_hexbin.hpp
+    src/sources/game_report/collection/lol_hexbin.cpp
+    src/sources/game_report/collection/lol_input_telemetry.hpp
+    src/sources/game_report/collection/lol_input_telemetry.cpp
+    src/sources/game_report/data/lol_diagnostics.hpp
+    src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/data/lol_store.hpp
+    src/sources/game_report/data/lol_store.cpp
+    src/sources/game_report/data/lol_types.hpp
+    src/sources/game_report/data/lol_types.cpp
+    src/sources/game_report/integration/lol_ddragon.hpp
+    src/sources/game_report/integration/lol_ddragon.cpp
+    src/sources/game_report/integration/lol_riot_api.hpp
+    src/sources/game_report/integration/lol_riot_api.cpp
+    src/sources/game_report/presentation/lol_source.hpp
+    src/sources/game_report/presentation/lol_source.cpp
+    src/sources/game_report/presentation/lol_web.hpp
+    src/sources/game_report/presentation/lol_web.cpp
+    src/sources/game_report/presentation/lol_web_assets.hpp
+    src/sources/game_report/presentation/lol_web_assets.cpp
+    src/sources/hud_layout/lol_layout.hpp
+    src/sources/hud_layout/lol_layout.cpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
@@ -145,8 +129,8 @@ if(BUILD_TESTING)
   add_executable(
     league-safe-area-layout-test
     tests/league_safe_area_layout_test.cpp
-    src/sources/league_safe_area_layout.cpp
-    src/sources/lol_performance_dashboard_layout.cpp
+    src/sources/hud_layout/lol_layout.cpp
+    src/sources/dashboard/rendering/lol_layout.cpp
   )
   target_include_directories(league-safe-area-layout-test PRIVATE src)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
@@ -154,11 +138,11 @@ if(BUILD_TESTING)
   add_executable(
     lol-game-report-test
     tests/lol_game_report_test.cpp
-    src/sources/lol_game_report_types.cpp
-    src/sources/lol_report_hexbin.cpp
-    src/sources/lol_report_input_telemetry.cpp
-    src/sources/lol_game_report_diagnostics.cpp
-    src/sources/lol_game_report_ddragon.cpp
+    src/sources/game_report/data/lol_types.cpp
+    src/sources/game_report/collection/lol_hexbin.cpp
+    src/sources/game_report/collection/lol_input_telemetry.cpp
+    src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/integration/lol_ddragon.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)

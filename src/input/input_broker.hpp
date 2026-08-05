@@ -1,6 +1,6 @@
 #pragma once
 
-#include "input_data.hpp"
+#include "input/input_data.hpp"
 
 #include <uiohook.h>
 

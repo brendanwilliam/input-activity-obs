@@ -25,3 +25,10 @@ jobs:
         uses: ./.github/actions/run-gersemi
         with:
           failCondition: error
+
+  source-layout:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source layout
+        run: skills/check-code-size/scripts/check-code-size.sh
