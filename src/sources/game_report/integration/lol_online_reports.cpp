@@ -48,6 +48,9 @@ public:
 		QDir().mkpath(root);
 		device_poll_timer.setInterval(1000);
 		QObject::connect(&device_poll_timer, &QTimer::timeout, owner, [owner] { owner->poll_device_code(); });
+		upload_timer.setInterval(1000);
+		QObject::connect(&upload_timer, &QTimer::timeout, owner, [owner] { owner->tick(); });
+		upload_timer.start();
 	}
 	online_reports *owner;
 	QNetworkAccessManager network;
@@ -55,8 +58,8 @@ public:
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
-	QTimer device_poll_timer;
-	bool auth_required{};
+	QTimer device_poll_timer, upload_timer;
+	bool auth_required{}, upload_in_flight{};
 };
 
 online_reports::online_reports(QObject *parent) : QObject(parent), implementation_(new implementation(this))
@@ -155,7 +158,8 @@ void online_reports::set_service_url(const QString &value)
 
 void online_reports::tick()
 {
-	if (!linked() || implementation_->auth_required || implementation_->queue.isEmpty())
+	if (!linked() || implementation_->auth_required || implementation_->upload_in_flight ||
+	    implementation_->queue.isEmpty())
 		return;
 	auto &entry = implementation_->queue.first();
 	if (entry.retry_at > QDateTime::currentDateTimeUtc())
@@ -164,9 +168,11 @@ void online_reports::tick()
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	request.setRawHeader("Authorization", "Bearer " + credential().toUtf8());
 	request.setRawHeader("Idempotency-Key", entry.payload["id"].toString().toUtf8());
+	implementation_->upload_in_flight = true;
 	auto *reply =
 		implementation_->network.post(request, QJsonDocument(entry.payload).toJson(QJsonDocument::Compact));
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
+		implementation_->upload_in_flight = false;
 		const int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
 		    code < 300) {

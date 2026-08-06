@@ -5,6 +5,7 @@
 #include "sources/game_report/integration/lol_riot_api.hpp"
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include <QDateTime>
 #include <QProcess>
 #include <QStandardPaths>
 #include <optional>
@@ -53,8 +54,13 @@ public:
 		collector.set_auto_open(auto_open);
 		collector.set_development_logs(development_logs);
 		collector.tick(dpi, hex_radius_percent);
-		online.observe(store.reports());
-		online.tick();
+		const QDateTime now = QDateTime::currentDateTimeUtc();
+		if (next_online_observation <= now) {
+			const auto reports = store.reports();
+			QMetaObject::invokeMethod(
+				&online, [this, reports] { online.observe(reports); }, Qt::QueuedConnection);
+			next_online_observation = now.addSecs(1);
+		}
 	}
 	std::optional<lol_game_report::report> selected_report() const
 	{
@@ -74,6 +80,7 @@ public:
 	lol_game_report::online_reports online;
 	bool show_latest{true}, auto_open{true}, development_logs{};
 	int dpi{800};
+	QDateTime next_online_observation;
 	QString selected, export_directory, riot_status{"Riot enrichment has not run."};
 	static implementation *owner;
 };
@@ -125,17 +132,20 @@ bool lol_report_manager::reveal_development_log() const
 }
 bool lol_report_manager::link_online_reports()
 {
-	implementation_->online.begin_link();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.begin_link(); }, Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::unlink_online_reports()
 {
-	implementation_->online.unlink();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.unlink(); }, Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::retry_online_reports()
 {
-	implementation_->online.retry();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.retry(); }, Qt::QueuedConnection);
 	return true;
 }
 void lol_report_manager::defaults(obs_data *settings)
