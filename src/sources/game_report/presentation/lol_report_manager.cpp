@@ -5,6 +5,7 @@
 #include "sources/game_report/integration/lol_riot_api.hpp"
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include <QDateTime>
 #include <QProcess>
 #include <QStandardPaths>
 #include <optional>
@@ -18,6 +19,7 @@ constexpr const char *directory_key = "lol_dashboard.report.export_directory";
 constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *auto_open_key = "lol_dashboard.report.auto_open";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
+constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
 } // namespace
 
 class lol_report_manager::implementation {
@@ -39,6 +41,7 @@ public:
 		dpi = int(obs_data_get_int(settings, dpi_key));
 		auto_open = obs_data_get_bool(settings, auto_open_key);
 		development_logs = obs_data_get_bool(settings, development_logs_key);
+		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
 	}
 	void tick(const QRect &game_frame, double hex_radius_percent)
 	{
@@ -51,8 +54,13 @@ public:
 		collector.set_auto_open(auto_open);
 		collector.set_development_logs(development_logs);
 		collector.tick(dpi, hex_radius_percent);
-		online.observe(store.reports());
-		online.tick();
+		const QDateTime now = QDateTime::currentDateTimeUtc();
+		if (next_online_observation <= now) {
+			const auto reports = store.reports();
+			QMetaObject::invokeMethod(
+				&online, [this, reports] { online.observe(reports); }, Qt::QueuedConnection);
+			next_online_observation = now.addSecs(1);
+		}
 	}
 	std::optional<lol_game_report::report> selected_report() const
 	{
@@ -72,6 +80,7 @@ public:
 	lol_game_report::online_reports online;
 	bool show_latest{true}, auto_open{true}, development_logs{};
 	int dpi{800};
+	QDateTime next_online_observation;
 	QString selected, export_directory, riot_status{"Riot enrichment has not run."};
 	static implementation *owner;
 };
@@ -123,17 +132,20 @@ bool lol_report_manager::reveal_development_log() const
 }
 bool lol_report_manager::link_online_reports()
 {
-	implementation_->online.begin_link();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.begin_link(); }, Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::unlink_online_reports()
 {
-	implementation_->online.unlink();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.unlink(); }, Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::retry_online_reports()
 {
-	implementation_->online.retry();
+	auto &online = implementation_->online;
+	QMetaObject::invokeMethod(&online, [&online] { online.retry(); }, Qt::QueuedConnection);
 	return true;
 }
 void lol_report_manager::defaults(obs_data *settings)
@@ -143,6 +155,7 @@ void lol_report_manager::defaults(obs_data *settings)
 	obs_data_set_default_int(value, dpi_key, 800);
 	obs_data_set_default_bool(value, auto_open_key, true);
 	obs_data_set_default_bool(value, development_logs_key, false);
+	obs_data_set_default_string(value, online_service_url_key, "http://127.0.0.1:3000");
 	obs_data_set_default_string(
 		value, directory_key,
 		QStandardPaths::writableLocation(QStandardPaths::PicturesLocation).toUtf8().constData());
@@ -165,6 +178,8 @@ void lol_report_manager::add_properties(obs_properties *properties)
 	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	obs_properties_add_bool(general, auto_open_key, obs_module_text("LoLGameReport.AutoOpen"));
 	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
+	obs_properties_add_text(general, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
+				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(general, "lol_dashboard.report.local_url",
 				QString("%1: %2")
 					.arg(obs_module_text("LoLGameReport.LocalURL"),

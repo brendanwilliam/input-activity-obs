@@ -14,6 +14,7 @@ public:
 	~online_reports() override;
 	void observe(const QVector<report> &reports);
 	void tick();
+	void set_service_url(const QString &value);
 	void begin_link();
 	void unlink();
 	void retry();
