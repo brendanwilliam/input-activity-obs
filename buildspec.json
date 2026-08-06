@@ -20,8 +20,8 @@
     }
   },
   "platformConfig": { "macos": { "bundleId": "com.brendanwilliam.input-activity" } },
-  "name": "input-activity",
-  "displayName": "Input Activity",
+  "name": "handscheck-obs",
+  "displayName": "Hands Check",
   "version": "1.0.0",
   "author": "Brendan Keane",
   "website": "https://github.com/brendanwilliam/input-activity-obs",

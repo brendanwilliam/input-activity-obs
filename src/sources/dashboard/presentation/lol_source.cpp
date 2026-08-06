@@ -363,6 +363,7 @@ void register_lol_performance_dashboard_source()
 	info.id = source_id;
 	info.type = OBS_SOURCE_TYPE_INPUT;
 	info.output_flags = OBS_SOURCE_VIDEO;
+	info.icon_type = OBS_ICON_TYPE_GAME_CAPTURE;
 	info.get_name = [](void *) {
 		return obs_module_text("LoLPerformanceDashboard");
 	};
