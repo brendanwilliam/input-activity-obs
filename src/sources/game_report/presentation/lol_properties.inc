@@ -57,6 +57,12 @@ obs_properties_t *properties(void *data)
 			       1);
 	obs_properties_add_int(general, frame_top_key, obs_module_text("LoLPerformanceDashboard.Top"), -32768, 32767,
 			       1);
+	auto *dashboard = obs_properties_add_list(general, dashboard_source_key,
+					  obs_module_text("LoLGameReport.DashboardSource"), OBS_COMBO_TYPE_LIST,
+					  OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(dashboard, obs_module_text("LoLGameReport.DashboardSource.Auto"), "");
+	for (const auto &option : dashboard_sources())
+		obs_property_list_add_string(dashboard, option.name.c_str(), option.uuid.c_str());
 	obs_properties_add_bool(general, auto_open_key, obs_module_text("LoLGameReport.AutoOpen"));
 	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_text(general, "lol_game_report.development_logs_warning",
@@ -115,6 +121,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, hex_radius_key, lol_game_report::default_hex_radius_percent);
 	obs_data_set_default_int(settings, frame_left_key, 0);
 	obs_data_set_default_int(settings, frame_top_key, 0);
+	obs_data_set_default_string(settings, dashboard_source_key, "");
 	obs_data_set_default_bool(settings, auto_open_key, true);
 	obs_data_set_default_bool(settings, development_logs_key, false);
 	obs_data_set_default_string(

@@ -15,6 +15,7 @@
 #include <QStandardPaths>
 #include <algorithm>
 #include <optional>
+#include <vector>
 #include <obs-module.h>
 
 extern "C" {
@@ -38,6 +39,55 @@ constexpr const char *development_logs_key = "lol_game_report.development_logs";
 constexpr const char *game_cfg_key = "lol_game_report.game_cfg";
 constexpr const char *frame_left_key = "lol_game_report.frame_left";
 constexpr const char *frame_top_key = "lol_game_report.frame_top";
+constexpr const char *dashboard_source_key = "lol_game_report.dashboard_source";
+constexpr const char *dashboard_source_id = "input-activity-lol-performance-dashboard";
+
+struct dashboard_option {
+	std::string name;
+	std::string uuid;
+};
+
+bool dashboard_option_callback(void *data, obs_source_t *source)
+{
+	if (std::string(obs_source_get_id(source)) != dashboard_source_id)
+		return true;
+	auto *options = static_cast<std::vector<dashboard_option> *>(data);
+	options->push_back({obs_source_get_name(source), obs_source_get_uuid(source)});
+	return true;
+}
+
+std::vector<dashboard_option> dashboard_sources()
+{
+	std::vector<dashboard_option> options;
+	obs_enum_sources(dashboard_option_callback, &options);
+	std::sort(options.begin(), options.end(),
+		  [](const auto &left, const auto &right) { return left.name < right.name; });
+	return options;
+}
+
+std::optional<QPoint> dashboard_frame_origin(const std::string &uuid)
+{
+	std::string selected = uuid;
+	if (selected.empty()) {
+		const auto options = dashboard_sources();
+		if (options.size() != 1)
+			return std::nullopt;
+		selected = options.front().uuid;
+	}
+	obs_source_t *source = obs_get_source_by_uuid(selected.c_str());
+	if (!source || std::string(obs_source_get_id(source)) != dashboard_source_id) {
+		if (source)
+			obs_source_release(source);
+		return std::nullopt;
+	}
+	obs_data_t *settings = obs_source_get_settings(source);
+	const bool advanced = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
+	const QPoint origin{advanced ? int(obs_data_get_int(settings, "lol_dashboard.frame_left")) : 0,
+			    advanced ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0};
+	obs_data_release(settings);
+	obs_source_release(source);
+	return origin;
+}
 
 class game_report_source {
 public:
@@ -70,6 +120,7 @@ public:
 		game_cfg_path_ = QString::fromUtf8(obs_data_get_string(settings, game_cfg_key));
 		frame_left_ = int(obs_data_get_int(settings, frame_left_key));
 		frame_top_ = int(obs_data_get_int(settings, frame_top_key));
+		dashboard_source_ = obs_data_get_string(settings, dashboard_source_key);
 		collector_.set_game_frame(game_frame());
 		collector_.set_auto_open(obs_data_get_bool(settings, auto_open_key));
 		collector_.set_development_logs(obs_data_get_bool(settings, development_logs_key));
@@ -142,6 +193,8 @@ public:
 private:
 	QRect game_frame() const
 	{
+		const QPoint origin =
+			dashboard_frame_origin(dashboard_source_).value_or(QPoint(frame_left_, frame_top_));
 		QString path = game_cfg_path_;
 #ifdef __APPLE__
 		if (path.isEmpty()) {
@@ -157,12 +210,12 @@ private:
 #endif
 		QFile file(path);
 		if (!file.open(QIODevice::ReadOnly))
-			return {frame_left_, frame_top_, 1920, 1080};
+			return {origin.x(), origin.y(), 1920, 1080};
 		const auto parsed = league_safe_area::parse_game_config(file.readAll().toStdString());
 		if (!parsed.value)
-			return {frame_left_, frame_top_, 1920, 1080};
+			return {origin.x(), origin.y(), 1920, 1080};
 		const auto model = league_safe_area::make_model(*parsed.value);
-		return {frame_left_, frame_top_, model.game.width, model.game.height};
+		return {origin.x(), origin.y(), model.game.width, model.game.height};
 	}
 	std::optional<lol_game_report::report> selected_report() const
 	{
@@ -325,6 +378,7 @@ private:
 	double hex_radius_percent_{lol_game_report::default_hex_radius_percent};
 	QString game_cfg_path_;
 	int frame_left_{}, frame_top_{};
+	std::string dashboard_source_;
 	QString riot_status_{"Riot enrichment has not run."};
 	gs_texture_t *texture_{};
 };
