@@ -139,29 +139,25 @@ void online_reports::clear_credential() const
 	process.waitForFinished(1000);
 }
 
-void online_reports::observe(const QVector<report> &reports)
+void online_reports::submit(const report &value)
 {
-	if (!linked())
+	const QJsonObject payload = to_json(value);
+	const QString hash = payload_hash(payload);
+	if (implementation_->uploaded_payloads.value(value.id) == hash)
 		return;
-	for (const auto &value : reports) {
-		const QJsonObject payload = to_json(value);
-		const QString hash = payload_hash(payload);
-		if (implementation_->uploaded_payloads.value(value.id) == hash)
-			continue;
-		bool found{};
-		for (auto &entry : implementation_->queue) {
-			if (entry.payload["id"] == value.id) {
-				found = true;
-				if (payload_hash(entry.payload) != hash) {
-					entry.payload = payload;
-					entry.retry_at = QDateTime::currentDateTimeUtc();
-					entry.attempts = 0;
-				}
+	bool found{};
+	for (auto &entry : implementation_->queue) {
+		if (entry.payload["id"] == value.id) {
+			found = true;
+			if (payload_hash(entry.payload) != hash) {
+				entry.payload = payload;
+				entry.retry_at = QDateTime::currentDateTimeUtc();
+				entry.attempts = 0;
 			}
 		}
-		if (!found)
-			implementation_->queue.append({payload, QDateTime::currentDateTimeUtc(), 0});
 	}
+	if (!found)
+		implementation_->queue.append({payload, QDateTime::currentDateTimeUtc(), 0});
 	save_queue();
 }
 
@@ -193,10 +189,16 @@ void online_reports::tick()
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
 		    code < 300) {
 			const QJsonObject uploaded = implementation_->queue.first().payload;
+			const QJsonObject result = QJsonDocument::fromJson(reply->readAll()).object();
 			implementation_->queue.removeFirst();
 			implementation_->uploaded_payloads.insert(uploaded["id"].toString(), payload_hash(uploaded));
 			implementation_->state = implementation_->queue.isEmpty() ? "Connected. All reports uploaded."
 										  : "Connected. Uploading reports.";
+			QUrl report_url(result["url"].toString());
+			if (report_url.isRelative())
+				report_url = implementation_->service_url.resolved(report_url);
+			if (report_url.isValid() && !report_url.isEmpty())
+				QDesktopServices::openUrl(report_url);
 		} else if (code == 401 || code == 403) {
 			implementation_->auth_required = true;
 			implementation_->state =
@@ -271,8 +273,8 @@ void online_reports::poll_device_code()
 			implementation_->device_code_expires_at = {};
 			implementation_->device_poll_timer.stop();
 			implementation_->auth_required = false;
-			// A relink can point this device at a different account. Re-observe
-			// saved reports once in that account, then persist their acknowledgements.
+			// A relink can point this device at a different account, so retain the
+			// queue and allow each queued payload to be uploaded to the new account.
 			implementation_->uploaded_payloads.clear();
 			save_queue();
 			implementation_->state =

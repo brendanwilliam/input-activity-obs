@@ -50,10 +50,11 @@ struct shared_collector {
 			QMetaObject::invokeMethod(
 				worker, [this, events] { worker->consume_input(events); }, Qt::QueuedConnection);
 	}
-	void set_auto_open(bool enabled)
+	void set_submission_callback(std::function<void(const report &)> callback)
 	{
 		QMetaObject::invokeMethod(
-			worker, [this, enabled] { worker->set_auto_open(enabled); }, Qt::QueuedConnection);
+			worker, [callback = std::move(callback), this] { worker->set_submission_callback(callback); },
+			Qt::QueuedConnection);
 	}
 	void set_development_logs(bool enabled)
 	{
@@ -81,20 +82,6 @@ struct shared_collector {
 			QMetaObject::invokeMethod(
 				worker, [this, &result] { result = worker->development_log_path(); },
 				Qt::BlockingQueuedConnection);
-		return result;
-	}
-	void log_riot_diagnostic(const QJsonObject &fields)
-	{
-		std::lock_guard lock(mutex);
-		if (worker)
-			QMetaObject::invokeMethod(
-				worker, [this, fields] { worker->log_riot_diagnostic(fields); }, Qt::QueuedConnection);
-	}
-	QString recap_url()
-	{
-		QString result;
-		QMetaObject::invokeMethod(
-			worker, [this, &result] { result = worker->recap_url(); }, Qt::BlockingQueuedConnection);
 		return result;
 	}
 };
@@ -147,9 +134,9 @@ void collector::tick(int dpi, double hex_radius_percent)
 		event.keychar = 0;
 	shared().consume_input(events);
 }
-void collector::set_auto_open(bool enabled)
+void collector::set_submission_callback(std::function<void(const report &)> callback)
 {
-	shared().set_auto_open(enabled);
+	shared().set_submission_callback(std::move(callback));
 }
 void collector::set_development_logs(bool enabled)
 {
@@ -165,14 +152,6 @@ bool collector::development_logs_enabled() const
 QString collector::development_log_path() const
 {
 	return shared().development_log_path();
-}
-void collector::log_riot_diagnostic(const QJsonObject &fields)
-{
-	shared().log_riot_diagnostic(fields);
-}
-QString collector::recap_url() const
-{
-	return shared().recap_url();
 }
 QString collector::state_text(collection_state value)
 {

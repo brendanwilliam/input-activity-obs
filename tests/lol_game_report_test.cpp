@@ -2,8 +2,6 @@
 #include "sources/game_report/collection/lol_input_telemetry.hpp"
 #include "sources/game_report/data/lol_diagnostics.hpp"
 #include "sources/game_report/data/lol_types.hpp"
-#include "sources/game_report/integration/lol_ddragon.hpp"
-#include "sources/game_report/presentation/lol_web_assets.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -20,10 +18,6 @@ int main()
 	input.game_mode = "CLASSIC";
 	input.samples = {{0, 0, 0, 0, 0, 1, 500, 0}, {120, 2, 1, 3, 80, 6, 1200, 4}};
 	input.events = {{"event-1", "ChampionKill", 115, "ChampionKill"}};
-	input.chapters = make_chapters(input.samples, input.events);
-	assert(!input.chapters.isEmpty());
-	assert(!input.chapters.first().summary.contains("victory", Qt::CaseInsensitive));
-	assert(!input.chapters.first().summary.contains("decisive", Qt::CaseInsensitive));
 	report recovered;
 	input.hex_geometry = {1.6, 7};
 	input.hexbins = {{2, 3, 250}, {4, 5, 1000}};
@@ -53,14 +47,6 @@ int main()
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).row == 2);
 	const auto cells = sources::lol_heatmap::visible_cells(grid);
 	assert(!cells.isEmpty() && cells.first().column == 0 && cells.first().row == 0);
-	const QByteArray &report_script = web_assets::script();
-	if (!report_script.contains("frame_aspect_ratio || 16 / 9))} / 1") ||
-	    !report_script.contains("Math.min(100, Math.max(.1, Number(report.hex_radius_percent || 4)))") ||
-	    !report_script.contains("const columns = Math.max(1, Math.ceil(width / hexWidth) + 1)") ||
-	    !report_script.contains("const rows = Math.max(1, Math.ceil(height / (1.5 * radius)) + 1)") ||
-	    !report_script.contains("const x = hexWidth * (column + offset)") ||
-	    !report_script.contains(", y = radius * (1 + 1.5 * row)"))
-		return 1;
 	(void)grid;
 	QJsonObject raw_event{{"EventName", "ChampionKill"},
 			      {"KillerName", "Self"},
@@ -78,32 +64,6 @@ int main()
 	const QJsonObject summary = summarize_playerlist(playerlist);
 	assert(summary["row_count"] == 2 && summary["team_counts"].toObject()["ORDER"] == 1);
 	assert(!QJsonDocument(summary).toJson().contains("Never logged"));
-	const QJsonObject ability_metadata = QJsonDocument::fromJson(R"({
-        "data": {"Ahri": {"spells": [
-          {"image": {"full": "AhriOrbofDeception.png"}},
-          {"image": {"full": "AhriFoxFire.png"}},
-          {"image": {"full": "AhriSeduce.png"}},
-          {"image": {"full": "AhriTumble.png"}}
-        ]}}
-      })")
-						     .object();
-	assert(ability_icon_filename(ability_metadata, "Ahri", 'Q') == "AhriOrbofDeception.png");
-	assert(ability_icon_filename(ability_metadata, "Missing", 'Q').isEmpty());
-	QJsonObject missing_spells_metadata = ability_metadata;
-	QJsonObject data = missing_spells_metadata.value("data").toObject();
-	QJsonObject champion = data.value("Ahri").toObject();
-	champion.remove("spells");
-	data["Ahri"] = champion;
-	missing_spells_metadata["data"] = data;
-	assert(ability_icon_filename(missing_spells_metadata, "Ahri", 'Q').isEmpty());
-	QJsonObject out_of_range_metadata = ability_metadata;
-	data = out_of_range_metadata.value("data").toObject();
-	champion = data.value("Ahri").toObject();
-	champion["spells"] = QJsonArray{};
-	data["Ahri"] = champion;
-	out_of_range_metadata["data"] = data;
-	assert(ability_icon_filename(out_of_range_metadata, "Ahri", 'Q').isEmpty());
-	assert(ability_icon_filename(ability_metadata, "Ahri", 'X').isEmpty());
 	input_telemetry telemetry;
 	telemetry.set_game_frame({1000, 100, 1000, 500});
 	QVector<input_sample> input_samples;
@@ -126,13 +86,6 @@ int main()
 	if (hexbins.first().column != nearest_hex({2.0, 4.0}, {10.0, 10.0}).column ||
 	    hexbins.first().row != nearest_hex({2.0, 4.0}, {10.0, 10.0}).row)
 		return 1;
-	QJsonObject missing_image_metadata = ability_metadata;
-	data = missing_image_metadata.value("data").toObject();
-	champion = data.value("Ahri").toObject();
-	champion["spells"] = QJsonArray{QJsonObject{}};
-	data["Ahri"] = champion;
-	missing_image_metadata["data"] = data;
-	assert(ability_icon_filename(missing_image_metadata, "Ahri", 'Q').isEmpty());
 	QStandardPaths::setTestModeEnabled(true);
 	diagnostic_log log;
 	assert(log.path().isEmpty());
