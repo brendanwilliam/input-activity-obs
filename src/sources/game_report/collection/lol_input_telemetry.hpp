@@ -16,7 +16,7 @@ namespace sources::lol_game_report {
 class input_telemetry {
 public:
 	void set_game_frame(const QRect &frame);
-	void set_hex_radius_percent(int radius_percent);
+	void set_hex_radius_percent(double radius_percent);
 	void reset();
 	void consume(const std::vector<input_data::trace_event> &events, int game_seconds,
 		     QVector<input_sample> &samples, QVector<hexbin> &hexbins);

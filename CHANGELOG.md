@@ -32,12 +32,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- League Game Report collection and management now live in the LoL Performance Dashboard; the separate scene-rendering Game Report source has been removed, while saved reports remain available through the local browser recap and JSON export.
+- League Game Report hexbins now retain the shared HUD grid's full configured size range, keeping recorded cells aligned with the displayed game frame.
+- League Game Report heatmaps now preserve the configured game frame's aspect ratio and use the same full hex grid as the LoL Performance Dashboard.
+- LoL Performance Dashboard typography now separates primary metric values from secondary key and chart data, with independent font controls for each.
+- LoL Performance Dashboard and League Game Report now share a frame-relative hexbin geometry, including a persisted fractional size setting, matched grid origin and dimensions, and correctly aligned full-grid report rendering.
+- LoL Performance Dashboard typography now provides independent font family, variable-axis, and size controls for labels, numbers, number-labels, and button-labels. Its intensity headings are localized correctly, zero section padding reaches the available HUD edges, and constrained intensity cards keep their text visible.
 - League Game Report now persists a configurable game-frame-relative hexbin layout and mouse dwell time; older movement-count reports are clearly labelled as approximations.
 - LoL Performance Dashboard now resets its statistics automatically when a new League game begins; the enabled-by-default setting can be turned off for uninterrupted manual sessions.
 - League Game Report now scopes performance telemetry and heatmaps to the configured League game frame, reports press-based actions with real per-second velocity, and labels preliminary game-end gold and team data as pending until Riot enrichment completes.
 - LoL Performance Dashboard and League Game Report now use Science Gothic for labels and controls, and Inter for live keys, metrics, timestamps, and chart data.
 - The LoL Performance Dashboard now keeps its heatmap statistics top-aligned, restores the right-aligned key layout, limits dashboard visuals to the active game client, and renders linked cameras as cropped masks in either League mode. Minimap covers now use the same cropped-mask sizing and image-position controls.
-- The LoL Performance Dashboard camera now stays visible outside League, and the new Always show dashboard option keeps all dashboard visuals visible outside the game.
+- The LoL Performance Dashboard camera now stays visible outside League. Its Debug mode keeps dashboard visuals and input activity available outside the game for onboarding.
 - The LoL Performance Dashboard now reloads `game.cfg` changes while active so minimap covers immediately follow live minimap-size updates.
 - The LoL Performance Dashboard now provides independent intensity, key, and mouse-activity visibility controls, and distance totals scale through centimetres, metres, and kilometres.
 - Live Keys most-used bars now keep their configured vertical spacing and flow from the top of the chart when fewer than the configured number of keys are present.

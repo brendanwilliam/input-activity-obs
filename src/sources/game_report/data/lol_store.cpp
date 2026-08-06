@@ -95,18 +95,16 @@ bool store::remove(const QString &id)
 	return QFile::remove(report_path(id));
 }
 
-bool store::export_report(const report &value, const QString &directory, const QByteArray &png) const
+bool store::export_report(const report &value, const QString &directory) const
 {
 	QDir target(directory);
 	if (!target.exists() && !target.mkpath("."))
 		return false;
 	const QString base = target.filePath("league-game-report-" + value.id);
 	QSaveFile json(base + ".json");
-	QSaveFile image(base + ".png");
-	if (!json.open(QIODevice::WriteOnly) || !image.open(QIODevice::WriteOnly))
+	if (!json.open(QIODevice::WriteOnly))
 		return false;
 	json.write(QJsonDocument(to_json(value)).toJson(QJsonDocument::Indented));
-	image.write(png);
-	return json.commit() && image.commit();
+	return json.commit();
 }
 } // namespace sources::lol_game_report

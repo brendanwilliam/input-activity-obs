@@ -60,6 +60,10 @@ target_sources(
     src/input/input_broker.hpp
     src/input/input_broker.cpp
     src/input/keycodes.h
+    src/sources/heatmap/lol_geometry.hpp
+    src/sources/heatmap/lol_geometry.cpp
+    src/sources/heatmap/lol_settings.hpp
+    src/sources/heatmap/lol_settings.cpp
     src/sources/dashboard/capture/lol_capture_switcher.hpp
     src/sources/dashboard/capture/lol_capture_switcher.cpp
     src/sources/dashboard/detection/lol_game_config_watcher.hpp
@@ -76,6 +80,8 @@ target_sources(
     src/sources/dashboard/presentation/lol_source.cpp
     src/sources/dashboard/rendering/lol_visuals.hpp
     src/sources/dashboard/rendering/lol_visuals.cpp
+    src/sources/dashboard/rendering/lol_key_labels.hpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
     src/sources/dashboard/rendering/lol_heatmap.cpp
     src/sources/dashboard/rendering/lol_keys.inc
     src/sources/game_report/collection/lol_collector.hpp
@@ -95,9 +101,8 @@ target_sources(
     src/sources/game_report/integration/lol_ddragon.cpp
     src/sources/game_report/integration/lol_riot_api.hpp
     src/sources/game_report/integration/lol_riot_api.cpp
-    src/sources/game_report/presentation/lol_source.hpp
-    src/sources/game_report/presentation/lol_source.cpp
-    src/sources/game_report/presentation/lol_properties.inc
+    src/sources/game_report/presentation/lol_report_manager.hpp
+    src/sources/game_report/presentation/lol_report_manager.cpp
     src/sources/game_report/presentation/lol_web.hpp
     src/sources/game_report/presentation/lol_web.cpp
     src/sources/game_report/presentation/lol_web_assets.hpp
@@ -134,25 +139,31 @@ if(BUILD_TESTING)
     tests/league_safe_area_layout_test.cpp
     src/sources/hud_layout/lol_layout.cpp
     src/sources/dashboard/rendering/lol_layout.cpp
+    src/sources/dashboard/rendering/lol_key_labels.cpp
   )
-  target_include_directories(league-safe-area-layout-test PRIVATE src)
+  target_link_libraries(league-safe-area-layout-test PRIVATE Qt6::Core)
+  target_include_directories(league-safe-area-layout-test PRIVATE src deps/libuiohook/include)
   target_compile_features(league-safe-area-layout-test PRIVATE cxx_std_17)
   add_test(NAME league-safe-area-layout COMMAND league-safe-area-layout-test)
   add_executable(
     lol-game-report-test
     tests/lol_game_report_test.cpp
+    src/sources/heatmap/lol_geometry.cpp
     src/sources/game_report/data/lol_types.cpp
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
     src/sources/game_report/integration/lol_ddragon.cpp
+    src/sources/game_report/presentation/lol_web_assets.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
   if(APPLE)
+    target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()
 endif()

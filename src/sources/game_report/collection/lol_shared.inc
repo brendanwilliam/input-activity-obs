@@ -33,7 +33,7 @@ struct shared_collector {
 	{
 		QMetaObject::invokeMethod(worker, [this, dpi] { worker->set_dpi(dpi); }, Qt::QueuedConnection);
 	}
-	void set_hex_radius_percent(int radius_percent)
+	void set_hex_radius_percent(double radius_percent)
 	{
 		QMetaObject::invokeMethod(
 			worker, [this, radius_percent] { worker->set_hex_radius_percent(radius_percent); },
@@ -123,7 +123,7 @@ void collector::set_dpi(int dpi)
 {
 	shared().set_dpi(dpi);
 }
-void collector::set_hex_radius_percent(int radius_percent)
+void collector::set_hex_radius_percent(double radius_percent)
 {
 	shared().set_hex_radius_percent(radius_percent);
 }
@@ -131,7 +131,7 @@ void collector::set_game_frame(const QRect &frame)
 {
 	shared().set_game_frame(frame);
 }
-void collector::tick(int dpi, int hex_radius_percent)
+void collector::tick(int dpi, double hex_radius_percent)
 {
 	set_dpi(dpi);
 	set_hex_radius_percent(hex_radius_percent);

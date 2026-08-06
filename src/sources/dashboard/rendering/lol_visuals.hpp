@@ -1,6 +1,7 @@
 #pragma once
 
 #include "input/input_data.hpp"
+#include "sources/dashboard/rendering/lol_layout.hpp"
 
 #include <QColor>
 #include <QPointF>
@@ -36,17 +37,46 @@ struct lol_dashboard_regions {
 	bool mouse_activity{true};
 };
 
+struct lol_dashboard_font_style {
+	QString family{"Science Gothic"};
+	float optical_size{22.0F};
+	float weight{700.0F};
+	float width{100.0F};
+	float slant{0.0F};
+	int size{22};
+	bool all_caps{false};
+};
+
+// Camera and minimap placement deliberately live in lol_layout and are not
+// affected by this HUD style.
+struct lol_dashboard_style {
+	int section_padding{20};
+	int element_padding{20};
+	int element_x_gap{10};
+	int element_y_gap{10};
+	int within_element_gap{10};
+	int label_spacing{10};
+	int intensity_padding{120};
+	lol_dashboard_font_style number_primary{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
+	lol_dashboard_font_style numbers_secondary{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
+	lol_dashboard_font_style number_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 18};
+	lol_dashboard_font_style button_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
+};
+
 QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
+QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
+					   const lol_dashboard_style &style);
 
 class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
 		       const lol_dashboard_regions &regions, int rolling_window_seconds, const QRect &game_frame,
-		       const QRect &heatmap_bounds);
+		       const QRect &heatmap_bounds, const lol_dashboard_style &style);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
+	void clear_live_keys();
 	void reset();
 	void draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary, const QRect &keys,
 		  bool right_aligned) const;
@@ -59,6 +89,7 @@ private:
 	struct active_key {
 		uint16_t code;
 		QString label;
+		uint64_t fade_started{};
 		uint64_t fade_until{};
 		uint64_t count{};
 	};
@@ -70,12 +101,12 @@ private:
 	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds) const;
 	QString distance_label() const;
-	QString key_label(uint16_t code) const;
 	size_t nearest_hex(const QPointF &point) const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
 	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_style style_;
 	QRect game_frame_{0, 0, 1920, 1080}, heatmap_bounds_;
 	std::vector<hex_bin> hex_bins_;
 	std::optional<QPointF> last_heat_point_;

@@ -5,10 +5,6 @@
 
 namespace sources {
 namespace {
-constexpr int horizontal_padding = 40;
-constexpr int vertical_top_padding = 20;
-constexpr int vertical_bottom_padding = 40;
-constexpr int panel_gap = 20;
 
 lol_dashboard_rect scaled(const league_safe_area::rect &rect, int width, int height)
 {
@@ -43,10 +39,31 @@ lol_dashboard_rect anchored_lower_corner(lol_dashboard_rect rect, const lol_dash
 }
 } // namespace
 
+lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect)
+{
+	if (bounds.isEmpty() || aspect <= 0.0)
+		return {};
+	lol_dashboard_rect result = fit(bounds, aspect, 1.0);
+	result.moveLeft(bounds.left() + (bounds.width() - result.width()) / 2);
+	result.moveTop(bounds.top() + (bounds.height() - result.height()) / 2);
+	return result;
+}
+
+lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect)
+{
+	if (bounds.isEmpty() || aspect <= 0.0)
+		return {};
+	lol_dashboard_rect result = fit(bounds, aspect, 1.0);
+	result.moveLeft(bounds.left());
+	result.moveTop(bounds.top() + (bounds.height() - result.height()) / 2);
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
-						    const lol_dashboard_image_layout &minimap_cover)
+						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)
 {
+	const int panel_gap = std::max(0, hud_padding);
 	const int width = layout.game.width;
 	const int height = layout.game.height;
 	const auto &player = layout.exclusions[0], &minimap = layout.exclusions[1];
@@ -60,9 +77,8 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 	const league_safe_area::rect mouse = minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 							  : league_safe_area::rect{0.0, player.top, player.left, 1.0};
 	const lol_dashboard_rect camera_anchor_bounds = scaled(mouse, width, height);
-	const lol_dashboard_rect mouse_bounds = scaled(mouse, width, height)
-							.adjusted(horizontal_padding, vertical_top_padding,
-								  -horizontal_padding, -vertical_bottom_padding);
+	const lol_dashboard_rect mouse_bounds =
+		scaled(mouse, width, height).adjusted(panel_gap, panel_gap, -panel_gap, -panel_gap);
 	const int heat_width = std::max(1, mouse_bounds.width() / 2);
 	const int heat_height = std::max(1, int(std::lround(heat_width / (double(width) / std::max(1, height)))));
 	const league_safe_area::rect header{top_left.right, 0.0, top_right.left, std::max(top_right.bottom, 0.12)};

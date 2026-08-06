@@ -1,7 +1,11 @@
 #include "sources/dashboard/rendering/lol_visuals.hpp"
+#include "sources/dashboard/rendering/lol_key_labels.hpp"
+#include "sources/heatmap/lol_geometry.hpp"
+#include "sources/heatmap/lol_settings.hpp"
 
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QPolygonF>
 #include <algorithm>
@@ -13,10 +17,7 @@ namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
-constexpr int dashboard_padding = 20;
-constexpr int title_size = 22;
-constexpr int subtitle_size = 18;
-constexpr int text_size = 30;
+constexpr uint64_t live_key_fade_ns = 1500000000ULL;
 
 void ensure_dashboard_fonts_registered()
 {
@@ -33,44 +34,69 @@ void ensure_dashboard_fonts_registered()
 	Q_UNUSED(registered);
 }
 
-QFont display_font(int size, QFont::Weight weight = QFont::Normal)
+QFont dashboard_font(const lol_dashboard_font_style &style, QFont::Weight weight = QFont::Normal)
 {
-	return {"Science Gothic", size, weight};
+	QFont font(style.family, style.size, weight);
+	font.setVariableAxis(QFont::Tag("opsz"), style.optical_size);
+	font.setVariableAxis(QFont::Tag("wght"), style.weight);
+	if (style.family == "Science Gothic") {
+		font.setVariableAxis(QFont::Tag("wdth"), style.width);
+		font.setVariableAxis(QFont::Tag("slnt"), style.slant);
+	}
+	return font;
 }
 
-QFont data_font(int size, QFont::Weight weight = QFont::Normal)
+QString dashboard_text(const QString &text, const lol_dashboard_font_style &style)
 {
-	return {"Inter", size, weight};
+	return style.all_caps ? text.toUpper() : text;
 }
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
 				      const lol_dashboard_regions &regions, int rolling_window_seconds,
-				      const QRect &game_frame, const QRect &heatmap_bounds)
+				      const QRect &game_frame, const QRect &heatmap_bounds,
+				      const lol_dashboard_style &style)
 {
 	theme_ = theme;
 	regions_ = regions;
-	const bool hex_size_changed = heatmap_.radius != heatmap.radius;
-	heatmap_ = heatmap;
+	style_ = style;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
-	if (heatmap_bounds != heatmap_bounds_ || hex_size_changed)
-		resize_heatmap(heatmap_bounds);
+	const QRect content_bounds = lol_dashboard_heatmap_content_bounds(heatmap_bounds, game_frame_, style_);
+	lol_heatmap::migrate_legacy_radius(int(heatmap.radius), content_bounds.width());
+	const qreal radius = content_bounds.width() * lol_heatmap::radius_percent() / 100.0;
+	const bool hex_size_changed = heatmap_.radius != radius;
+	heatmap_ = heatmap;
+	heatmap_.radius = radius;
+	if (content_bounds != heatmap_bounds_ || hex_size_changed)
+		resize_heatmap(content_bounds);
 }
+
+QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
+					   const lol_dashboard_style &style)
+{
+	const int inset = style.section_padding + style.element_padding;
+	const QRect content = bounds.adjusted(inset, inset, -inset, -inset);
+	if (content.isEmpty() || game_frame.width() < 1 || game_frame.height() < 1)
+		return {};
+	const auto fitted = lol_dashboard_aspect_fit_left({content.x(), content.y(), content.width(), content.height()},
+							  double(game_frame.width()) / game_frame.height());
+	return {fitted.x(), fitted.y(), fitted.width(), fitted.height()};
+}
+
 void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
 {
 	heatmap_bounds_ = bounds;
 	hex_bins_.clear();
 	last_heat_point_.reset();
-	const qreal hex_radius = heatmap_.radius;
-	const qreal hex_width = std::sqrt(3.0) * hex_radius;
-	const int columns = std::max(1, int(std::ceil(bounds.width() / hex_width)) + 1);
-	const int rows = std::max(1, int(std::ceil(bounds.height() / (1.5 * hex_radius))) + 1);
-	for (int row = 0; row < rows; ++row) {
-		const qreal offset = row % 2 ? hex_width / 2.0 : 0.0;
-		for (int column = 0; column < columns; ++column)
-			hex_bins_.push_back({{bounds.left() + hex_width / 2 + offset + column * hex_width,
-					      bounds.top() + hex_radius + row * 1.5 * hex_radius}});
+	if (bounds.isEmpty())
+		return;
+	const lol_heatmap::grid grid{double(game_frame_.width()) / std::max(1, game_frame_.height()),
+				     100.0 * heatmap_.radius / bounds.width()};
+	for (const lol_heatmap::cell &cell : lol_heatmap::visible_cells(grid)) {
+		const QPointF canonical = lol_heatmap::center(grid, cell.column, cell.row);
+		hex_bins_.push_back({{bounds.left() + canonical.x() * bounds.width() / 100.0,
+				      bounds.top() + canonical.y() * bounds.width() / 100.0}});
 	}
 }
 void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &events,
@@ -85,15 +111,28 @@ void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &
 		const auto found = keyboard.find(it->code);
 		if (found != keyboard.end() && found->second) {
 			held_[it->code] = true;
+			it->fade_started = it->fade_until = 0;
 			++it;
-		} else if (it->fade_until && it->fade_until <= now) {
-			held_[it->code] = false;
-			it = active_keys_.erase(it);
 		} else {
-			++it;
+			held_[it->code] = false;
+			if (!it->fade_until) {
+				it->fade_started = now;
+				it->fade_until = now + live_key_fade_ns;
+			}
+			if (it->fade_until <= now)
+				it = active_keys_.erase(it);
+			else
+				++it;
 		}
 	}
 }
+
+void lol_dashboard_visuals::clear_live_keys()
+{
+	held_.clear();
+	active_keys_.clear();
+}
+
 void lol_dashboard_visuals::advance(uint64_t now)
 {
 	if (!bucket_start_)
@@ -115,13 +154,16 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 		active_keys_.erase(std::remove_if(active_keys_.begin(), active_keys_.end(),
 						  [&](const auto &key) { return key.code == event.code; }),
 				   active_keys_.end());
-		active_keys_.push_back({event.code, key_label(event.code), 0, ++press_counts_[event.code]});
+		active_keys_.push_back(
+			{event.code, lol_dashboard_key_label(event.code), 0, 0, ++press_counts_[event.code]});
 		++current_[1];
 	} else if (event.type == EVENT_KEY_RELEASED) {
 		held_[event.code] = false;
 		for (auto &key : active_keys_)
-			if (key.code == event.code)
-				key.fade_until = event.time_ns + 2000000000ULL;
+			if (key.code == event.code) {
+				key.fade_started = event.time_ns;
+				key.fade_until = event.time_ns + live_key_fade_ns;
+			}
 	} else if (event.type == EVENT_MOUSE_PRESSED) {
 		++current_[1];
 		++total_clicks_;
@@ -161,56 +203,6 @@ size_t lol_dashboard_visuals::nearest_hex(const QPointF &point) const
 		}
 	}
 	return result;
-}
-QString lol_dashboard_visuals::key_label(uint16_t code) const
-{
-	if (code >= VC_A && code <= VC_Z)
-		return QString(QChar('A' + code - VC_A));
-	if (code >= VC_0 && code <= VC_9)
-		return QString(QChar('0' + code - VC_0));
-	if (code >= VC_F1 && code <= VC_F12)
-		return QString("F%1").arg(code - VC_F1 + 1);
-	switch (code) {
-	case VC_SPACE:
-		return "␣";
-	case VC_SHIFT_L:
-	case VC_SHIFT_R:
-		return "⇧";
-	case VC_CONTROL_L:
-	case VC_CONTROL_R:
-		return "⌃";
-	case VC_ALT_L:
-	case VC_ALT_R:
-		return "⌥";
-	case VC_TAB:
-		return "⇥";
-	case VC_ENTER:
-		return "↵";
-	case VC_ESCAPE:
-		return "⎋";
-	case VC_MINUS:
-		return "-";
-	case VC_EQUALS:
-		return "=";
-	case VC_OPEN_BRACKET:
-		return "[";
-	case VC_CLOSE_BRACKET:
-		return "]";
-	case VC_SEMICOLON:
-		return ";";
-	case VC_QUOTE:
-		return "'";
-	case VC_COMMA:
-		return ",";
-	case VC_PERIOD:
-		return ".";
-	case VC_SLASH:
-		return "/";
-	case VC_BACK_QUOTE:
-		return "`";
-	default:
-		return "?";
-	}
 }
 QString lol_dashboard_visuals::distance_label() const
 {
@@ -261,38 +253,60 @@ void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds,
 {
 	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
-	painter.setFont(display_font(subtitle_size, QFont::Bold));
-	const int label_height = subtitle_size + 8;
-	const int value_height = text_size + 12;
-	const int group_gap = 10;
-	int top = bounds.top();
+	const QRect content = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+					      -style_.section_padding);
+	const int label_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
+	const int value_height = QFontMetrics(dashboard_font(style_.number_primary, QFont::Bold)).height() + 2;
+	int top = content.top() + style_.element_padding;
 	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
-					 obs_module_text("MouseActivity.Distance"));
-	top += label_height;
-	painter.setFont(data_font(text_size, QFont::Bold));
+	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+	lol_dashboard_draw_shadowed_text(
+		painter,
+		QRect(content.left() + style_.element_padding, top, content.width() - 2 * style_.element_padding,
+		      label_height),
+		alignment, dashboard_text(obs_module_text("MouseActivity.Distance"), style_.number_labels));
+	top += label_height + style_.label_spacing;
+	painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
-					 distance_label());
-	top += value_height + group_gap;
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(content.left() + style_.element_padding, top,
+					       content.width() - 2 * style_.element_padding, value_height),
+					 alignment, dashboard_text(distance_label(), style_.number_primary));
+	top += value_height + style_.element_y_gap;
 	painter.setPen(Qt::white);
-	painter.setFont(display_font(subtitle_size, QFont::Bold));
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), label_height), alignment,
-					 obs_module_text("MouseActivity.Clicks"));
-	top += label_height;
-	painter.setFont(data_font(text_size, QFont::Bold));
+	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(content.left() + style_.element_padding, top,
+					       content.width() - 2 * style_.element_padding, label_height),
+					 alignment,
+					 dashboard_text(obs_module_text("MouseActivity.Clicks"), style_.number_labels));
+	top += label_height + style_.label_spacing;
+	painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
 	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(painter, QRect(bounds.left(), top, bounds.width(), value_height), alignment,
-					 QString::number(total_clicks_));
+	lol_dashboard_draw_shadowed_text(painter,
+					 QRect(content.left() + style_.element_padding, top,
+					       content.width() - 2 * style_.element_padding, value_height),
+					 alignment,
+					 dashboard_text(QString::number(total_clicks_), style_.number_primary));
 }
 #include "sources/dashboard/rendering/lol_keys.inc"
 void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds) const
 {
-	constexpr int intensity_spacing = 60;
-	const int card_width = std::max(1, (bounds.width() - intensity_spacing) / 2);
+	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+					      -style_.section_padding);
+	const int intensity_padding = std::min(style_.intensity_padding, std::max(0, (section.width() - 2) / 3));
+	const int card_width = std::max(1, (section.width() - 3 * intensity_padding) / 2);
 	for (int metric = 0; metric < 2; ++metric) {
-		const QRect card(bounds.left() + metric * (card_width + intensity_spacing), bounds.top(), card_width,
-				 bounds.height());
+		const QRect card(section.left() + intensity_padding + metric * (card_width + intensity_padding),
+				 section.top(), card_width, section.height());
+		const QRect content = card.adjusted(style_.element_padding, style_.element_padding,
+						    -style_.element_padding, -style_.element_padding);
+		if (content.width() < 1 || content.height() < 1)
+			continue;
+		const int number_label_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
+		const int label_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
+		const int number_height = QFontMetrics(dashboard_font(style_.number_primary, QFont::Bold)).height() + 2;
+		const int text_gap = std::min(style_.within_element_gap, 4);
 		std::vector<double> values;
 		for (const auto &sample : session_samples_)
 			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
@@ -309,7 +323,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		};
 		const double q1 = values[(values.size() - 1) / 4], median = values[(values.size() - 1) / 2],
 			     q3 = values[(values.size() - 1) * 3 / 4];
-		const int y = card.top() + std::max(14, card.height() / 4);
+		const int y = content.top() + 8;
 		painter.setPen(Qt::white);
 		painter.drawLine(x(min), y, x(max), y);
 		painter.setBrush(theme_.inactive);
@@ -318,24 +332,28 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.setPen(QPen(theme_.active, 3));
 		painter.drawLine(x(current), y - 13, x(current), y + 13);
 		painter.setPen(Qt::white);
-		painter.setFont(data_font(subtitle_size));
-		lol_dashboard_draw_shadowed_text(painter,
-						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
-						 Qt::AlignLeft, QString::number(min, 'f', min < 10 ? 1 : 0));
-		lol_dashboard_draw_shadowed_text(painter,
-						 QRect(card.left() + 6, y + 14, card.width() - 12, subtitle_size),
-						 Qt::AlignRight, QString::number(max, 'f', max < 10 ? 1 : 0));
-		painter.setFont(display_font(title_size, QFont::Bold));
-		lol_dashboard_draw_shadowed_text(painter,
-						 QRect(card.left(), y + 14 + subtitle_size, card.width(), title_size),
-						 Qt::AlignHCenter,
-						 obs_module_text(metric ? "LoLPerformanceDashboard.APM"
-									: "LoLPerformanceDashboard.MouseVelocity"));
-		painter.setFont(data_font(text_size, QFont::Bold));
-		painter.setPen(theme_.active);
+		painter.setFont(dashboard_font(style_.numbers_secondary));
 		lol_dashboard_draw_shadowed_text(
-			painter, QRect(card.left(), y + 14 + subtitle_size + title_size, card.width(), text_size),
-			Qt::AlignHCenter, QString::number(current, 'f', current < 10 ? 1 : 0));
+			painter, QRect(content.left(), y + 14, content.width(), number_label_height), Qt::AlignLeft,
+			dashboard_text(QString::number(min, 'f', min < 10 ? 1 : 0), style_.numbers_secondary));
+		lol_dashboard_draw_shadowed_text(
+			painter, QRect(content.left(), y + 14, content.width(), number_label_height), Qt::AlignRight,
+			dashboard_text(QString::number(max, 'f', max < 10 ? 1 : 0), style_.numbers_secondary));
+		const int label_top = y + 14 + number_label_height + text_gap;
+		painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+		lol_dashboard_draw_shadowed_text(
+			painter, QRect(content.left(), label_top, content.width(), label_height), Qt::AlignHCenter,
+			dashboard_text(obs_module_text(metric ? "LoLPerformanceDashboard.APM"
+							      : "LoLPerformanceDashboard.MouseVelocity"),
+				       style_.number_labels));
+		painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
+		painter.setPen(theme_.active);
+		lol_dashboard_draw_shadowed_text(painter,
+						 QRect(content.left(), label_top + label_height + style_.label_spacing,
+						       content.width(), number_height),
+						 Qt::AlignHCenter,
+						 dashboard_text(QString::number(current, 'f', current < 10 ? 1 : 0),
+								style_.number_primary));
 	}
 }
 
@@ -349,7 +367,7 @@ void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const Q
 	if (regions_.intensity)
 		draw_intensity(painter, header);
 	if (regions_.mouse_activity)
-		draw_heatmap(painter, heatmap);
+		draw_heatmap(painter, lol_dashboard_heatmap_content_bounds(heatmap, game_frame_, style_));
 	painter.setClipping(false);
 	if (regions_.mouse_activity)
 		draw_summary(painter, summary, right_aligned);

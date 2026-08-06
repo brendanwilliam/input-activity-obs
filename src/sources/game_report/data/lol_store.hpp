@@ -13,7 +13,7 @@ public:
 	QVector<report> reports() const;
 	bool save(report value);
 	bool remove(const QString &id);
-	bool export_report(const report &value, const QString &directory, const QByteArray &png) const;
+	bool export_report(const report &value, const QString &directory) const;
 	QString directory() const;
 
 private:

@@ -3,6 +3,7 @@
 #include "sources/game_report/data/lol_diagnostics.hpp"
 #include "sources/game_report/data/lol_types.hpp"
 #include "sources/game_report/integration/lol_ddragon.hpp"
+#include "sources/game_report/presentation/lol_web_assets.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,7 +29,7 @@ int main()
 	input.hexbins = {{2, 3, 250}, {4, 5, 1000}};
 	assert(from_json(QJsonDocument(to_json(input)).object(), recovered));
 	assert(recovered.id == input.id && recovered.samples.size() == 2);
-	assert(recovered.schema_version == 3 && recovered.hex_geometry.radius_percent == 7);
+	assert(recovered.schema_version == 4 && recovered.hex_geometry.radius_percent == 7);
 	assert(recovered.hex_geometry.frame_aspect_ratio == 1.6 && recovered.hexbins.size() == 2 &&
 	       recovered.hexbins.last().dwell_ms == 1000);
 	assert(classify_event("TurretKilled") == "tower");
@@ -44,11 +45,22 @@ int main()
 	legacy["heatmap"] = QJsonArray{QJsonObject{{"x", 5}, {"y", 4}, {"count", 24}}};
 	legacy.remove("champion");
 	assert(from_json(legacy, recovered));
-	assert(recovered.schema_version == 3 && recovered.champion.isEmpty());
+	assert(recovered.schema_version == 4 && recovered.champion.isEmpty());
 	assert(recovered.hexbin_estimated && recovered.hexbins.size() == 1 && recovered.hexbins.first().dwell_ms == 24);
 	const hex_grid grid{1.6, 4};
+	assert(canonical_height(grid) == 62.5);
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).column == 3);
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).row == 2);
+	const auto cells = sources::lol_heatmap::visible_cells(grid);
+	assert(!cells.isEmpty() && cells.first().column == 0 && cells.first().row == 0);
+	const QByteArray &report_script = web_assets::script();
+	if (!report_script.contains("frame_aspect_ratio || 16 / 9))} / 1") ||
+	    !report_script.contains("Math.min(100, Math.max(.1, Number(report.hex_radius_percent || 4)))") ||
+	    !report_script.contains("const columns = Math.max(1, Math.ceil(width / hexWidth) + 1)") ||
+	    !report_script.contains("const rows = Math.max(1, Math.ceil(height / (1.5 * radius)) + 1)") ||
+	    !report_script.contains("const x = hexWidth * (column + offset)") ||
+	    !report_script.contains(", y = radius * (1 + 1.5 * row)"))
+		return 1;
 	(void)grid;
 	QJsonObject raw_event{{"EventName", "ChampionKill"},
 			      {"KillerName", "Self"},
@@ -111,6 +123,9 @@ int main()
 	assert(input_samples[1].mouse_distance_pixels == 400.0);
 	assert(input_samples[1].max_velocity_pixels_per_second == 400.0);
 	assert(hexbins.size() == 1 && hexbins.first().dwell_ms == dwell_gap_limit_ms);
+	if (hexbins.first().column != nearest_hex({2.0, 4.0}, {10.0, 10.0}).column ||
+	    hexbins.first().row != nearest_hex({2.0, 4.0}, {10.0, 10.0}).row)
+		return 1;
 	QJsonObject missing_image_metadata = ability_metadata;
 	data = missing_image_metadata.value("data").toObject();
 	champion = data.value("Ahri").toObject();
