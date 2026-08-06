@@ -1,7 +1,3 @@
 {
-  "private": true,
-  "scripts": {
-    "report:dev": "node scripts/league-report-dev.mjs",
-    "report:sync": "node scripts/league-report-dev.mjs --sync"
-  }
+  "private": true
 }

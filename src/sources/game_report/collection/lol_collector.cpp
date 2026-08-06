@@ -2,9 +2,6 @@
 
 #include "sources/game_report/collection/lol_input_telemetry.hpp"
 #include "sources/game_report/data/lol_diagnostics.hpp"
-#include "sources/game_report/data/lol_store.hpp"
-#include "sources/game_report/integration/lol_riot_api.hpp"
-#include "sources/game_report/presentation/lol_web.hpp"
 
 #include "hook/uiohook_helper.hpp"
 #include "input/input_broker.hpp"
@@ -72,7 +69,10 @@ public:
 		if (!active_)
 			pending_hex_radius_percent_ = std::clamp(radius_percent, 0.1, 100.0);
 	}
-	void set_auto_open(bool enabled) { auto_open_ = enabled; }
+	void set_submission_callback(std::function<void(const report &)> callback)
+	{
+		submission_callback_ = std::move(callback);
+	}
 	void set_development_logs(bool enabled)
 	{
 		diagnostics_.set_enabled(enabled);
@@ -80,8 +80,6 @@ public:
 	}
 	bool development_logs_enabled() const { return diagnostics_.enabled(); }
 	QString development_log_path() const { return diagnostics_.path(); }
-	void log_riot_diagnostic(QJsonObject fields) { diagnostics_.write("riot_enrichment", "request", fields); }
-	QString recap_url() { return web_.url(QString()); }
 	void set_game_frame(const QRect &frame)
 	{
 		if (!active_)
@@ -307,20 +305,13 @@ private:
 					    {"duration_seconds", report_.duration_seconds},
 					    {"sample_count", report_.samples.size()}});
 		report_.completed_at = QDateTime::currentDateTimeUtc();
-		report_.chapters = make_chapters(report_.samples, report_.events);
-		store().save(report_);
 		diagnostics_.write("collector", "report_finalized",
 				   {{"reason", reason},
 				    {"sample_count", report_.samples.size()},
 				    {"event_count", report_.events.size()},
 				    {"input_sample_count", report_.input_samples.size()}});
-		if (auto_open_)
-			web_.open(report_);
-		riot_.enrich_latest(report_, [this](report value, const QString &status) {
-			if (status.startsWith("Riot Match-v5 enrichment complete"))
-				store().save(std::move(value));
-			diagnostics_.write("riot_enrichment", "automatic_completed", {{"status", status}});
-		});
+		if (submission_callback_)
+			submission_callback_(report_);
 		active_ = false;
 		finalizing_ = false;
 		seen_.clear();
@@ -348,11 +339,9 @@ private:
 	double pending_hex_radius_percent_{default_hex_radius_percent};
 	QRect pending_game_frame_{0, 0, 1920, 1080};
 	input_telemetry telemetry_;
-	bool auto_open_{true};
 	int last_logged_game_seconds_{-1};
 	diagnostic_log diagnostics_;
-	web_server web_{this};
-	riot_api riot_{this};
+	std::function<void(const report &)> submission_callback_;
 };
 
 #include "sources/game_report/collection/lol_shared.inc"

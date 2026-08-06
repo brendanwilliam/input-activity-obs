@@ -59,20 +59,6 @@ cmake --install build_macos --config RelWithDebInfo
 
 The install step uses the template's default OBS plugin directory. To run formatting checks locally, use the repository formatter workflow tools or `clang-format` and `gersemi` compatible with the CI versions.
 
-## League Game Report web development
-
-Preview and refine the League Game Report without rebuilding or opening OBS:
-
-```sh
-npm run report:dev
-```
-
-Open <http://127.0.0.1:4173>. The local server uses
-[`web/league-game-report/mock-report.json`](web/league-game-report/mock-report.json) and reloads the page after
-saving a report HTML, CSS, or JavaScript file. Those web files are the canonical plugin assets: each save also
-updates the embedded C++ source. Run `npm run report:sync` if you need to synchronize them without starting the
-server.
-
 ## Contributing
 
 Changes flow from `feature/<title>`, `fix/<title>`, or `chore/<title>` branches into the protected `develop`

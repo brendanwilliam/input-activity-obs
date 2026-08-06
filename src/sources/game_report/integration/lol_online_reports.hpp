@@ -12,7 +12,7 @@ class online_reports final : public QObject {
 public:
 	explicit online_reports(QObject *parent = nullptr);
 	~online_reports() override;
-	void observe(const QVector<report> &reports);
+	void submit(const report &value);
 	void tick();
 	void set_service_url(const QString &value);
 	void begin_link();
