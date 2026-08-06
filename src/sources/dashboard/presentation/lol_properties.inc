@@ -92,6 +92,7 @@ bool add_camera_source(void *data, obs_source_t *source)
 
 void defaults(obs_data_t *settings)
 {
+	lol_report_manager::defaults(settings);
 	obs_data_set_default_bool(settings, "lol_dashboard.advanced_positioning", false);
 	obs_data_set_default_bool(settings, "lol_dashboard.always_visible", false);
 	obs_data_set_default_bool(settings, "lol_dashboard.reset_at_game_start", true);
@@ -153,6 +154,8 @@ void defaults(obs_data_t *settings)
 obs_properties_t *properties(void *data)
 {
 	auto *properties = obs_properties_create();
+	if (data)
+		static_cast<dashboard_source *>(data)->report_manager().add_properties(properties);
 	obs_properties_add_path(properties, path_key, obs_module_text("LeagueSafeArea.GameCfg"), OBS_PATH_FILE,
 				"game.cfg", nullptr);
 	obs_properties_add_button2(properties, "lol_dashboard.auto_detect",

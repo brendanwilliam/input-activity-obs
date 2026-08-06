@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- League Game Report collection and management now live in the LoL Performance Dashboard; the separate scene-rendering Game Report source has been removed, while saved reports remain available through the local browser recap and JSON export.
 - League Game Report hexbins now retain the shared HUD grid's full configured size range, keeping recorded cells aligned with the displayed game frame.
 - League Game Report heatmaps now preserve the configured game frame's aspect ratio and use the same full hex grid as the LoL Performance Dashboard.
 - LoL Performance Dashboard typography now separates primary metric values from secondary key and chart data, with independent font controls for each.

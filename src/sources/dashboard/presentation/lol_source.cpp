@@ -7,6 +7,7 @@
 #include "sources/dashboard/rendering/lol_camera_visibility.hpp"
 #include "sources/dashboard/rendering/lol_layout.hpp"
 #include "sources/dashboard/rendering/lol_visuals.hpp"
+#include "sources/game_report/presentation/lol_report_manager.hpp"
 #include "sources/heatmap/lol_settings.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
 #include <QDir>
@@ -29,7 +30,6 @@ namespace sources {
 namespace {
 constexpr const char *source_id = "input-activity-lol-performance-dashboard";
 constexpr const char *path_key = "lol_dashboard.game_cfg";
-
 QColor obs_color(uint32_t value)
 {
 	return {int(value & 0xff), int((value >> 8) & 0xff), int((value >> 16) & 0xff), int((value >> 24) & 0xff)};
@@ -49,7 +49,6 @@ lol_dashboard_font_style dashboard_font_style(obs_data_t *settings, const char *
 		std::clamp(int(obs_data_get_int(settings, (prefix + ".size").c_str())), 8, 100),
 		obs_data_get_bool(settings, (prefix + ".all_caps").c_str())};
 }
-
 class dashboard_source {
 public:
 	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source)
@@ -164,8 +163,8 @@ public:
 		reload();
 		if (layout_)
 			frame_ = {left, top, layout_->game.width, layout_->game.height};
+		report_.update(settings);
 	}
-
 	void tick(float seconds)
 	{
 		if (game_config_watcher_.changed(seconds))
@@ -179,6 +178,7 @@ public:
 							 game_is_frontmost);
 		if (!layout_)
 			return;
+		report_.tick(frame_, lol_heatmap::radius_percent());
 		const auto panels = panel_rectangles();
 		if (camera_mode_visible_ && panels.camera_visible)
 			camera_visibility_.fit_to_panel(panels.camera_mask.left(), panels.camera_mask.top(),
@@ -196,7 +196,6 @@ public:
 		input_broker::consume(target(), cursor_, discard_backlog_, events, keyboard, mouse);
 		visuals_.consume(events, keyboard, mouse);
 	}
-
 	void draw(gs_effect_t *effect)
 	{
 		if (!layout_ || (!game_visible_ && !camera_mode_visible_))
@@ -235,7 +234,6 @@ public:
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
 	}
-
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
 	uint32_t height() const { return layout_ ? uint32_t(layout_->game.height) : 1; }
 	obs_source_t *source() const { return source_; }
@@ -275,6 +273,7 @@ public:
 			obs_source_update(source_, settings);
 		obs_data_release(settings);
 	}
+	lol_report_manager &report_manager() { return report_; }
 
 private:
 	static QStringList game_config_candidates()
@@ -345,6 +344,7 @@ private:
 	lol_dashboard_camera_visibility camera_visibility_;
 	std::optional<league_safe_area::model> layout_;
 	lol_dashboard_visuals visuals_;
+	lol_report_manager report_;
 	uint64_t cursor_{};
 	bool discard_backlog_{};
 	gs_texture_t *texture_{};

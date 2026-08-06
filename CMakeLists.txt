@@ -101,9 +101,8 @@ target_sources(
     src/sources/game_report/integration/lol_ddragon.cpp
     src/sources/game_report/integration/lol_riot_api.hpp
     src/sources/game_report/integration/lol_riot_api.cpp
-    src/sources/game_report/presentation/lol_source.hpp
-    src/sources/game_report/presentation/lol_source.cpp
-    src/sources/game_report/presentation/lol_properties.inc
+    src/sources/game_report/presentation/lol_report_manager.hpp
+    src/sources/game_report/presentation/lol_report_manager.cpp
     src/sources/game_report/presentation/lol_web.hpp
     src/sources/game_report/presentation/lol_web.cpp
     src/sources/game_report/presentation/lol_web_assets.hpp
