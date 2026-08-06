@@ -1,17 +1,20 @@
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -43,13 +46,16 @@ public:
 	{
 		root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/league-game-reports";
 		QDir().mkpath(root);
+		device_poll_timer.setInterval(1000);
+		QObject::connect(&device_poll_timer, &QTimer::timeout, owner, [owner] { owner->poll_device_code(); });
 	}
 	online_reports *owner;
 	QNetworkAccessManager network;
 	QVector<pending_report> queue;
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
-	QDateTime next_device_poll;
+	QDateTime device_code_expires_at, next_device_poll;
+	QTimer device_poll_timer;
 	bool auth_required{};
 };
 
@@ -149,7 +155,6 @@ void online_reports::set_service_url(const QString &value)
 
 void online_reports::tick()
 {
-	poll_device_code();
 	if (!linked() || implementation_->auth_required || implementation_->queue.isEmpty())
 		return;
 	auto &entry = implementation_->queue.first();
@@ -189,18 +194,26 @@ void online_reports::begin_link()
 		return;
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/start")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-	auto *reply = implementation_->network.post(request, R"({"client_name":"Input Activity OBS"})");
+	auto *reply = implementation_->network.post(request, R"({"client_name":"Hands Check"})");
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
 		const auto value = QJsonDocument::fromJson(reply->readAll()).object();
 		implementation_->device_code = value["device_code"].toString();
-		const QUrl verification(value["verification_uri"].toString());
+		QUrl verification(value["verification_uri"].toString());
 		const QString code = value["user_code"].toString();
 		if (!implementation_->device_code.isEmpty() && verification.isValid() && !code.isEmpty()) {
 			implementation_->state =
 				QString("Approve online reports in your browser with code %1.").arg(code);
 			implementation_->next_device_poll =
 				QDateTime::currentDateTimeUtc().addSecs(value["interval"].toInt(5));
-			QDesktopServices::openUrl(verification);
+			implementation_->device_code_expires_at =
+				QDateTime::currentDateTimeUtc().addSecs(value["expires_in"].toInt(600));
+			implementation_->device_poll_timer.start();
+			QUrlQuery query(verification);
+			query.addQueryItem("code", code);
+			verification.setQuery(query);
+			QMetaObject::invokeMethod(
+				QCoreApplication::instance(),
+				[verification] { QDesktopServices::openUrl(verification); }, Qt::QueuedConnection);
 		} else {
 			implementation_->state = "Could not start online linking. Please try again.";
 		}
@@ -210,10 +223,18 @@ void online_reports::begin_link()
 
 void online_reports::poll_device_code()
 {
-	if (implementation_->device_code.isEmpty() ||
-	    implementation_->next_device_poll > QDateTime::currentDateTimeUtc())
+	if (implementation_->device_code.isEmpty())
 		return;
-	implementation_->next_device_poll = QDateTime::currentDateTimeUtc().addSecs(5);
+	const QDateTime now = QDateTime::currentDateTimeUtc();
+	if (implementation_->device_code_expires_at.isValid() && implementation_->device_code_expires_at <= now) {
+		implementation_->device_code.clear();
+		implementation_->device_poll_timer.stop();
+		implementation_->state = "Link request expired. Start linking again.";
+		return;
+	}
+	if (implementation_->next_device_poll > now)
+		return;
+	implementation_->next_device_poll = now.addSecs(5);
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/token")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	auto *reply = implementation_->network.post(
@@ -223,9 +244,19 @@ void online_reports::poll_device_code()
 		if (!token.isEmpty() && save_credential(token)) {
 			implementation_->token = token;
 			implementation_->device_code.clear();
+			implementation_->device_code_expires_at = {};
+			implementation_->device_poll_timer.stop();
 			implementation_->auth_required = false;
 			implementation_->state =
 				"Connected. New completed reports will upload privately to your profile.";
+			QMetaObject::invokeMethod(
+				QCoreApplication::instance(),
+				[] {
+					QMessageBox::information(
+						nullptr, "Hands Check",
+						"Hands Check is linked. Completed reports will upload privately to your profile.");
+				},
+				Qt::QueuedConnection);
 		}
 		reply->deleteLater();
 	});
@@ -236,6 +267,8 @@ void online_reports::unlink()
 	clear_credential();
 	implementation_->token.clear();
 	implementation_->device_code.clear();
+	implementation_->device_code_expires_at = {};
+	implementation_->device_poll_timer.stop();
 	implementation_->auth_required = false;
 	implementation_->state = "Unlinked. Queued reports are retained locally.";
 }
