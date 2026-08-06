@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Opt-in online League Game Report uploads with browser-based device linking, secure credential storage, and automatic offline retry.
 - A self-only local League Game Report OBS source with local report retention and PNG/JSON export.
 - Opt-in, session-only development logs for League Game Report diagnostics.
 - Local recap controls to save the rendered source JSON and load a Riot Match-v5 report by Game ID.

@@ -3,6 +3,7 @@
 #include "sources/game_report/collection/lol_collector.hpp"
 #include "sources/game_report/data/lol_store.hpp"
 #include "sources/game_report/integration/lol_riot_api.hpp"
+#include "sources/game_report/integration/lol_online_reports.hpp"
 
 #include <QProcess>
 #include <QStandardPaths>
@@ -50,6 +51,8 @@ public:
 		collector.set_auto_open(auto_open);
 		collector.set_development_logs(development_logs);
 		collector.tick(dpi, hex_radius_percent);
+		online.observe(store.reports());
+		online.tick();
 	}
 	std::optional<lol_game_report::report> selected_report() const
 	{
@@ -66,6 +69,7 @@ public:
 	lol_game_report::collector collector;
 	lol_game_report::store store;
 	lol_game_report::riot_api riot;
+	lol_game_report::online_reports online;
 	bool show_latest{true}, auto_open{true}, development_logs{};
 	int dpi{800};
 	QString selected, export_directory, riot_status{"Riot enrichment has not run."};
@@ -116,6 +120,21 @@ bool lol_report_manager::reveal_development_log() const
 {
 	const QString path = implementation_->collector.development_log_path();
 	return !path.isEmpty() && QProcess::startDetached("open", {"-R", path});
+}
+bool lol_report_manager::link_online_reports()
+{
+	implementation_->online.begin_link();
+	return true;
+}
+bool lol_report_manager::unlink_online_reports()
+{
+	implementation_->online.unlink();
+	return true;
+}
+bool lol_report_manager::retry_online_reports()
+{
+	implementation_->online.retry();
+	return true;
 }
 void lol_report_manager::defaults(obs_data *settings)
 {
@@ -190,6 +209,34 @@ void lol_report_manager::add_properties(obs_properties *properties)
 				OBS_TEXT_INFO);
 	obs_properties_add_group(props, "lol_dashboard.report.actions", obs_module_text("Preferences.Actions"),
 				 OBS_GROUP_NORMAL, actions);
+	auto *online = obs_properties_create();
+	obs_properties_add_text(online, "lol_dashboard.report.online_status",
+				QString("%1: %2")
+					.arg(obs_module_text("LoLGameReport.OnlineStatus"),
+					     implementation_->online.status())
+					.toUtf8()
+					.constData(),
+				OBS_TEXT_INFO);
+	obs_properties_add_button2(
+		online, "lol_dashboard.report.online_link", obs_module_text("LoLGameReport.OnlineLink"),
+		[](obs_properties_t *, obs_property_t *, void *data) {
+			return static_cast<lol_report_manager *>(data)->link_online_reports();
+		},
+		this);
+	obs_properties_add_button2(
+		online, "lol_dashboard.report.online_unlink", obs_module_text("LoLGameReport.OnlineUnlink"),
+		[](obs_properties_t *, obs_property_t *, void *data) {
+			return static_cast<lol_report_manager *>(data)->unlink_online_reports();
+		},
+		this);
+	obs_properties_add_button2(
+		online, "lol_dashboard.report.online_retry", obs_module_text("LoLGameReport.OnlineRetry"),
+		[](obs_properties_t *, obs_property_t *, void *data) {
+			return static_cast<lol_report_manager *>(data)->retry_online_reports();
+		},
+		this);
+	obs_properties_add_group(props, "lol_dashboard.report.online", obs_module_text("LoLGameReport.Online"),
+				 OBS_GROUP_NORMAL, online);
 	obs_property_set_modified_callback(latest, [](obs_properties_t *all, obs_property_t *, obs_data_t *settings) {
 		obs_property_set_visible(obs_properties_get(all, selected_key),
 					 !obs_data_get_bool(settings, latest_key));
