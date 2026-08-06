@@ -40,6 +40,10 @@ target_link_libraries(
 )
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/include)
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
+set(ONLINE_REPORTS_SERVICE_URL "https://handscheck.vercel.app" CACHE STRING
+    "Base URL for the Handscheck report service")
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")
 target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>

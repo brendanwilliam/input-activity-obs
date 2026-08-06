@@ -19,7 +19,10 @@ namespace sources::lol_game_report {
 namespace {
 constexpr auto service_name = "com.brendanwilliam.input-activity.online-reports";
 constexpr auto account_name = "reports:write";
-const QUrl service_url("https://reports.inputactivity.app");
+#ifndef ONLINE_REPORTS_SERVICE_URL
+#define ONLINE_REPORTS_SERVICE_URL "https://handscheck.vercel.app"
+#endif
+const QUrl service_url(ONLINE_REPORTS_SERVICE_URL);
 
 struct pending_report {
 	QJsonObject payload;
