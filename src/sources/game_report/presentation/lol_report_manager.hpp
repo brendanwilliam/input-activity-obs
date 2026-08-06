@@ -17,6 +17,9 @@ public:
 	bool delete_selected();
 	bool enrich_selected();
 	bool reveal_development_log() const;
+	bool link_online_reports();
+	bool unlink_online_reports();
+	bool retry_online_reports();
 	void add_properties(obs_properties *properties);
 	static void defaults(obs_data *settings);
 
