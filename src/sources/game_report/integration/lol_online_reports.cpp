@@ -5,6 +5,7 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMessageBox>
@@ -55,6 +56,7 @@ public:
 	online_reports *owner;
 	QNetworkAccessManager network;
 	QVector<pending_report> queue;
+	QHash<QString, QString> uploaded_payloads;
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
@@ -78,12 +80,19 @@ void online_reports::load_queue()
 	QFile file(implementation_->root + "/online-upload-queue.json");
 	if (!file.open(QIODevice::ReadOnly))
 		return;
-	const QJsonArray entries = QJsonDocument::fromJson(file.readAll()).object()["queue"].toArray();
+	const QJsonObject saved = QJsonDocument::fromJson(file.readAll()).object();
+	const QJsonArray entries = saved["queue"].toArray();
 	for (const auto entry : entries) {
 		const auto object = entry.toObject();
 		implementation_->queue.append({object["payload"].toObject(),
 					       QDateTime::fromString(object["retry_at"].toString(), Qt::ISODateWithMs),
 					       object["attempts"].toInt()});
+	}
+	for (const auto entry : saved["uploaded"].toArray()) {
+		const QJsonObject value = entry.toObject();
+		const QString id = value["id"].toString(), hash = value["payload_hash"].toString();
+		if (!id.isEmpty() && !hash.isEmpty())
+			implementation_->uploaded_payloads.insert(id, hash);
 	}
 }
 
@@ -94,9 +103,13 @@ void online_reports::save_queue() const
 		values.append(QJsonObject{{"payload", entry.payload},
 					  {"retry_at", entry.retry_at.toUTC().toString(Qt::ISODateWithMs)},
 					  {"attempts", entry.attempts}});
+	QJsonArray uploaded;
+	for (auto entry = implementation_->uploaded_payloads.cbegin();
+	     entry != implementation_->uploaded_payloads.cend(); ++entry)
+		uploaded.append(QJsonObject{{"id", entry.key()}, {"payload_hash", entry.value()}});
 	QSaveFile file(implementation_->root + "/online-upload-queue.json");
 	if (file.open(QIODevice::WriteOnly)) {
-		file.write(QJsonDocument(QJsonObject{{"schema_version", 1}, {"queue", values}})
+		file.write(QJsonDocument(QJsonObject{{"schema_version", 2}, {"queue", values}, {"uploaded", uploaded}})
 				   .toJson(QJsonDocument::Compact));
 		file.commit();
 	}
@@ -132,11 +145,14 @@ void online_reports::observe(const QVector<report> &reports)
 		return;
 	for (const auto &value : reports) {
 		const QJsonObject payload = to_json(value);
+		const QString hash = payload_hash(payload);
+		if (implementation_->uploaded_payloads.value(value.id) == hash)
+			continue;
 		bool found{};
 		for (auto &entry : implementation_->queue) {
 			if (entry.payload["id"] == value.id) {
 				found = true;
-				if (payload_hash(entry.payload) != payload_hash(payload)) {
+				if (payload_hash(entry.payload) != hash) {
 					entry.payload = payload;
 					entry.retry_at = QDateTime::currentDateTimeUtc();
 					entry.attempts = 0;
@@ -176,7 +192,9 @@ void online_reports::tick()
 		const int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
 		    code < 300) {
+			const QJsonObject uploaded = implementation_->queue.first().payload;
 			implementation_->queue.removeFirst();
+			implementation_->uploaded_payloads.insert(uploaded["id"].toString(), payload_hash(uploaded));
 			implementation_->state = implementation_->queue.isEmpty() ? "Connected. All reports uploaded."
 										  : "Connected. Uploading reports.";
 		} else if (code == 401 || code == 403) {
@@ -253,6 +271,10 @@ void online_reports::poll_device_code()
 			implementation_->device_code_expires_at = {};
 			implementation_->device_poll_timer.stop();
 			implementation_->auth_required = false;
+			// A relink can point this device at a different account. Re-observe
+			// saved reports once in that account, then persist their acknowledgements.
+			implementation_->uploaded_payloads.clear();
+			save_queue();
 			implementation_->state =
 				"Connected. New completed reports will upload privately to your profile.";
 			QMetaObject::invokeMethod(
