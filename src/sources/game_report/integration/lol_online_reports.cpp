@@ -22,7 +22,6 @@ constexpr auto account_name = "reports:write";
 #ifndef ONLINE_REPORTS_SERVICE_URL
 #define ONLINE_REPORTS_SERVICE_URL "https://handscheck.vercel.app"
 #endif
-const QUrl service_url(ONLINE_REPORTS_SERVICE_URL);
 
 struct pending_report {
 	QJsonObject payload;
@@ -49,6 +48,7 @@ public:
 	QNetworkAccessManager network;
 	QVector<pending_report> queue;
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
+	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime next_device_poll;
 	bool auth_required{};
 };
@@ -140,6 +140,13 @@ void online_reports::observe(const QVector<report> &reports)
 	save_queue();
 }
 
+void online_reports::set_service_url(const QString &value)
+{
+	QUrl candidate(value.trimmed());
+	if (candidate.isValid() && !candidate.scheme().isEmpty() && !candidate.host().isEmpty())
+		implementation_->service_url = candidate;
+}
+
 void online_reports::tick()
 {
 	poll_device_code();
@@ -148,7 +155,7 @@ void online_reports::tick()
 	auto &entry = implementation_->queue.first();
 	if (entry.retry_at > QDateTime::currentDateTimeUtc())
 		return;
-	QNetworkRequest request(service_url.resolved(QUrl("/api/reports")));
+	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/reports")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	request.setRawHeader("Authorization", "Bearer " + credential().toUtf8());
 	request.setRawHeader("Idempotency-Key", entry.payload["id"].toString().toUtf8());
@@ -180,7 +187,7 @@ void online_reports::begin_link()
 {
 	if (!implementation_->device_code.isEmpty())
 		return;
-	QNetworkRequest request(service_url.resolved(QUrl("/api/device/start")));
+	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/start")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	auto *reply = implementation_->network.post(request, R"({"client_name":"Input Activity OBS"})");
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
@@ -207,7 +214,7 @@ void online_reports::poll_device_code()
 	    implementation_->next_device_poll > QDateTime::currentDateTimeUtc())
 		return;
 	implementation_->next_device_poll = QDateTime::currentDateTimeUtc().addSecs(5);
-	QNetworkRequest request(service_url.resolved(QUrl("/api/device/token")));
+	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/token")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	auto *reply = implementation_->network.post(
 		request, QJsonDocument(QJsonObject{{"device_code", implementation_->device_code}}).toJson());

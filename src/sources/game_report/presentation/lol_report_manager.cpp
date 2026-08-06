@@ -18,6 +18,7 @@ constexpr const char *directory_key = "lol_dashboard.report.export_directory";
 constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *auto_open_key = "lol_dashboard.report.auto_open";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
+constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
 } // namespace
 
 class lol_report_manager::implementation {
@@ -39,6 +40,7 @@ public:
 		dpi = int(obs_data_get_int(settings, dpi_key));
 		auto_open = obs_data_get_bool(settings, auto_open_key);
 		development_logs = obs_data_get_bool(settings, development_logs_key);
+		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
 	}
 	void tick(const QRect &game_frame, double hex_radius_percent)
 	{
@@ -143,6 +145,7 @@ void lol_report_manager::defaults(obs_data *settings)
 	obs_data_set_default_int(value, dpi_key, 800);
 	obs_data_set_default_bool(value, auto_open_key, true);
 	obs_data_set_default_bool(value, development_logs_key, false);
+	obs_data_set_default_string(value, online_service_url_key, "http://127.0.0.1:3000");
 	obs_data_set_default_string(
 		value, directory_key,
 		QStandardPaths::writableLocation(QStandardPaths::PicturesLocation).toUtf8().constData());
@@ -165,6 +168,8 @@ void lol_report_manager::add_properties(obs_properties *properties)
 	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	obs_properties_add_bool(general, auto_open_key, obs_module_text("LoLGameReport.AutoOpen"));
 	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
+	obs_properties_add_text(general, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
+				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(general, "lol_dashboard.report.local_url",
 				QString("%1: %2")
 					.arg(obs_module_text("LoLGameReport.LocalURL"),
