@@ -54,7 +54,7 @@ QVector<cell> visible_cells(const grid &value)
 	const int columns = std::max(1, int(std::ceil(100.0 / (root_three * hex_radius))) + 1);
 	const int rows = std::max(1, int(std::ceil(canonical_height(value) / (1.5 * hex_radius))) + 1);
 	QVector<cell> result;
-	result.reserve(columns * rows);
+	result.reserve(qsizetype(columns) * qsizetype(rows));
 	for (int row = 0; row < rows; ++row)
 		for (int column = 0; column < columns; ++column)
 			result.append({column, row});
